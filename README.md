@@ -50,7 +50,9 @@ Rode no SQL Editor do projeto, nesta ordem:
 1. `supabase/gestorgov/20261106_gestorgov_inicial.sql`: schema `gestorgov`, papel `gestorgov_app`, pgvector,
    bucket privado `agentes`, cofre das chaves (Vault) e as tabelas do cadastro da prefeitura.
 2. `supabase/gestorgov/20261106_gestorgov_atividades.sql`: o catálogo de atividades por setor e as atividades de cada município.
-3. À mão: `alter role gestorgov_app with login password '<senha forte>';`
+3. `supabase/gestorgov/20261107_gestorgov_organograma.sql`: membros de cada prefeitura, o catálogo de cargos e indicadores
+   (organograma da Secretaria de Saúde) e o acompanhamento: cargos, metas, medições, entregas, pendências, status e alertas.
+4. À mão: `alter role gestorgov_app with login password '<senha forte>';`
 
 As demais tabelas (Agno, CompanyOS, Fábrica, Conhecimento, Calibração, usuários) o servidor cria ao subir, no schema `gestorgov`.
 

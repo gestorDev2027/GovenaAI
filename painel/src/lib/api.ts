@@ -127,7 +127,7 @@ export async function sair() {
   salvarChave("");
   window.google?.accounts.id.disableAutoSelect();
   await api("/logout", { method: "POST" }).catch(() => null);
-  window.location.reload();
+  window.location.assign("/painel/inicio");
 }
 
 /* ───────── Tipos das respostas ───────── */
@@ -160,6 +160,8 @@ export interface Usuario {
 
 export interface Acesso {
   requer_chave: boolean;
+  /** Cadastro e login com e-mail e senha ligados (o servidor tem a OS_SECURITY_KEY). */
+  aceita_senha?: boolean;
   google_client_id: string | null;
   /** false: com o Google ligado, pessoas entram só por ele (não mostrar o campo da chave). */
   aceita_chave?: boolean;

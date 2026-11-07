@@ -73,6 +73,13 @@ equipe).
 
 ## 3. O onboarding conversacional (a primeira experiência do cliente)
 
+Caminho de quem chega: **landing page** (`/painel/inicio`) → **Cadastrar prefeitura** (`/painel/cadastro`: nome, e-mail e
+senha) → **Implantação** (`/painel/implantacao`). Quem já tem conta usa **Entrar** (`/painel/entrar`: e-mail e senha, ou
+Google). A conta nasce pendente para o Painel (o dono aprova), mas já implanta a própria prefeitura: as rotas
+`/implantacao*` exigem só estar logado. Quem cadastra a prefeitura entra em `membros` como secretário, e o
+assistente dessa conversa só mexe no município dela (`conta_email` no estado da sessão). Cadastro e login
+precisam da `OS_SECURITY_KEY` (é ela que assina a sessão); sem ela, o painel fica aberto e sem login.
+
 O secretário de saúde implanta a prefeitura **conversando** com o Assistente de Implantação. A tela é dividida:
 chat à esquerda e, à direita, o quadro que se monta ao vivo — o mapa da cidade ganhando pinos, o prédio ganhando
 andares, os robôs sentando nas mesas. No fim, a câmera sai do prédio e mostra a cidade inteira funcionando.
@@ -172,12 +179,16 @@ Reservados para o futuro agente do cidadão (hoje desligados, sem variáveis): `
 - Schema `gestorgov`, papel `gestorgov_app` (só enxerga o próprio schema). RLS ligado nas tabelas do cadastro,
   com política só para o papel do servidor. O schema **não** é exposto na API REST do Supabase.
 - Migrations (`supabase/gestorgov/`, rodar em ordem): `..._inicial.sql` (schema, papel, pgvector, bucket
-  `agentes`, Vault, cadastro) e `..._atividades.sql` (catálogo e atividades).
+  `agentes`, Vault, cadastro), `..._atividades.sql` (catálogo e atividades) e `..._organograma.sql` (membros,
+  catálogo de 38 cargos e 125 indicadores do documento da Secretaria de Saúde Virtual, cargos, indicadores com meta,
+  medições, entregas, pendências, status e alertas). No SQLite local, os catálogos são carregados das migrations a cada início.
 - Tabelas do cadastro (migrations): `municipios`, `secretarias`, `setores`, `unidades`, `servidores`,
   `agentes_setor`, `atividades_setor`, `onboardings`, `auditoria` (só inserção), `tipos_setor`, `tipos_unidade`,
-  `modelos_atividade`. Tudo separado por `municipio_id` (multi-prefeitura).
+  `modelos_atividade`, e as do organograma: `membros`, `modelos_cargo`, `modelos_indicador`, `cargos`,
+  `indicadores_cargo`, `medicoes`, `entregas`, `pendencias`, `status_cargo`, `alertas_cargo`. Tudo separado por
+  `municipio_id` (multi-prefeitura).
 - Tabelas que o servidor cria ao subir: as do Agno (`agno_*`, CompanyOS) e as do painel (`fabrica_*`,
-  `conhecimento_*`, `avaliacoes_humanas`, `qualidade_supervisor`, `painel_usuarios`...). Não crie essas à mão.
+  `conhecimento_*`, `avaliacoes_humanas`, `qualidade_supervisor`, `painel_usuarios`, `painel_contas`...). Não crie essas à mão.
   `create_all` não altera tabela que já existe: coluna renomeada no código precisa de `alter table` à mão.
 - Sem `DATABASE_URL`: SQLite local em `dados/`, com o cadastro e os catálogos carregados das migrations.
 

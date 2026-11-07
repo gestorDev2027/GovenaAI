@@ -14,7 +14,14 @@ compartilhado, que alimenta Sessions, Memory e Evaluation.
 
 import os
 import secrets
+import sys
 from pathlib import Path
+
+# Console do Windows (cp1252): o AgentOS imprime emojis (ex.: o cadeado da OS_SECURITY_KEY) e o print derrubaria
+# o servidor. Com errors="replace", o caractere que o console não tem vira "?".
+for _saida in (sys.stdout, sys.stderr):
+    if hasattr(_saida, "reconfigure"):
+        _saida.reconfigure(errors="replace")
 
 from agno.os import AgentOS
 from agno.os.config import AuthorizationConfig

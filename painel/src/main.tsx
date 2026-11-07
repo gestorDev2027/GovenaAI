@@ -25,6 +25,10 @@ import { Observabilidade } from "@/pages/observabilidade";
 import { Central } from "@/pages/central";
 import { PainelGestao } from "@/pages/gestao";
 import { Cidade } from "@/pages/cidade";
+import { Inicio } from "@/pages/inicio";
+import { Entrar } from "@/pages/entrar";
+import { Cadastro } from "@/pages/cadastro";
+import { PaginaImplantacao } from "@/pages/implantacao";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -135,6 +139,11 @@ const router = createRouter({
       createRoute({ getParentRoute: () => protegido, path: "/central", component: Central }),
     ]),
     createRoute({ getParentRoute: () => raiz, path: "/gestao/$codigo", component: PainelGestao }),
+    // Páginas públicas: a landing page, entrar e cadastrar. A implantação exige conta (a própria página confere).
+    createRoute({ getParentRoute: () => raiz, path: "/inicio", component: Inicio }),
+    createRoute({ getParentRoute: () => raiz, path: "/entrar", component: Entrar }),
+    createRoute({ getParentRoute: () => raiz, path: "/cadastro", component: Cadastro }),
+    createRoute({ getParentRoute: () => raiz, path: "/implantacao", component: PaginaImplantacao }),
   ]),
   basepath: "/painel",
   defaultNotFoundComponent: () => <div className="p-6 text-sm text-muted-foreground">Página não encontrada.</div>,

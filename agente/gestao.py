@@ -1,5 +1,6 @@
 """O cadastro de cada prefeitura no GestorGov: município, secretaria, setores, unidades, servidores,
-atividades e a auditoria.
+atividades, o organograma (cargos, indicadores, entregas, pendências, status e alertas), os membros de
+cada prefeitura e a auditoria.
 
 As tabelas são criadas pelas migrations em supabase/gestorgov/ (não pelo servidor): aqui elas são só
 descritas, com as mesmas colunas, para o SQLAlchemy ler e gravar. Sem DATABASE_URL (teste local), o
@@ -20,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from sqlalchemy import (ARRAY, JSON, BigInteger, Boolean, Column, DateTime, ForeignKey, Integer, MetaData, Numeric, SmallInteger,
+from sqlalchemy import (ARRAY, JSON, BigInteger, Boolean, Column, Date, DateTime, ForeignKey, Integer, MetaData, Numeric, SmallInteger,
                         String, Table, Text, insert, select, update)
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.engine import Engine
@@ -113,7 +114,56 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
         Column("modelo_id", String(60)), Column("nome", Text, nullable=False), Column("descricao", Text, nullable=False),
         Column("tipo", Text, nullable=False), Column("frequencia", Text, default="sob_demanda"), Column("cron", Text),
         Column("entregavel", Text), Column("agente_id", Text), uid("aprovador_id"), Column("rotina_id", Text),
-        Column("ativa", Boolean, default=True), criado(), atualizado())
+        Column("ativa", Boolean, default=True), Column("cargo_id", tipo_id), criado(), atualizado())
+
+    # ── Organograma (migration 20261107_gestorgov_organograma.sql) ──
+    t["membros"] = Table("membros", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("email", Text, nullable=False),
+        Column("papel", Text, default="servidor"), Column("ativo", Boolean, default=True), criado(),
+        Column("criado_por", Text))
+    t["modelos_cargo"] = Table("modelos_cargo", m,
+        Column("id", Text, primary_key=True), Column("nome", Text, nullable=False), Column("nivel", Text, nullable=False),
+        Column("tipo_setor_id", Text), Column("superior_id", Text), Column("atribuicoes", Text, nullable=False),
+        Column("rotinas", JSON, default=list), Column("entregas", JSON, default=list), Column("padrao", Boolean, default=True),
+        Column("ordem", SmallInteger, default=0))
+    t["modelos_indicador"] = Table("modelos_indicador", m,
+        Column("id", Text, primary_key=True), Column("modelo_cargo_id", Text, nullable=False), Column("nome", Text, nullable=False),
+        Column("fonte", Text, nullable=False), Column("periodicidade", Text, nullable=False), Column("unidade", Text, nullable=False),
+        Column("sentido", Text, nullable=False), Column("ordem", SmallInteger, default=0))
+    t["cargos"] = Table("cargos", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("modelo_id", Text),
+        Column("nome", Text, nullable=False), Column("nivel", Text, nullable=False), uid("superior_id"), uid("setor_id"),
+        uid("unidade_id"), uid("responsavel_id"), Column("agente_id", Text), Column("atribuicoes", Text),
+        Column("ativo", Boolean, default=True), Column("ordem", SmallInteger, default=0), criado(), atualizado())
+    t["indicadores_cargo"] = Table("indicadores_cargo", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
+        Column("modelo_id", Text), Column("nome", Text, nullable=False), Column("fonte", Text, nullable=False),
+        Column("periodicidade", Text, nullable=False), Column("unidade", Text, nullable=False),
+        Column("sentido", Text, nullable=False), Column("meta", Numeric), Column("meta_definida_por", Text),
+        Column("ativo", Boolean, default=True), criado())
+    t["medicoes"] = Table("medicoes", m,
+        Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True),
+        uid("municipio_id", nullable=False), uid("indicador_id", nullable=False), Column("referencia", Date, nullable=False),
+        Column("valor", Numeric, nullable=False), Column("fonte", Text), Column("registrado_por", Text, nullable=False),
+        Column("registrado_em", DateTime(timezone=True), default=_agora))
+    t["entregas"] = Table("entregas", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
+        Column("titulo", Text, nullable=False), Column("descricao", Text), Column("prazo", DateTime(timezone=True)),
+        Column("situacao", Text, default="prevista"), Column("documento", Text), Column("produzida_por", Text),
+        Column("aprovada_por", Text), Column("aprovada_em", DateTime(timezone=True)), criado(), atualizado())
+    t["pendencias"] = Table("pendencias", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
+        Column("descricao", Text, nullable=False), Column("motivo", Text), Column("desde", DateTime(timezone=True), default=_agora),
+        Column("resolvida_em", DateTime(timezone=True)), Column("resolvida_por", Text))
+    t["status_cargo"] = Table("status_cargo", m,
+        uid("cargo_id", primary_key=True), uid("municipio_id", nullable=False), Column("situacao", Text, default="aguardando"),
+        Column("tarefa", Text), Column("atualizado_em", DateTime(timezone=True), default=_agora, onupdate=_agora),
+        Column("atualizado_por", Text))
+    t["alertas_cargo"] = Table("alertas_cargo", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
+        uid("destino_id"), Column("tipo", Text, nullable=False), Column("titulo", Text, nullable=False), Column("detalhe", Text),
+        Column("situacao", Text, default="aberto"), uid("escalado_de"), criado(),
+        Column("resolvido_em", DateTime(timezone=True)), Column("resolvido_por", Text))
     return t
 
 
@@ -121,12 +171,12 @@ PASTA_MIGRATIONS = Path(__file__).resolve().parent.parent / "supabase" / "gestor
 
 
 def comandos_de_catalogo() -> list[str]:
-    """Os INSERTs dos catálogos (tipos de setor, tipos de unidade, atividades) das migrations, em SQL que o
-    SQLite aceita. Assim o teste local tem as mesmas listas do Supabase, sem copiar os dados para o código."""
+    """Os INSERTs dos catálogos (tipos de setor e de unidade, atividades, cargos e indicadores) das migrations,
+    em SQL que o SQLite aceita. Assim o teste local tem as mesmas listas do Supabase, sem copiar os dados para o código."""
     comandos = []
     for arquivo in sorted(PASTA_MIGRATIONS.glob("*.sql")):
         texto = re.sub(r"--[^\n]*", "", arquivo.read_text(encoding="utf-8"))
-        for bloco in re.findall(r"insert into gestorgov\.(?:tipos_setor|tipos_unidade|modelos_atividade)\b.*?;\s*$",
+        for bloco in re.findall(r"insert into gestorgov\.(?:tipos_setor|tipos_unidade|modelos_atividade|modelos_cargo|modelos_indicador)\b.*?;\s*$",
                                 texto, flags=re.S | re.M):
             bloco = bloco.replace("gestorgov.", "")
             # text[] do Postgres ('{01,02}') vira JSON no SQLite ('["01","02"]').
@@ -136,14 +186,19 @@ def comandos_de_catalogo() -> list[str]:
 
 
 def iniciar(engine: Engine, schema: str | None) -> None:
-    """Descreve as tabelas. No Postgres elas vêm das migrations; no SQLite local, são criadas aqui, com os catálogos."""
+    """Descreve as tabelas. No Postgres elas vêm das migrations; no SQLite local, são criadas aqui, com os catálogos
+    (os INSERTs são upserts: rodam a cada início e trazem o catálogo novo de uma migration nova)."""
     tabelas = _tabelas(schema)
     if engine.dialect.name == "sqlite":
-        next(iter(tabelas.values())).metadata.create_all(engine)
+        metadata = next(iter(tabelas.values())).metadata
+        metadata.create_all(engine)
         with engine.begin() as c:
-            if not c.execute(select(tabelas["tipos_setor"].c.id).limit(1)).first():
-                for comando in comandos_de_catalogo():
-                    c.exec_driver_sql(comando)
+            # create_all não altera tabela que já existe: a coluna nova de uma migration entra aqui.
+            colunas = {linha[1] for linha in c.exec_driver_sql("pragma table_info(atividades_setor)")}
+            if "cargo_id" not in colunas:
+                c.exec_driver_sql("alter table atividades_setor add column cargo_id varchar(36)")
+            for comando in comandos_de_catalogo():
+                c.exec_driver_sql(comando)
     _estado.update(engine=engine, schema=schema, t=tabelas)
 
 
@@ -288,6 +343,38 @@ def municipios() -> list[dict]:
 
 def municipio(municipio_id: str) -> dict | None:
     return _uma(select(_t("municipios")).where(_t("municipios").c.id == municipio_id))
+
+
+def membros(municipio_id: str) -> list[dict]:
+    t = _t("membros")
+    return _linhas(select(t).where(t.c.municipio_id == municipio_id, t.c.ativo.is_(True)))
+
+
+def municipios_de(email: str) -> list[dict]:
+    """Os municípios em que a pessoa é membro, com o papel dela."""
+    tm, tb = _t("municipios"), _t("membros")
+    consulta = (select(tm, tb.c.papel).join(tb, tb.c.municipio_id == tm.c.id)
+                .where(tb.c.email == (email or "").strip().lower(), tb.c.ativo.is_(True)))
+    return _linhas(consulta)
+
+
+def adicionar_membro(municipio_id: str, email: str, papel: str, quem: str) -> None:
+    t = _t("membros")
+    email = email.strip().lower()
+    with _estado["engine"].begin() as c:
+        if c.execute(select(t.c.id).where(t.c.municipio_id == municipio_id, t.c.email == email)).first():
+            return
+        c.execute(insert(t).values(id=_id(), municipio_id=municipio_id, email=email, papel=papel, criado_por=quem))
+        auditar(c, municipio_id=municipio_id, origem="sistema", quem=quem, acao="adicionar_membro", entidade="membros",
+                depois={"email": email, "papel": papel})
+
+
+def modelos_cargo() -> list[dict]:
+    return _linhas(select(_t("modelos_cargo")).order_by(_t("modelos_cargo").c.ordem))
+
+
+def modelos_indicador() -> list[dict]:
+    return _linhas(select(_t("modelos_indicador")).order_by(_t("modelos_indicador").c.ordem))
 
 
 def municipio_padrao() -> str | None:

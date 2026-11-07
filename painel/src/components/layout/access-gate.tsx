@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Ban, Clock3, KeyRound, Loader2, LogOut } from "lucide-react";
+import { Link, Navigate } from "@tanstack/react-router";
+import { Ban, Clock3, KeyRound, Loader2, LogOut, Rocket } from "lucide-react";
 import { api, EVENTO_SEM_ACESSO, lerChave, sair, salvarChave, type Acesso, type Usuario } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/fields";
@@ -28,7 +29,7 @@ declare global {
 
 let carregandoGsi: Promise<Gsi> | null = null;
 
-function carregarGsi(): Promise<Gsi> {
+export function carregarGsi(): Promise<Gsi> {
   if (window.google) return Promise.resolve(window.google);
   carregandoGsi ??= new Promise((resolve, reject) => {
     const script = document.createElement("script");
@@ -149,9 +150,20 @@ export function AccessGate({ children }: { children: ReactNode }) {
   const usuario = acesso.data?.usuario;
   if (liberado && usuario?.situacao === "pendente")
     return (
-      <Aviso titulo="Seu acesso está aguardando aprovação" icone={<Clock3 className="size-5" />}>
-        O dono do painel precisa aprovar o seu e-mail ({usuario.email}) e definir o que você pode fazer. Assim que isso acontecer, recarregue a
-        página.
+      <Aviso
+        titulo="Seu acesso ao Painel está aguardando aprovação"
+        icone={<Clock3 className="size-5" />}
+        acao={
+          <Link
+            to="/implantacao"
+            className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Rocket className="size-4" /> Continuar a implantação
+          </Link>
+        }
+      >
+        O dono do painel precisa aprovar o seu e-mail ({usuario.email}). Enquanto isso, você já pode implantar a sua prefeitura com o
+        assistente.
       </Aviso>
     );
   if (liberado && usuario?.situacao === "bloqueado")
@@ -161,6 +173,8 @@ export function AccessGate({ children }: { children: ReactNode }) {
       </Aviso>
     );
   if (liberado) return <>{children}</>;
+  // Com cadastro e login por senha, quem não entrou vai para a landing page (Cadastrar ou Entrar).
+  if (acesso.data?.aceita_senha) return <Navigate to="/inicio" />;
 
   // Com aceita_chave false, o Google é o único caminho: nada de campo de chave.
   const aceitaChave = acesso.data?.aceita_chave !== false;
@@ -249,7 +263,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
 }
 
 /** Tela de aviso no lugar do painel (acesso pendente ou bloqueado), com o botão de sair. */
-function Aviso({ titulo, icone, children }: { titulo: string; icone: ReactNode; children: ReactNode }) {
+function Aviso({ titulo, icone, acao, children }: { titulo: string; icone: ReactNode; acao?: ReactNode; children: ReactNode }) {
   return (
     <div className="bi-shell grid min-h-dvh place-items-center p-6">
       <div className="aurora-bg bi-canvas" aria-hidden="true" />
@@ -262,6 +276,7 @@ function Aviso({ titulo, icone, children }: { titulo: string; icone: ReactNode; 
             <p className="mt-1 text-sm text-muted-foreground">{children}</p>
           </div>
         </div>
+        {acao}
         <Button variant="outline" className="w-full" onClick={() => sair()}>
           <LogOut /> Sair
         </Button>
