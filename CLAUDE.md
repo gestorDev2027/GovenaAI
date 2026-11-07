@@ -231,8 +231,11 @@ Dois níveis, separados:
   gerenciar cargos, gerenciar a equipe, ver a auditoria) e convida a equipe por link (`convites`, 7 dias, a pessoa
   cria a senha). O membro pode o que o cargo dele pode; o dono não pode ser bloqueado; ninguém altera o próprio acesso.
 - Toda rota da prefeitura usa o município de quem está logado: nunca um id vindo da tela.
-- Ainda falta: as telas herdadas (Conversas, Fábrica, Central) mostram dados de todas as prefeituras e por isso
-  ficam só para a plataforma. Separá-las por município é o próximo passo antes do primeiro piloto.
+- Separação por agente: cada agente da Fábrica guarda o município dono (`fabrica_agentes.municipio_id`); quem é de
+  uma prefeitura vê só os agentes dela (`escopo_painel` em painel_api.py): lista de agentes (`/agentes`), Chat,
+  Conversas, Central (Secretaria 3D) e indicadores. As conversas de servidor começam com `servidor-` e levam o
+  e-mail de quem conversou. Fábrica, Conhecimento, Calibração, Observabilidade e Usuários continuam só da
+  plataforma (a prefeitura ainda não cria nem edita os próprios agentes).
 
 ## 8. Segurança, LGPD e regras dos agentes
 

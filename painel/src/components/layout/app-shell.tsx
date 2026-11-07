@@ -71,6 +71,9 @@ const SECOES: Secao[] = [
     icone: Landmark,
     itens: [
       { to: "/cidade", rotulo: "Cidade", icone: MapPinned, naPrefeitura: "ver_painel" },
+      { to: "/central", rotulo: "Secretaria", icone: Building2, novaAba: true, naPrefeitura: "ver_painel" },
+      { to: "/chat", rotulo: "Chat com os agentes", icone: Bot, naPrefeitura: "ver_painel" },
+      { to: "/conversas", rotulo: "Conversas", icone: MessagesSquare, naPrefeitura: "ver_painel" },
       { to: "/cargos", rotulo: "Organograma e cargos", icone: Network, naPrefeitura: "ver_painel" },
       { to: "/equipe", rotulo: "Equipe e acessos", icone: UserCog, naPrefeitura: "gerenciar_equipe" },
       { to: "/implantacao", rotulo: "Implantação", icone: Rocket, naPrefeitura: "gerenciar_cargos" },

@@ -98,7 +98,7 @@ const rotas = [
     validateSearch: (s: Record<string, unknown>): { agente?: string } => ({
       agente: typeof s.agente === "string" ? s.agente : undefined,
     }),
-    component: () => <ExigePermissao permissao="usar_chat"><Chat /></ExigePermissao>,
+    component: () => <ExigePermissao permissao="usar_chat" ouNaPrefeitura="ver_painel"><Chat /></ExigePermissao>,
   }),
   createRoute({
     getParentRoute: () => painel,
