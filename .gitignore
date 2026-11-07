@@ -4,3 +4,5 @@ dados/
 __pycache__/
 node_modules/
 painel/dist/
+Claude outputs/
+*.zip
