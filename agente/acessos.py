@@ -117,8 +117,15 @@ def montar_organograma_padrao(municipio_id: str, quem: str) -> int:
     setor_do_tipo = {s["tipo_id"]: str(s["id"]) for s in gestao.setores(municipio_id) if s.get("tipo_id")}
     criados = 0
     with gestao._estado["engine"].begin() as c:
-        existentes = {r["modelo_id"]: str(r["id"]) for r in c.execute(
-            select(tc.c.id, tc.c.modelo_id).where(tc.c.municipio_id == municipio_id, tc.c.modelo_id.is_not(None))).mappings()}
+        antigos = c.execute(select(tc.c.id, tc.c.modelo_id, tc.c.setor_id).where(
+            tc.c.municipio_id == municipio_id, tc.c.modelo_id.is_not(None))).mappings().all()
+        existentes = {r["modelo_id"]: str(r["id"]) for r in antigos}
+        # Cargo montado antes de o setor existir: ganha a sala agora.
+        tipo_do_modelo = {m["id"]: m["tipo_setor_id"] for m in modelos}
+        for r in antigos:
+            setor = setor_do_tipo.get(tipo_do_modelo.get(r["modelo_id"]))
+            if not r["setor_id"] and setor:
+                c.execute(update(tc).where(tc.c.id == r["id"]).values(setor_id=setor))
         for m in modelos:  # o catálogo vem em ordem: o superior sempre antes
             if m["id"] in existentes:
                 continue

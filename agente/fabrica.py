@@ -171,6 +171,8 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         # Exclusão lógica: a linha fica (o id continua reservado e as conversas antigas, com o nome).
         Column("excluido_em", DateTime(timezone=True), nullable=True),
         Column("excluido_por", String(200), nullable=True),
+        # A prefeitura dona do agente (vazio = da plataforma: os modelos do código e os da equipe GestorGov).
+        Column("municipio_id", String(36), nullable=True),
     )
     instrucoes = Table(
         "fabrica_instrucoes", metadados,
@@ -184,7 +186,7 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         UniqueConstraint("agente", "versao", name="fabrica_instrucoes_agente_versao"),
     )
     metadados.create_all(engine, tables=[agentes, instrucoes])
-    _garantir_colunas(engine, agentes, ("excluido_em", "excluido_por"))
+    _garantir_colunas(engine, agentes, ("excluido_em", "excluido_por", "municipio_id"))
     fabrica_recursos.iniciar(engine, schema)  # skills, ferramentas do painel e casos de teste
     # Os perfis do código, antes de qualquer alteração (guardados uma vez: iniciar pode ser chamado de novo nos testes).
     codigo = _estado.get("codigo") or {i: p for i, p in perfis.PERFIS.items() if p.origem == "codigo"}
@@ -465,6 +467,27 @@ def usam(campo: str, recurso_id: str) -> list[str]:
     """Os agentes que usam uma skill (campo "skills") ou uma ferramenta do painel (campo "ferramentas")."""
     chave = "skills_ids" if campo == "skills" else "ferramentas_ids"
     return [p.id for p in perfis.PERFIS.values() if recurso_id in getattr(p, chave)]
+
+
+def definir_municipio(agente_id: str, municipio_id: str | None) -> None:
+    """Marca a prefeitura dona do agente (o agente precisa ter linha na tabela: criado, duplicado ou salvo)."""
+    with _estado["engine"].begin() as conexao:
+        conexao.execute(update(_estado["agentes"]).where(_estado["agentes"].c.id == agente_id)
+                        .values(municipio_id=municipio_id))
+
+
+def municipio_do_agente(agente_id: str | None) -> str | None:
+    if not agente_id or "engine" not in _estado:
+        return None
+    linha = _linha(agente_id)
+    return (linha or {}).get("municipio_id")
+
+
+def agentes_do_municipio(municipio_id: str) -> set[str]:
+    """Os agentes de uma prefeitura (não excluídos)."""
+    t = _estado["agentes"]
+    with _estado["engine"].connect() as conexao:
+        return {r[0] for r in conexao.execute(select(t.c.id).where(t.c.municipio_id == municipio_id, t.c.excluido_em.is_(None)))}
 
 
 def listar() -> list[dict]:

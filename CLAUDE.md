@@ -255,6 +255,15 @@ Dois níveis, separados:
 - Variáveis secretas: `GOOGLE_API_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
   `PAINEL_DONO`, `PAINEL_GOOGLE_CLIENT_ID`, `PAINEL_DOMINIOS` (opcional). `OS_SECURITY_KEY` é gerada pelo Render.
 
+### Demonstração (Itatiaia-RJ)
+
+Com `GESTORGOV_DEMO=itatiaia` (já no `render.yaml`), o servidor monta ao subir a Secretaria de Saúde de Itatiaia
+(agente/demo.py): as unidades do CNES, os 16 setores com as atividades, o organograma de 38 cargos, pessoas
+fictícias (@itatiaia.exemplo.gov.br, sem login) como responsáveis, um agente de IA por setor (`itatiaia-<setor>`,
+publicados, marcados com o município) e a implantação concluída. Com `GESTORGOV_COMPANYOS=sim`, as 20 atividades
+de rotina viram os fluxos do Agno (Routines do CompanyOS). Cada passo só acrescenta o que falta: pode subir de novo.
+O dono é `PAINEL_DONO`. Atenção ao custo: as rotinas chamam o Gemini nos horários delas (uma a cada hora).
+
 ### Supabase
 
 - Projeto na região **São Paulo** (dados de saúde no Brasil).

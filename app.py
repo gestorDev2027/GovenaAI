@@ -30,9 +30,9 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from agente import companyos, perfis
+from agente import companyos, demo, perfis
 from agente.equipes import EQUIPES
-from agente.agente import _modelo, criar_agentes
+from agente.agente import _modelo, criar_agentes, montar_agente
 from banco_api import criar_rotas_banco
 from calibracao_api import criar_rotas_calibracao
 from conhecimento_api import criar_rotas_conhecimento
@@ -53,6 +53,11 @@ os.environ["AGENTOS_TOKEN_INTERNO"] = TOKEN_INTERNO
 # Todos os agentes do ecossistema (agente/perfis/), no mesmo banco. O painel mostra o padrão.
 agentes = criar_agentes()
 agente = agentes[perfis.PADRAO]
+
+# Demonstração pronta (GESTORGOV_DEMO=itatiaia): a secretaria de Itatiaia-RJ montada, com os agentes de cada setor.
+# Os agentes criados agora entram no registro antes de o AgentOS e o CompanyOS serem montados.
+for _novo in demo.semear():
+    agentes[_novo] = montar_agente(perfis.PERFIS[_novo], agente.db)
 
 # Sem a telemetria por requisição do FastAPI: ela gravava um trace a cada chamada (a rotina de
 # inatividade, a cada minuto, era 98% dos traces) e herdava o `traceparent` de quem chama. Os traces

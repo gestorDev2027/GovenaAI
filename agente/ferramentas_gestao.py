@@ -51,7 +51,11 @@ def _municipio(run_context: RunContext | None) -> str | None:
     # Implantação de uma conta (tela de implantação): só o município dela, nunca o padrão do servidor.
     if estado.get("conta_email"):
         return estado.get("municipio_id")
-    return estado.get("municipio_id") or gestao.municipio_padrao()
+    if estado.get("municipio_id"):
+        return estado["municipio_id"]
+    from agente import fabrica
+
+    return fabrica.municipio_do_agente(getattr(run_context, "agent_id", None)) or gestao.municipio_padrao()
 
 
 def _sem_banco() -> str | None:

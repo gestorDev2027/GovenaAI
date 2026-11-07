@@ -50,6 +50,11 @@ services:
       # CompanyOS: as atividades de rotina dos setores viram Rotinas do Agno (agente/companyos.py).
       - key: GESTORGOV_COMPANYOS
         value: sim
+      # Demonstração pronta: a Secretaria de Saúde de Itatiaia-RJ montada ao subir (agente/demo.py): unidades do
+      # CNES, setores, atividades, organograma, pessoas fictícias, um agente por setor e os fluxos no Agno.
+      # O dono dela é o PAINEL_DONO. Tire a variável (ou deixe vazia) para um servidor sem demonstração.
+      - key: GESTORGOV_DEMO
+        value: itatiaia
       - key: INATIVIDADE_MINUTOS
         value: "480"
       - key: AVALIACOES_DIARIAS
