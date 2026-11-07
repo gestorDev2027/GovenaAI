@@ -1,8 +1,8 @@
 """Tarefas de manutenção rodadas pelo agendador do AgentOS (ver app.py e painel_api.py).
 
 - Avaliações diárias: o script testes/avaliacoes.py roda num PROCESSO SEPARADO. Ele troca as fontes
-  de dados por alunos fictícios dentro do próprio processo (cadastro simulado); dentro do servidor,
-  isso valeria para os alunos de verdade. Os resultados vão para o banco do agente (tela Evaluation).
+  de dados por contatos fictícios dentro do próprio processo (cadastro simulado); dentro do servidor,
+  isso valeria para os contatos de verdade. Os resultados vão para o banco do agente (tela Evaluation).
 - Limpeza: registros mínimos da Unnichat (contatos que o agente não atende) e ids de mensagens já
   respondidas, com mais de DIAS_RETENCAO dias; traces e execuções de rotinas, com mais de DIAS_TRACES.
 """

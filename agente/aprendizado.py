@@ -1,9 +1,9 @@
-"""O que o agente aprende com cada aluno: o Learning do Agno (perfil, memórias e resumo da sessão).
+"""O que o agente aprende com cada pessoa que conversa com ele: o Learning do Agno (perfil, memórias e resumo da sessão).
 
 AGENTE_APRENDIZADO escolhe o modo:
   memoria   (padrão) só as memórias automáticas (MemoryManager), como antes;
   learning  o Learning do Agno, que aparece na tela Learning do AgentOS (tabela agno_learnings):
-            - perfil do aluno: campos fixos (curso, e-mail da matrícula, aparelho, situação do acesso);
+            - perfil do servidor: campos fixos (setor, unidade, cargo, formato preferido das entregas);
             - memórias: os fatos soltos, no lugar do MemoryManager (os dois juntos gravariam em dobro);
             - resumo da sessão: o que está sendo resolvido nesta conversa, com o plano (objetivo e os passos
               já tentados e o resultado de cada um), para o agente não repetir uma orientação.
@@ -11,8 +11,8 @@ AGENTE_APRENDIZADO escolhe o modo:
             resposta: fica desligado. O porquê de cada resposta vem do resumo do raciocínio do modelo
             (AGENTE_PENSAMENTOS, agente/agente.py), mostrado no rastreamento da conversa no painel.
 
-O que é aprendido vale só para o próprio aluno (user_id). O "conhecimento aprendido" do Learning, que
-espalharia para todos o que se aprendeu com um aluno, fica desligado: o que vale para todos passa pela
+O que é aprendido vale só para a própria pessoa (user_id). O "conhecimento aprendido" do Learning, que
+espalharia para todos o que se aprendeu com uma pessoa, fica desligado: o que vale para todos passa pela
 curadoria (calibração) e pela base de conhecimento.
 
 No Agno, as extrações rodam durante a resposta, uma parte depois da outra, e a resposta espera por
@@ -34,11 +34,10 @@ from agno.utils.log import log_warning
 _fila = ThreadPoolExecutor(max_workers=2, thread_name_prefix="aprendizado")
 
 RESUMO_DA_SESSAO = """
-Escreva o resumo em português do Brasil: o que o aluno precisa, o que já foi orientado, o que resolveu
-e o que falta. No plano, o objetivo é o problema do aluno e cada passo é uma orientação já dada, com o
-resultado que o aluno contou (ex.: "desbloquear pop-up no Safari: não resolveu"). Nunca registre senha,
-CPF, dados de cartão, dados bancários ou informações de saúde, mesmo que o aluno tenha escrito; o e-mail
-da matrícula pode ficar.
+Escreva o resumo em português do Brasil: o que o servidor pediu, o que já foi produzido, o que ficou
+aprovado e o que falta. No plano, o objetivo é a entrega pedida e cada passo é o que já foi feito, com o
+resultado (ex.: "minuta do termo de referência: falta a quantidade por unidade"). Nunca registre senha,
+CPF, Cartão SUS, dados de pacientes ou dados bancários, mesmo que alguém tenha escrito.
 """.strip()
 
 MODOS = ("memoria", "learning")
@@ -50,15 +49,15 @@ def modo() -> str:
 
 
 @dataclass
-class PerfilDoAluno(UserProfile):
-    curso: Optional[str] = field(
-        default=None, metadata={"description": "Curso, pós-graduação ou produto que o aluno comprou ou cursa"})
-    email_matricula: Optional[str] = field(
-        default=None, metadata={"description": "E-mail da matrícula que o aluno informou ou que o cadastro confirmou"})
-    aparelho: Optional[str] = field(
-        default=None, metadata={"description": "Onde estuda: iPhone, Android, computador, navegador"})
-    situacao_acesso: Optional[str] = field(
-        default=None, metadata={"description": "Situação do acesso: ainda não acessou, acessou, ou o problema atual"})
+class PerfilDoServidor(UserProfile):
+    setor: Optional[str] = field(
+        default=None, metadata={"description": "Setor da Secretaria de Saúde em que o servidor trabalha"})
+    unidade: Optional[str] = field(
+        default=None, metadata={"description": "Unidade de saúde ou local de trabalho do servidor, se houver"})
+    cargo: Optional[str] = field(
+        default=None, metadata={"description": "Cargo ou função do servidor (ex.: coordenador, técnico, secretário)"})
+    formato_preferido: Optional[str] = field(
+        default=None, metadata={"description": "Como prefere receber as entregas: tamanho, formato, nível de detalhe"})
 
 
 class AprendizadoEmSegundoPlano(LearningMachine):
@@ -83,7 +82,7 @@ def maquina(modelo, instrucoes: str) -> LearningMachine:
     """Learning do agente; `instrucoes` diz o que guardar e o que nunca guardar (perfil do agente)."""
     return AprendizadoEmSegundoPlano(
         model=modelo,
-        user_profile=UserProfileConfig(mode=LearningMode.ALWAYS, schema=PerfilDoAluno, additional_instructions=instrucoes),
+        user_profile=UserProfileConfig(mode=LearningMode.ALWAYS, schema=PerfilDoServidor, additional_instructions=instrucoes),
         user_memory=UserMemoryConfig(mode=LearningMode.ALWAYS, additional_instructions=instrucoes),
         session_context=SessionContextConfig(enable_planning=True, additional_instructions=RESUMO_DA_SESSAO),
     )

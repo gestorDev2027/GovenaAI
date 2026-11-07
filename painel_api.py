@@ -38,11 +38,11 @@ from agente.ferramentas import STATUS_EM_ATENDIMENTO, STATUS_ENCERRADO, STATUS_T
 
 # Horário de Brasília (sem horário de verão desde 2019).
 FUSO_BR = timezone(timedelta(hours=-3))
-# Boas-vindas enviadas e nenhuma resposta do aluno no prazo da inatividade (só nos indicadores: a conversa
+# Boas-vindas enviadas e nenhuma resposta do contato no prazo da inatividade (só nos indicadores: a conversa
 # não tem sessão do agente).
 STATUS_SEM_RESPOSTA = "sem_resposta"
 DIAS_SO_BOAS_VINDAS = 30  # na lista de Conversas, as só de boas-vindas desses últimos dias
-# A Unnichat pôs o aluno com o agente e o aviso de entrada não chegou ao servidor (agente/conferencia.py).
+# A Unnichat pôs o contato com o agente e o aviso de entrada não chegou ao servidor (agente/conferencia.py).
 STATUS_NAO_CHEGOU = "nao_chegou"
 PREFIXO_NAO_CHEGOU = "nao-chegou-"
 
@@ -167,7 +167,7 @@ def exigir_chave(
 
 # Link da gestão: a Visão geral só de leitura, sem login, para mandar à gestão de CS. Liga com PAINEL_LINK_GESTAO
 # (um código aleatório longo); o link é /painel/gestao/<código>. Trocar o código derruba o link antigo. As rotas
-# devolvem só números agregados: sem nome, telefone, id de conversa ou texto escrito pelo agente ou pelo aluno.
+# devolvem só números agregados: sem nome, telefone, id de conversa ou texto escrito pelo agente ou pelo contato.
 TAMANHO_MINIMO_CODIGO_GESTAO = 24
 
 
@@ -182,16 +182,13 @@ def conferir_link_gestao(codigo: str) -> None:
 # Mudou lá, mude aqui.
 TEMAS_TRANSFERENCIA: list[tuple[str, re.Pattern]] = [
     (tema, re.compile(padrao, re.IGNORECASE)) for tema, padrao in (
-        ("brinde", r"apostila|livro f[ií]sico|brinde|material f[ií]sico|500 primeiros|sorteio"),
-        ("video", r"iphone|tela (preta|em branco|branca)|v[ií]deo ?aula"),
-        ("termos", r"termo|zapsign"),
-        ("bloqueado", r"cadeado|trancad|bloquead|liberar|libera[çc][ãa]o"),
-        ("email", r"e-?mail"),
-        ("compra", r"pre[çc]o|valor|condi[çc]|desconto|adquirir|comprar|interesse"),
-        ("pagamento", r"pagamento|cart[ãa]o|boleto|comprovante|cobran"),
-        ("cancelamento", r"cancel|estorno|reembolso"),
-        ("atendente", r"atendente|humano|suporte humano"),
-        ("ementa", r"ementa|matriz|projeto pedag"),
+        ("pessoa", r"atendente|humano|falar com (uma )?pessoa|falar com (o|a) (respons|coorden|secret)"),
+        ("sistema", r"erro|falha|n[ãa]o abre|n[ãa]o carrega|travou|fora do ar"),
+        ("outro_setor", r"outro setor|de outro setor|n[ãa]o [ée] (do|deste) setor|jur[ií]dico|recursos humanos|\bRH\b|tesouraria|contabilidade"),
+        ("norma", r"\blei\b|portaria|norma|decreto|resolu[çc][ãa]o|legisla"),
+        ("cadastro", r"cadastr|unidade|cnes|setor n[ãa]o|sem respons[áa]vel"),
+        ("dados", r"planilha|dados|n[úu]mero|quantidade|saldo|relat[óo]rio|indicador"),
+        ("aprovacao", r"aprova|decis|autoriz|assinatura|respons[áa]vel"),
     )
 ]
 
@@ -201,7 +198,7 @@ def tema_da_transferencia(motivo: str | None) -> str:
 
 
 def so_agregados(dados: dict) -> dict:
-    """Os indicadores sem nada que identifique aluno ou conversa (lista de chaves permitidas, não de proibidas)."""
+    """Os indicadores sem nada que identifique contato ou conversa (lista de chaves permitidas, não de proibidas)."""
     return {
         **{chave: dados.get(chave) for chave in ("periodo", "fonte", "totais", "anterior", "qualidade", "serie",
                                                  "categorias", "origens", "por_hora", "agora")},
@@ -305,7 +302,7 @@ def _resumo(sessao) -> dict:
         "agente": getattr(sessao, "agent_id", None) or perfis.PADRAO,  # com quem é a conversa
         "area": perfis.identidade(getattr(sessao, "agent_id", None))["area"],
         "origem": _origem(sessao.session_id),
-        "nome": estado.get("nome_aluno") or "",
+        "nome": estado.get("nome_contato") or "",
         "status": estado.get("status", STATUS_EM_ATENDIMENTO),
         "fim": (fim or {}).get("tipo"),
         "criada_em": _iso(sessao.created_at),
@@ -362,7 +359,7 @@ def _sessao(db, session_id: str):
     return equipes.conversa(db, session_id) or db.get_session(session_id=session_id, session_type=SessionType.AGENT)
 
 
-# Anexos do chat de teste: o que um aluno manda no WhatsApp (print, PDF, áudio).
+# Anexos do chat de teste: o que um contato manda no WhatsApp (print, PDF, áudio).
 TIPOS_ANEXO = ("image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf",
                "audio/ogg", "audio/mpeg", "audio/mp4", "audio/wav", "audio/webm", "audio/aac")
 MAX_ANEXOS = 4
@@ -547,7 +544,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
     def _medir(sessoes: list, sem_sessao: list) -> dict:
         """Os números de um período: as conversas com sessão do agente e as só de boas-vindas.
 
-        Terminadas = transferidas + retidas. Retidas (sem passar para a equipe): o agente encerrou, o aluno
+        Terminadas = transferidas + retidas. Retidas (sem passar para a equipe): o agente encerrou, o contato
         parou de responder no meio, ou não respondeu às boas-vindas no prazo da inatividade. As em andamento
         ficam fora das taxas até terminar."""
         resumos = [_resumo(s) for s in sessoes]
@@ -565,7 +562,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         com_lacuna = sum(
             1 for sessao in sessoes for run in (sessao.runs or [])
             if {"sem_informacao", "aula_nao_encontrada"} & set(lacunas.sinais(run)[0]))
-        # Duração das que terminaram com o aluno conversando: do início à última mensagem.
+        # Duração das que terminaram com o contato conversando: do início à última mensagem.
         duracoes_conversa = sorted(
             (_ultima_atividade(sessao) - sessao.created_at) / 60 for sessao, r in zip(sessoes, resumos)
             if r["status"] != STATUS_EM_ATENDIMENTO and sessao.created_at and _ultima_atividade(sessao))
@@ -604,7 +601,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             "custo_reais": round(custo, 2) if custo is not None else None,
             "custo_por_conversa": round(custo / len(resumos), 4) if custo is not None and resumos else None,
             "custo_por_retida": round(custo / total_retidas, 4) if custo is not None and total_retidas else None,
-            # Em andamento, separado: boas-vindas ainda no prazo (o aluno não escreveu) e conversas abertas.
+            # Em andamento, separado: boas-vindas ainda no prazo (o contato não escreveu) e conversas abertas.
             "aguardando_boas_vindas": sum(r["status"] == STATUS_EM_ATENDIMENTO for r in sem_sessao),
             "abertas": sum(r["status"] == STATUS_EM_ATENDIMENTO for r in resumos),
             "tempo_resposta_p90_s": (
@@ -664,8 +661,8 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
 
     def _das_views(escolhidos: list[Agent], inicio: datetime, inicio_anterior: datetime) -> dict | None:
         """Os números da Visão geral lidos das views do banco (agente_metricas.vw_atendimentos e
-        vw_ferramentas_conversa, migration supabase/nexa-db/20261105_agente_metricas.sql): a mesma régua que o
-        BI e o Data Gateway leem. None quando não dá para ler (SQLite local, migration ainda não aplicada ou
+        vw_ferramentas_conversa, views de métricas do projeto base, que o GestorGov ainda não tem): a mesma régua que o
+        BI lê. None quando não dá para ler (SQLite local, migration ainda não aplicada ou
         sem permissão): quem chama fica com o cálculo do servidor."""
         from sqlalchemy import text
 
@@ -796,7 +793,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
     def _agora(escolhidos: list[Agent]) -> dict:
         """A situação neste momento, com a MESMA régua da barra da Central ao vivo (pages/central.tsx):
         atendendo agora = conversa aberta com mensagem nos últimos 15 min (quem está na mesa do escritório);
-        o resto do que está aberto é espera pelo aluno: conversas abertas paradas (e as que passaram do prazo
+        o resto do que está aberto é espera pelo contato: conversas abertas paradas (e as que passaram do prazo
         de inatividade, que a rotina já deveria ter encerrado) e boas-vindas ainda sem resposta."""
         agora = time.time()
         abertas = [s for s in _sessoes_de(escolhidos, limite=2000)
@@ -910,10 +907,10 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             dias_serie.append({"dia": dia, **serie.get(dia, vazio)})
 
         categorias = Counter(r["categoria"] or "outro" for r in resumos if r["status"] == STATUS_TRANSFERIDO)
-        # Hora (Brasília) em que o aluno abriu a conversa com o agente (criada_em já vem no fuso de Brasília).
+        # Hora (Brasília) em que o contato abriu a conversa com o agente (criada_em já vem no fuso de Brasília).
         por_hora = Counter(int(r["criada_em"][11:13]) for r in resumos if r["criada_em"])
-        # Com a migration de agente_metricas aplicada, a régua vem das views do banco (a mesma do BI e do
-        # Data Gateway); sem ela, fica o cálculo acima. O que as views não cobrem (lacunas, custo, duração da
+        # Com a migration de agente_metricas aplicada, a régua vem das views do banco (a mesma do BI);
+        # sem ela, fica o cálculo acima. O que as views não cobrem (lacunas, custo, duração da
         # conversa) segue do cálculo do servidor.
         das_views = _das_views(escolhidos, inicio, inicio_anterior)
         fonte = "servidor"
@@ -928,7 +925,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             "fonte": fonte,
             "totais": {
                 **atual,
-                # Fora do total: o agente nem soube do aluno (o aviso de entrada da Unnichat não chegou).
+                # Fora do total: o agente nem soube do contato (o aviso de entrada da Unnichat não chegou).
                 "nao_chegaram": len(_nao_chegaram(escolhidos, inicio)),
                 "custo_configurado": atual["custo_reais"] is not None,
             },
@@ -957,31 +954,31 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         desde: int | None = Query(default=None, ge=0, description="Início do período (epoch, s). Sem ele, as últimas `horas`."),
         ate: int | None = Query(default=None, ge=0, description="Fim do período (epoch, s), com `desde`."),
     ) -> dict:
-        """Quando os alunos conversam, hora a hora (Brasília), no mesmo período da Central (`horas`, ou
-        `desde`/`ate`). Conta alunos de verdade: quem mandou ao menos uma mensagem ao agente no período (pelo
-        contato, então o aluno com duas conversas conta uma vez). Em cada hora, os alunos diferentes que
-        escreveram nela; `total_alunos` é o número de alunos diferentes no período inteiro (não a soma das
-        horas, porque o mesmo aluno pode escrever em várias). Conversas de teste (painel-*) ficam de fora."""
+        """Quando os contatos conversam, hora a hora (Brasília), no mesmo período da Central (`horas`, ou
+        `desde`/`ate`). Conta contatos de verdade: quem mandou ao menos uma mensagem ao agente no período (pelo
+        contato, então o contato com duas conversas conta uma vez). Em cada hora, os contatos diferentes que
+        escreveram nela; `total_contatos` é o número de contatos diferentes no período inteiro (não a soma das
+        horas, porque o mesmo contato pode escrever em várias). Conversas de teste (painel-*) ficam de fora."""
         inicio, fim = _periodo_central(horas, desde, ate)
         sessoes = [s for s in _sessoes_de(_escolhidos(None, None), inicio, LIMITE_CENTRAL * 4, fim, por_atividade=True)
                    if not s.session_id.startswith("painel-")]
-        por_hora_alunos: dict[int, set] = {h: set() for h in range(24)}
+        por_hora_contatos: dict[int, set] = {h: set() for h in range(24)}
         mensagens: Counter = Counter()
         todos: set = set()
         for sessao in sessoes:
-            aluno = sessao.user_id or sessao.session_id
+            contato = sessao.user_id or sessao.session_id
             for run in sessao.runs or []:
                 if _no_periodo(run.created_at, inicio, fim):
                     hora = datetime.fromtimestamp(run.created_at, tz=FUSO_BR).hour
-                    por_hora_alunos[hora].add(aluno)
+                    por_hora_contatos[hora].add(contato)
                     mensagens[hora] += 1
-                    todos.add(aluno)
+                    todos.add(contato)
         return {
             "desde": inicio,
             "ate": fim,
-            "total_alunos": len(todos),
+            "total_contatos": len(todos),
             "total_mensagens": sum(mensagens.values()),
-            "alunos": [len(por_hora_alunos[h]) for h in range(24)],
+            "contatos": [len(por_hora_contatos[h]) for h in range(24)],
             "mensagens": [mensagens.get(h, 0) for h in range(24)],
         }
 
@@ -1022,7 +1019,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         desde: int | None = Query(default=None, ge=0),
         ate: int | None = Query(default=None, ge=0),
     ) -> dict:
-        """Quando os alunos conversam, no link da gestão: só contagens por hora."""
+        """Quando os contatos conversam, no link da gestão: só contagens por hora."""
         conferir_link_gestao(codigo)
         # O período "até agora" anda com o relógio: a chave usa o minuto, para a cache não congelar o número.
         chave = f"por-hora:{horas}:{desde}:{ate}:{int(time.time() // 60) if desde is None else ''}"
@@ -1030,11 +1027,11 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
 
     def _so_boas_vindas(escolhidos: list[Agent] | None, inicio: datetime | None = None,
                         session_id: str | None = None) -> list[dict]:
-        """Conversas da Unnichat em que o aluno recebeu as boas-vindas e nunca respondeu (desde `inicio`, ou só
+        """Conversas da Unnichat em que o contato recebeu as boas-vindas e nunca respondeu (desde `inicio`, ou só
         a de `session_id`): não têm sessão do agente (ela nasce na primeira resposta), então ficam fora de
         _sessoes_de. Passado o prazo de inatividade do agente, contam como sem resposta; antes, como em
         atendimento. Uma por contato (unnichat_conversas guarda a conversa vigente de cada um). No formato de
-        _resumo, com so_boas_vindas e, para a ficha do aluno, contato_id e telefone."""
+        _resumo, com so_boas_vindas e, para a ficha do contato, contato_id e telefone."""
         from sqlalchemy import MetaData, Table, exists, inspect
 
         from agente.agente import schema_banco
@@ -1104,7 +1101,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         # Sem filtro, as conversas de todos os agentes; ?area= ou ?agente= filtram no servidor (antes do limite).
         escolhidos = _escolhidos(agente_id, area)
         resumos = [_resumo(s) for s in _sessoes_de(escolhidos, limite=limite)]
-        # E as só de boas-vindas (o aluno ainda não respondeu) dos últimos dias, sem o contato e o telefone.
+        # E as só de boas-vindas (o contato ainda não respondeu) dos últimos dias, sem o contato e o telefone.
         # E quem entrou com o agente na Unnichat e o aviso não chegou ao servidor (agente/conferencia.py).
         recentes = datetime.now(FUSO_BR) - timedelta(days=DIAS_SO_BOAS_VINDAS)
         resumos += [{k: v for k, v in r.items() if k not in ("contato_id", "telefone")}
@@ -1129,14 +1126,14 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         sessao = _sessao(agente.db, session_id)
         if sessao is None:
             # Só as boas-vindas, ou o aviso de entrada nem chegou: o que houve está na conversa do WhatsApp
-            # (ficha do aluno).
+            # (ficha do contato).
             resumo = {k: v for k, v in _sem_sessao(session_id).items() if k != "contato_id"}
             return {**resumo, "itens": [], "acoes": []}
         estado = (sessao.session_data or {}).get("session_state") or {}
         itens = []
         for run in sessao.runs or []:
             quando = _iso(run.created_at)
-            itens.append({"papel": "aluno", "texto": _texto_entrada(run), "quando": quando,
+            itens.append({"papel": "contato", "texto": _texto_entrada(run), "quando": quando,
                           "anexos": _anexos_da_mensagem(run)})
             itens.append({
                 "papel": "agente",
@@ -1166,10 +1163,10 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             raise HTTPException(status_code=404, detail="Conversa não encontrada.")
         return rastreamento.conversa(sessao, agente.db.db_engine, schema_banco())
 
-    @rotas.get("/conversas/{session_id}/aluno", dependencies=protegido)
-    def ficha_do_aluno(session_id: str, atualizar: bool = Query(default=False)) -> dict:
-        """O que o Unnichat (contato, tags, negócios, atendente, conversa inteira) e o cadastro (compras,
-        cursos) sabem do aluno da conversa: a coluna da direita em Conversas. Só leitura."""
+    @rotas.get("/conversas/{session_id}/ficha", dependencies=protegido)
+    def ficha_do_contato(session_id: str, atualizar: bool = Query(default=False)) -> dict:
+        """O que o Unnichat (contato, tags, negócios, atendente, conversa inteira) sabe do contato da conversa:
+        a coluna da direita em Conversas. Só leitura."""
         sessao = _sessao(agente.db, session_id)
         if sessao is None:
             sem = _sem_sessao(session_id)
@@ -1178,7 +1175,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         return ficha.montar(estado.get("unnichat_contato"), estado.get("telefone"), atualizar)
 
     async def _pedido_chat(
-        mensagem: str, session_id: str | None, nome_aluno: str, telefone: str, arquivos: list[UploadFile],
+        mensagem: str, session_id: str | None, nome_contato: str, telefone: str, arquivos: list[UploadFile],
         agente_id: str = "",
     ) -> tuple:
         """Valida a mensagem do chat de teste e devolve os argumentos de `responder`. `agente_id`: com quem
@@ -1206,12 +1203,12 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         if not texto and not anexos:
             raise HTTPException(status_code=422, detail="Escreva uma mensagem ou anexe um arquivo.")
         # Só arquivo, como acontece no WhatsApp: o agente recebe uma frase neutra junto.
-        texto = texto or "(o aluno enviou o anexo sem texto)"
+        texto = texto or "(o contato enviou o anexo sem texto)"
 
         session_id = session_id or f"painel-{uuid.uuid4().hex[:12]}"
-        nome = nome_aluno.strip()
-        # Cada aluno simulado tem a própria memória: o mesmo nome em conversas diferentes = o mesmo
-        # aluno voltando (é assim que se testa a memória). Sem nome, a conversa é um aluno avulso.
+        nome = nome_contato.strip()
+        # Cada contato simulado tem a própria memória: o mesmo nome em conversas diferentes = o mesmo
+        # contato voltando (é assim que se testa a memória). Sem nome, a conversa é um contato avulso.
         user_id = f"painel:{nome.lower()}" if nome else session_id
         return escolhido, session_id, texto, nome, user_id, telefone.strip(), anexos
 
@@ -1219,12 +1216,12 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
     async def chat(
         mensagem: str = Form(default="", max_length=2000),
         session_id: str | None = Form(default=None, max_length=120),
-        nome_aluno: str = Form(default="", max_length=120),
+        nome_contato: str = Form(default="", max_length=120),
         telefone: str = Form(default="", max_length=30),
         arquivos: list[UploadFile] = File(default=[]),
         agente_id: str = Form(default="", max_length=60, alias="agente"),
     ) -> dict:
-        argumentos = await _pedido_chat(mensagem, session_id, nome_aluno, telefone, arquivos, agente_id)
+        argumentos = await _pedido_chat(mensagem, session_id, nome_contato, telefone, arquivos, agente_id)
         resultado = await run_in_threadpool(responder, *argumentos)
         return {"session_id": argumentos[1], **resultado}
 
@@ -1232,14 +1229,14 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
     async def chat_etapas(
         mensagem: str = Form(default="", max_length=2000),
         session_id: str | None = Form(default=None, max_length=120),
-        nome_aluno: str = Form(default="", max_length=120),
+        nome_contato: str = Form(default="", max_length=120),
         telefone: str = Form(default="", max_length=30),
         arquivos: list[UploadFile] = File(default=[]),
         agente_id: str = Form(default="", max_length=60, alias="agente"),
     ) -> StreamingResponse:
         """O mesmo que /chat, transmitido em linhas JSON enquanto o agente trabalha: cada etapa
         (contexto, modelo, ferramentas, memória), o texto à medida que é escrito e o resultado final."""
-        argumentos = await _pedido_chat(mensagem, session_id, nome_aluno, telefone, arquivos, agente_id)
+        argumentos = await _pedido_chat(mensagem, session_id, nome_contato, telefone, arquivos, agente_id)
 
         fila: queue.Queue = queue.Queue()
 
@@ -1288,7 +1285,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         calibracao = datasets.resumo_por_agente(agente.db.db_engine, getattr(agente.db, "db_schema", None))
         saida = []
         publicados = [a for a in agentes.values() if perfis.publicado(a.id)]
-        # As boas-vindas que ainda aguardam o aluno contam como em atendimento, como em Conversas: as duas
+        # As boas-vindas que ainda aguardam o contato contam como em atendimento, como em Conversas: as duas
         # telas mostram o mesmo número. As que passaram do prazo sem resposta já terminaram e não ocupam a mesa.
         # Só até agora: um período que já terminou não tem quem esteja aguardando. Uma busca para todos os
         # agentes (cada uma lê a estrutura das tabelas no banco), separada depois por agente.
@@ -1301,7 +1298,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             conversas = []
             recentes = _sessoes(um, inicio, LIMITE_CENTRAL, fim, por_atividade=True)
             vistas = {s.session_id for s in recentes}
-            # Até agora: também as em atendimento sem atividade no período (o aluno sumiu e a rotina ainda não
+            # Até agora: também as em atendimento sem atividade no período (o contato sumiu e a rotina ainda não
             # encerrou). Conversas mostra todas as abertas, e as duas telas precisam bater.
             abertas_antes = [] if fim is not None else [
                 s for s in _sessoes(um, None, LIMITE_CENTRAL, None, por_atividade=True) if s.session_id not in vistas
@@ -1319,7 +1316,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
                 })
             for resumo in aguardando.get(um.id, []):
                 conversas.append({k: resumo.get(k) for k in campos} | {
-                    "ultima_mensagem": "Boas-vindas enviadas, aguardando o aluno",
+                    "ultima_mensagem": "Boas-vindas enviadas, aguardando o contato",
                     "parada_ha_s": round(agora - datetime.fromisoformat(resumo["atualizada_em"]).timestamp()),
                     "transferida_no_periodo": False, "encerrada_no_periodo": False,
                 })
@@ -1385,7 +1382,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
                 vistas.add(sessao.session_id)
                 estado = (sessao.session_data or {}).get("session_state") or {}
                 base_evento = {"session_id": sessao.session_id, "origem": ao_vivo._origem(sessao.session_id),
-                               "contato": estado.get("nome_aluno") or ""}
+                               "contato": estado.get("nome_contato") or ""}
                 dono = getattr(sessao, "agent_id", None) or um.id
                 for run in sessao.runs or []:
                     if not no_periodo(run.created_at):
@@ -1420,9 +1417,9 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
                                       "motivo": acao.get("motivo")})
                     elif acao.get("tipo") in ("encerramento", "inatividade"):
                         lista.append({**base_evento, "tipo": "encerrou", "agente": dono, "quando": momento,
-                                      "motivo": "sem resposta do aluno" if acao["tipo"] == "inatividade" else acao.get("motivo")})
+                                      "motivo": "sem resposta do contato" if acao["tipo"] == "inatividade" else acao.get("motivo")})
 
-        # Boas-vindas do onboarding (a conversa abre no Unnichat antes de o aluno responder).
+        # Boas-vindas do onboarding (a conversa abre no Unnichat antes de o contato responder).
         try:
             engine = agente.db.db_engine
             tabela = Table("unnichat_conversas", MetaData(), schema=getattr(agente.db, "db_schema", None), autoload_with=engine)
@@ -1524,7 +1521,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
 
     @rotas.post("/manutencao/alertas", dependencies=[*protegido, Depends(so_sistema)])
     def baixa_automatica_alertas() -> dict:
-        """Chamada a cada 10 minutos pelo Scheduler: dá baixa nos alertas em que a equipe já respondeu o aluno
+        """Chamada a cada 10 minutos pelo Scheduler: dá baixa nos alertas em que a equipe já respondeu o contato
         no WhatsApp (agente/alertas.py)."""
         inicio, _ = _periodo_central(HORAS_ROTINA_ALERTAS, None, None)
         abertos, _ = alertas_mod.separar(_calcular_alertas(inicio, None, MINUTOS_TRANSFERIDA, False))

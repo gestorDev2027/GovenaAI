@@ -18,7 +18,7 @@ from sqlalchemy.engine import Engine
 
 ARQUIVO_PADRAO = Path(__file__).parent / "base_conhecimento.md"
 AGENTE_PADRAO = "onboarding"
-MARCA_NOME = "[NOME DO ALUNO]"
+MARCA_NOME = "[NOME DO CONTATO]"
 MARCA_ATENDENTE = "[NOME DO ATENDENTE]"
 
 
@@ -35,14 +35,14 @@ def secao(texto: str, titulo: str) -> str | None:
 
 
 def com_nome(texto: str, nome: str = "", atendente: str = "") -> str:
-    """Troca [NOME DO ALUNO] pelo primeiro nome (sem nome, tira a marca e a pontuação que sobra) e
+    """Troca [NOME DO CONTATO] pelo primeiro nome (sem nome, tira a marca e a pontuação que sobra) e
     [NOME DO ATENDENTE] pelo primeiro nome de quem recebe a transferência."""
     primeiro = (nome or "").strip().split(" ")[0].capitalize()
     if atendente:
         texto = texto.replace(MARCA_ATENDENTE, atendente.strip().split(" ")[0])
     if primeiro:
         return texto.replace(MARCA_NOME, primeiro)
-    texto = re.sub(r",?[ \t]*\[NOME DO ALUNO\][ \t]*,?[ \t]*", " ", texto)
+    texto = re.sub(r",?[ \t]*\[NOME DO CONTATO\][ \t]*,?[ \t]*", " ", texto)
     texto = re.sub(r"[ \t]+([!?.,;:])", r"\1", texto)  # "Olá !" -> "Olá!"
     linhas = [l.strip() for l in texto.split("\n")]
     return "\n".join(l[:1].upper() + l[1:] for l in linhas)

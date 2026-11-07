@@ -1,6 +1,7 @@
-"""Ficha do aluno para a tela Conversas: o que o Unnichat e o cadastro sabem do contato da conversa.
+"""Ficha do contato para a tela Conversas: o que o Unnichat sabe do contato da conversa (reservado para o
+futuro agente do cidadão, no WhatsApp).
 
-Só leitura. Cada fonte falha sozinha: a tela mostra o erro daquela parte e o resto. A ficha fica em
+Só leitura. Se a consulta falhar, a tela mostra o erro. A ficha fica em
 memória por alguns minutos, porque a busca de negócios do Unnichat aceita 1 chamada a cada 2 s.
 """
 
@@ -10,7 +11,7 @@ from datetime import datetime
 
 from agno.utils.log import log_warning
 
-from agente import cadastro, unnichat
+from agente import unnichat
 
 VALIDADE_S = 120
 MAX_MENSAGENS = 80
@@ -33,14 +34,14 @@ def _texto(mensagem: dict) -> str:
 
 
 def _autor(mensagem: dict) -> str:
-    """Quem escreveu: aluno, agente (pela API), automação, equipe (pessoa no Live Chat), nota ou sistema."""
+    """Quem escreveu: cidadão, agente (pela API), automação, equipe (pessoa no Live Chat), nota ou sistema."""
     tipo = mensagem.get("type") or "message"
     if tipo == "note":
         return "nota"
     if mensagem.get("senderBy") == "platform" or tipo == "info":
         return "sistema"
     if mensagem.get("senderBy") == "contact":
-        return "aluno"
+        return "contato"
     origem = mensagem.get("origin")
     if origem == "unniApi":
         return "agente"
@@ -77,7 +78,7 @@ def _negocios(contato_id: str, telefone: str) -> list[dict]:
                 if achado.get("columnId") and achado.get("columnName"):
                     _nomes[achado["columnId"]] = achado["columnName"]
         except Exception as erro:  # sem os nomes, a ficha mostra os ids
-            log_warning(f"Ficha do aluno: nomes do funil {funil} indisponíveis: {erro}")
+            log_warning(f"Ficha do contato: nomes do funil {funil} indisponíveis: {erro}")
     return sorted(
         (
             {
@@ -108,7 +109,7 @@ def _unnichat(contato_id: str) -> dict:
     try:
         atendente = unnichat.atendente_do_contato(contato_id)
     except Exception as erro:
-        log_warning(f"Ficha do aluno: atendente de {contato_id} indisponível: {erro}")
+        log_warning(f"Ficha do contato: atendente de {contato_id} indisponível: {erro}")
         atendente = None
     return {
         "contato_id": contato_id,
@@ -125,8 +126,8 @@ def _unnichat(contato_id: str) -> dict:
 
 
 def montar(contato_id: str | None, telefone: str | None, atualizar: bool = False) -> dict:
-    """A ficha da conversa: {"unnichat": ..., "cadastro": ...}. Cada parte vem None quando a fonte não se
-    aplica (conversa do painel não tem contato no Unnichat) ou {"erro": "..."} quando a consulta falhou."""
+    """A ficha da conversa: {"unnichat": ...}. Vem None quando a fonte não se aplica (conversa do painel não
+    tem contato no Unnichat) ou {"erro": "..."} quando a consulta falhou."""
     chave = (contato_id or "", telefone or "")
     agora = time.time()
     with _trava:
@@ -134,20 +135,13 @@ def montar(contato_id: str | None, telefone: str | None, atualizar: bool = False
     if guardada and not atualizar and agora - guardada[0] < VALIDADE_S:
         return guardada[1]
 
-    ficha: dict = {"unnichat": None, "cadastro": None, "consultado_em": datetime.now().astimezone().isoformat(timespec="seconds")}
+    ficha: dict = {"unnichat": None, "consultado_em": datetime.now().astimezone().isoformat(timespec="seconds")}
     if contato_id and unnichat.disponivel():
         try:
             ficha["unnichat"] = _unnichat(contato_id)
         except Exception as erro:
-            log_warning(f"Ficha do aluno: Unnichat de {contato_id} indisponível: {erro}")
+            log_warning(f"Ficha do contato: Unnichat de {contato_id} indisponível: {erro}")
             ficha["unnichat"] = {"erro": "Não foi possível consultar o Unnichat agora."}
-    telefone = telefone or ((ficha["unnichat"] or {}).get("telefone"))
-    if telefone and cadastro.disponivel():
-        try:
-            ficha["cadastro"] = cadastro.consultar(telefone=telefone)
-        except Exception as erro:
-            log_warning(f"Ficha do aluno: cadastro de {telefone[-4:]} indisponível: {erro}")
-            ficha["cadastro"] = {"erro": "Não foi possível consultar o cadastro agora."}
     with _trava:
         _cache[chave] = (agora, ficha)
         for velha in [c for c, (quando, _) in _cache.items() if agora - quando > VALIDADE_S]:

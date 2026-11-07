@@ -3,10 +3,10 @@
 - Documentos: enviados pelo painel (PDF, Word, Markdown ou texto), guardados no bucket privado do
   Storage e divididos em trechos com embedding. Cada envio com o mesmo nome é uma VERSÃO nova; só
   uma versão por documento fica ativa, e voltar para uma anterior é reativá-la.
-- Exemplos: cada avaliação APROVADA na Calibração vira um exemplo (mensagem do aluno + resposta
+- Exemplos: cada avaliação APROVADA na Calibração vira um exemplo (mensagem do contato + resposta
   aprovada), com os dados pessoais mascarados. Aprovar de novo a mesma situação cria uma versão
   nova do exemplo; desativar tira do contexto sem apagar.
-- Contexto: a cada mensagem, um embedding da mensagem do aluno busca os exemplos e os trechos mais
+- Contexto: a cada mensagem, um embedding da mensagem do contato busca os exemplos e os trechos mais
   parecidos do agente da conversa. Eles entram nas instruções só daquela resposta (não no histórico),
   e os ids usados ficam no metadata da resposta, para saber de onde veio cada decisão.
 
@@ -50,7 +50,7 @@ SOBREPOSICAO = 200
 # Exemplos, medido em 21/10/2026 com os exemplos de produção: a mesma dúvida fica entre 0,11 e 0,17;
 # assuntos sem relação ("horário da live", "quero um atendente") entre 0,25 e 0,40. Com 0,40, todo
 # exemplo entrava em toda resposta. Juntar a pergunta anterior do agente à busca piorou a separação
-# (o texto das boas-vindas aproxima tudo), por isso a busca usa só a mensagem do aluno.
+# (o texto das boas-vindas aproxima tudo), por isso a busca usa só a mensagem do contato.
 MAX_EXEMPLOS = 3
 DISTANCIA_EXEMPLOS = float(os.getenv("CONHECIMENTO_DISTANCIA_EXEMPLOS", "0.24"))
 MAX_TRECHOS = 4
@@ -224,12 +224,12 @@ def mascarar(texto: str | None, nomes: list[str] | tuple = ()) -> str:
     """Tira e-mail, CPF, telefone e os nomes informados antes de um texto virar exemplo."""
     if not texto:
         return ""
-    texto = _EMAIL.sub("[e-mail do aluno]", texto)
+    texto = _EMAIL.sub("[e-mail do contato]", texto)
     texto = _CPF.sub("[CPF]", texto)
     texto = _TELEFONE.sub("[telefone]", texto)
     for nome in nomes:
         for parte in {p for p in (nome or "").split() if len(p) >= 3}:
-            texto = re.sub(rf"\b{re.escape(parte)}\b", "[nome do aluno]", texto, flags=re.IGNORECASE)
+            texto = re.sub(rf"\b{re.escape(parte)}\b", "[nome do contato]", texto, flags=re.IGNORECASE)
     return texto
 
 
@@ -567,7 +567,7 @@ def criar_exemplo(avaliacao: dict, aprovado_por: str, nomes: list[str]) -> int:
     exemplos = _t("exemplos")
     historico = avaliacao["historico"]
     contexto = historico[-3]["texto"] if len(historico) >= 3 else None
-    mensagem = mascarar(avaliacao["mensagem_aluno"], nomes)
+    mensagem = mascarar(avaliacao["mensagem_contato"], nomes)
     resposta = mascarar(avaliacao.get("resposta_ideal") or avaliacao["resposta_agente"], nomes)
     vetor = vetores.embedding(mensagem if not contexto else f"{mascarar(contexto, nomes)}\n{mensagem}", "RETRIEVAL_DOCUMENT")
     with _engine().begin() as conexao:
@@ -600,7 +600,7 @@ def definir_exemplo_ativo(exemplo_id: int, ativo: bool) -> None:
 # ───────── Contexto de cada resposta ─────────
 
 def contexto(agente: str, mensagem: str) -> dict | None:
-    """Exemplos aprovados e trechos de documentos mais parecidos com a mensagem do aluno."""
+    """Exemplos aprovados e trechos de documentos mais parecidos com a mensagem do contato."""
     if not disponivel() or not mensagem.strip():
         return None
     exemplos, trechos, documentos = _t("exemplos"), _t("trechos"), _t("documentos")
@@ -650,7 +650,7 @@ def formatar(ctx: dict | None) -> str:
     if ctx.get("roteiro"):
         blocos = "\n\n".join(f"[{t['secao'] or 'Roteiro'}]\n{t['conteudo']}" for t in ctx["roteiro"])
         partes.append(
-            "<roteiro_relevante>\nAs seções do roteiro de atendimento mais relacionadas à mensagem do aluno (o resto do "
+            "<roteiro_relevante>\nAs seções do roteiro de atendimento mais relacionadas à mensagem do contato (o resto do "
             "roteiro não está aqui). Siga-as como a base de conhecimento acima: links, prazos e passos exatamente como "
             "estão. Se o assunto não estiver em nenhuma delas, não invente: diga o que souber com segurança ou transfira.\n\n"
             f"{blocos}\n</roteiro_relevante>"
@@ -659,7 +659,7 @@ def formatar(ctx: dict | None) -> str:
         blocos = "\n\n".join(f"[{t['documento']}{' — ' + t['secao'] if t.get('secao') else ''}]\n{t['conteudo']}"
                              for t in ctx["trechos"])
         partes.append(
-            "<trechos_de_documentos>\nTrechos dos documentos de referência mais relacionados à mensagem do aluno. "
+            "<trechos_de_documentos>\nTrechos dos documentos de referência mais relacionados à mensagem do contato. "
             "Podem não ser relevantes: use só o que responde ao que ele perguntou, sem inventar, e mantenha links, "
             "prazos e valores exatamente como estão. Se um trecho contradizer o roteiro principal, siga o roteiro.\n\n"
             f"{blocos}\n</trechos_de_documentos>"
@@ -667,14 +667,14 @@ def formatar(ctx: dict | None) -> str:
     if ctx.get("exemplos"):
         blocos = "\n\n".join(
             (f"Contexto: {e['contexto']}\n" if e.get("contexto") else "")
-            + f"Aluno: {e['mensagem']}\nResposta aprovada: {e['resposta_ideal']}"
+            + f"Contato: {e['mensagem']}\nResposta aprovada: {e['resposta_ideal']}"
             + (f"\nObservação da equipe: {e['observacao']}" if e.get("observacao") else "")
             for e in ctx["exemplos"]
         )
         partes.append(
-            "<exemplos_aprovados>\nSituações parecidas que a equipe de Sucesso do Aluno avaliou e aprovou. Siga o conteúdo "
-            "e as decisões (orientar, consultar o cadastro, transferir ou não), adaptando ao que o aluno disse agora. "
-            "Os dados entre colchetes foram retirados: use os do aluno atual.\n\n"
+            "<exemplos_aprovados>\nSituações parecidas que a equipe avaliou e aprovou. Siga o conteúdo "
+            "e as decisões (orientar, consultar o cadastro, transferir ou não), adaptando ao que o contato disse agora. "
+            "Os dados entre colchetes foram retirados: use os do contato atual.\n\n"
             f"{blocos}\n</exemplos_aprovados>"
         )
     return "\n\n" + "\n\n".join(partes)

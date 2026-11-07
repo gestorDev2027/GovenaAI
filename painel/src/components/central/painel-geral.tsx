@@ -80,7 +80,7 @@ export function PainelGeral({
                 >
                   <div className="flex items-center gap-2">
                     <span className="grid size-7 shrink-0 place-items-center rounded-full" style={{ background: cor }}>
-                      <img src="/painel/espaco/cf-branco.png" alt="" className="size-4" />
+                      <img src="/painel/espaco/gestorgov-branco.png" alt="" className="size-4" />
                     </span>
                     <span className="min-w-0">
                       <span className="block truncate text-xs font-semibold">{a.nome}</span>

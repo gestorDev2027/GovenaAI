@@ -23,7 +23,7 @@ import {
 import { api, type AgenteCentral, type AlertaCentral, type ConversaCentral, type EventoCentral, type SetoresCentral } from "@/lib/api";
 import { fmtInt, fmtRelativo, fmtSegundos } from "@/lib/formato";
 import { tripulante } from "@/lib/tripulacao";
-import { SETORES, setorDaFerramenta, type SetorId } from "@/lib/setores";
+import { FERRAMENTAS_DO_SETOR, SETORES, setorDaFerramenta, type SetorId } from "@/lib/setores";
 import { Anel, Atividade, Barras, Indicador, ListaAoVivo, serieDeAtividade, Titulo } from "./dashboard";
 
 /*
@@ -35,11 +35,11 @@ import { Anel, Atividade, Barras, Indicador, ListaAoVivo, serieDeAtividade, Titu
 export const ICONE_SETOR: Record<SetorId, ReactNode> = {
   atendimento: <MessagesSquare />,
   recepcao: <Inbox />,
-  cadastro: <FileSearch />,
-  biblioteca: <Library />,
+  secretaria: <FileSearch />,
+  fontes: <Library />,
   base: <BookOpen />,
-  expedicao: <Package />,
-  financeiro: <Landmark />,
+  implantacao: <Package />,
+  catalogo: <Landmark />,
   equipe: <Building2 />,
 };
 
@@ -127,7 +127,7 @@ export function PainelSetor({
                 className="flex w-full items-center gap-2.5 rounded-xl border border-border bg-background/40 px-2.5 py-2 text-left transition-colors hover:border-primary/40"
               >
                 <span className="grid size-7 shrink-0 place-items-center rounded-full" style={{ background: corDe(a.id) }}>
-                  <img src="/painel/espaco/cf-branco.png" alt="" className="size-4" />
+                  <img src="/painel/espaco/gestorgov-branco.png" alt="" className="size-4" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-semibold">{a.nome}</span>
@@ -178,34 +178,33 @@ export function PainelSetor({
         </div>
       </>
     );
-  } else if (setor === "cadastro" || setor === "financeiro" || setor === "biblioteca" || setor === "expedicao") {
-    const ferramenta = setor === "biblioteca" ? "buscar_aula" : setor === "expedicao" ? "consultar_brindes" : "consultar_cadastro";
-    const dados = n?.ferramentas[ferramenta];
-    // Cadastro e financeiro dividem a mesma ferramenta: cada setor mostra os agentes que vão até ele.
-    const daqui = Object.entries(dados?.por_agente ?? {}).filter(([agente]) => setorDaFerramenta(ferramenta, agente) === setor);
-    const total = daqui.reduce((t, [, v]) => t + v, 0);
-    const semResultado = dados?.sem_resultado;
+  } else if (setor === "secretaria" || setor === "fontes" || setor === "implantacao" || setor === "catalogo") {
+    // Cada sala atende várias ferramentas: soma as chamadas de todas, por agente.
+    const dados = (FERRAMENTAS_DO_SETOR[setor] ?? []).map((f) => n?.ferramentas[f]).filter((d) => d != null);
+    const porAgente: Record<string, number> = {};
+    for (const d of dados) for (const [agente, v] of Object.entries(d.por_agente)) porAgente[agente] = (porAgente[agente] ?? 0) + v;
+    const daqui = Object.entries(porAgente);
+    const total = dados.reduce((t, d) => t + d.total, 0);
+    const semResultado = dados.length ? dados.reduce((t, d) => t + (d.sem_resultado ?? 0), 0) : null;
     conteudo = (
       <>
         {semNumeros}
         <div className="grid grid-cols-2 gap-2">
-          <Indicador icone={ICONE_SETOR[setor]} rotulo={`${setor === "biblioteca" ? "Buscas" : "Consultas"} · ${periodo}`} valor={n ? fmtInt(total) : "—"} cor={cor} />
+          <Indicador icone={ICONE_SETOR[setor]} rotulo={`${setor === "fontes" ? "Buscas" : "Consultas"} · ${periodo}`} valor={n ? fmtInt(total) : "—"} cor={cor} />
           <Indicador
             icone={<SearchX />}
             rotulo="Sem resultado"
             valor={semResultado != null ? fmtInt(semResultado) : "—"}
-            detalhe={
-              setor === "biblioteca" ? "aula não encontrada" : setor === "expedicao" ? "aluno não encontrado no Hub" : "em todas as consultas ao cadastro"
-            }
+            detalhe={setor === "fontes" ? "nada achado nas fontes públicas" : "em todas as chamadas do setor"}
             cor="#ef4444"
           />
         </div>
-        {dados && dados.total > 0 && semResultado != null && (
+        {total > 0 && semResultado != null && (
           <div className="flex justify-around rounded-2xl border border-border bg-background/40 py-3">
-            <Anel valor={1 - semResultado / dados.total} cor={cor} rotulo={setor === "expedicao" ? "Aluno encontrado no Hub" : "Encontraram o que buscavam"} />
+            <Anel valor={1 - semResultado / total} cor={cor} rotulo="Encontraram o que buscavam" />
           </div>
         )}
-        <Atividade serie={serie} cor={cor} rotulo={setor === "biblioteca" ? "Buscas na última hora" : "Consultas na última hora"} />
+        <Atividade serie={serie} cor={cor} rotulo={setor === "fontes" ? "Buscas na última hora" : "Consultas na última hora"} />
         <div>
           <Titulo>Por agente</Titulo>
           <Barras itens={daqui.map(([agente, valor]) => ({ rotulo: nomeDe(agente), valor, cor: corDe(agente) }))} vazio="Nenhuma consulta no período." />
@@ -279,7 +278,7 @@ export function PainelSetor({
               <button key={c.id} type="button" onClick={() => aoAbrirConversa(c.id)} className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-muted/60">
                 <span className="size-2 shrink-0 rounded-full" style={{ background: cor }} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold">{c.nome || "Aluno sem nome"}</span>
+                  <span className="block truncate text-xs font-semibold">{c.nome || "Servidor sem nome"}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">{c.categoria_rotulo || c.motivo || "Transferida"}</span>
                 </span>
                 <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{fmtRelativo(c.atualizada_em)}</span>

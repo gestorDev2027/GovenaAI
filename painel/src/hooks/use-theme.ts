@@ -8,7 +8,7 @@ function readInitial(): Theme {
     const stored = localStorage.getItem("theme");
     if (stored === "light" || stored === "dark") return stored;
   } catch {
-    /* sem armazenamento: escuro, o padrão da família Nexa */
+    /* sem armazenamento: escuro, o padrão do painel */
   }
   return "dark";
 }

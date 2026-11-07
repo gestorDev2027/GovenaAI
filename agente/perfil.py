@@ -26,7 +26,7 @@ class Perfil:
     arquivo_base: Path  # base de conhecimento padrão (o painel grava versões novas no banco)
     # Nome com que o agente aparece no painel (ex.: "Luna"); vazio usa `nome`.
     apelido: str = ""
-    # Onde o agente trabalha, como numa equipe: a área (o time, ex.: "Sucesso do Aluno", "Comercial")
+    # Onde o agente trabalha, como numa equipe: a área (o time, ex.: "Compras", "Regulação")
     # agrupa os agentes no painel (seletor do chat, baias da Central, filtros); o cargo é a função
     # dele dentro da área (ex.: "Onboarding", "SDR").
     area: str = ""
@@ -34,7 +34,7 @@ class Perfil:
     minutos_inatividade: int = 23 * 60  # dentro da janela de 24 h da Meta (ver mensagens.MINUTOS_INATIVIDADE)
     # O que a fábrica de agentes (agente/fabrica.py) mostra e deixa editar pelo painel:
     modelo_instrucoes: str = ""  # o texto das instruções com os marcadores (a "versão 0" no painel)
-    contato: str = "contato"  # como as instruções chamam quem conversa (aluno, lead, contato)
+    contato: str = "contato"  # como as instruções chamam quem conversa (servidor, cidadão, contato)
     ferramentas_ids: tuple[str, ...] = ()  # as ferramentas previstas (entram só as configuradas)
     skills_ids: tuple[str, ...] = ()  # skills do painel (agente/fabrica_recursos.py)
     quando_transferir: str = ""  # quando usar a transferência (vai na descrição da ferramenta)

@@ -30,11 +30,11 @@ export function InfoTip({ children, className }: { children: ReactNode; classNam
   );
 }
 
-/* ───────── KpiCard (o KpiCard do Nexa BI: ícone e dica em cima, rótulo e número embaixo) ───────── */
+/* ───────── KpiCard (ícone e dica em cima, rótulo e número embaixo) ───────── */
 
 type Accent = "primary" | "cyan" | "green" | "amber" | "violet" | "red";
 
-// Quadrado do ícone: o tom a 10–16% com o ícone na cor cheia, como no Nexa BI.
+// Quadrado do ícone: o tom a 10–16% com o ícone na cor cheia.
 const ACCENT_CHIP: Record<Accent, string> = {
   primary: "bg-primary/10 text-primary-text",
   cyan: "bg-accent/14 text-accent",
@@ -132,7 +132,7 @@ export function StatusBadge({ status, className }: { status: Status; className?:
   );
 }
 
-/* ───────── Carregando (núcleo pulsante do NexaCF) ───────── */
+/* ───────── Carregando (núcleo pulsante) ───────── */
 
 export function PageLoader({ label = "Carregando", className }: { label?: string; className?: string }) {
   return (
@@ -171,12 +171,12 @@ export function EmptyState({
   );
 }
 
-/* ───────── Cabeçalho de página (a barra do topo do Nexa BI) ───────── */
+/* ───────── Cabeçalho de página (a barra do topo) ───────── */
 
 /**
  * Faixa fixa no topo da área que rola: quadrado com o ícone, título e descrição à esquerda e as
  * ações à direita. 64px de altura, alinhada ao topo do menu lateral. Fundo quase sólido com desfoque,
- * como a barra do Nexa BI, para os cards não atravessarem o título. Ocupa a largura toda da página
+ * para os cards não atravessarem o título. Ocupa a largura toda da página
  * (a página usa `px-4 sm:px-8`, e o cabeçalho anula esse recuo).
  */
 export function PageHeader({
@@ -228,7 +228,7 @@ export function PageHeader({
   );
 }
 
-/* ───────── Seletor segmentado (os chips da barra de filtros do Nexa BI) ───────── */
+/* ───────── Seletor segmentado (os chips da barra de filtros) ───────── */
 
 export function Pills<T extends string | number>({
   options,
@@ -271,7 +271,7 @@ export function Pills<T extends string | number>({
   );
 }
 
-/* ───────── Abas com contagem (AbasDeEstado do nexa-forms) ───────── */
+/* ───────── Abas com contagem ───────── */
 
 export function Abas<T extends string>({
   abas,

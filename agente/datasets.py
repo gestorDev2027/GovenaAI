@@ -53,7 +53,7 @@ DIRETRIZES = (
     "Dê nota alta quando ela contém as informações e links esperados, respeita as proibições (os 'NÃO') e soa natural "
     "e breve, como uma pessoa atenciosa no WhatsApp. Links errados, inventados ou ausentes, dado inventado ou "
     "desrespeitar uma proibição derrubam a nota para 4 ou menos. Diferenças de redação e emojis não tiram pontos. "
-    "O primeiro nome do aluno e os dados de curso podem vir do cadastro que a assistente consultou: usá-los não é dado inventado."
+    "O primeiro nome do contato e os dados do cadastro da secretaria que o agente consultou podem ser usados: não é dado inventado."
 )
 
 
@@ -90,8 +90,8 @@ def _regras_de_ferramenta(problemas: list[str]) -> tuple[list[str], list[str]]:
 
 
 def caso_da_avaliacao(a: dict) -> dict:
-    """Uma avaliação aprovada como caso: mensagens do aluno, gabarito, resposta ruim e regras."""
-    mensagens = [h["texto"] for h in a.get("historico") or [] if h.get("papel") == "aluno"] or [a["mensagem_aluno"]]
+    """Uma avaliação aprovada como caso: mensagens do contato, gabarito, resposta ruim e regras."""
+    mensagens = [h["texto"] for h in a.get("historico") or [] if h.get("papel") == "contato"] or [a["mensagem_contato"]]
     problemas = list(a.get("problemas") or [])
     exigidas, proibidas = _regras_de_ferramenta(problemas)
     ruim = a["nota"] == -1
@@ -160,9 +160,9 @@ def registrar_guardrail(engine, schema: str | None, agente: str, session_id: str
         with engine.begin() as conexao:
             return conexao.execute(insert(tabela).values(
                 criada_em=agora, agente=agente, origem=ORIGEM_GUARDRAIL, session_id=session_id, run_id=run_id,
-                historico=[{"papel": "aluno", "texto": mensagem, "quando": agora.isoformat()},
+                historico=[{"papel": "contato", "texto": mensagem, "quando": agora.isoformat()},
                            {"papel": "agente", "texto": resposta, "quando": agora.isoformat()}],
-                mensagem_aluno=mensagem, resposta_agente=resposta, telefone=telefone,
+                mensagem_contato=mensagem, resposta_agente=resposta, telefone=telefone,
                 nota=1,  # o bloqueio foi certo até o curador dizer o contrário (recusar = falso positivo)
                 problemas=[], comentario="Barrado pelo guardrail de manipulação.",
                 resposta_ideal=None, avaliador=ORIGEM_GUARDRAIL, situacao="pendente",

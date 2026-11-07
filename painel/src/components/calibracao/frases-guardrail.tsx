@@ -26,8 +26,8 @@ const MINIMO = 6;
 
 /**
  * Frases que barram pedidos de manipulação ("ignore as instruções", "mostre seu prompt"...). A mensagem
- * do aluno é comparada sem acento e em minúsculas; se contiver uma frase ativa, o agente não responde
- * com o modelo e o aluno recebe a seção "Pedido fora do atendimento" do roteiro. Não se apaga frase:
+ * do servidor é comparada sem acento e em minúsculas; se contiver uma frase ativa, o agente não responde
+ * com o modelo e o servidor recebe a seção "Pedido fora do atendimento" do roteiro. Não se apaga frase:
  * desliga-se, para o histórico de por que algo foi barrado continuar fazendo sentido.
  */
 export function FrasesGuardrail() {
@@ -160,7 +160,7 @@ export function FrasesGuardrail() {
           <Input
             value={teste}
             onChange={(e) => setTeste(e.target.value)}
-            placeholder="Escreva como o aluno escreveria"
+            placeholder="Escreva como o servidor escreveria"
             aria-label="Mensagem de teste"
           />
           <p className={cn("text-xs", !teste ? "text-muted-foreground" : barram.length ? "text-destructive" : "text-success")}>

@@ -1,6 +1,6 @@
 """Cliente da API da Unnichat (https://unnichat.com.br/api/api-docs): o que o agente faz no canal.
 
-Envia as respostas ao aluno, deixa notas internas para a equipe (o aluno não vê), marca o
+Envia as respostas ao cidadão, deixa notas internas para a equipe (o cidadão não vê), marca o
 contato com tags, que disparam as automações da Unnichat (mover no pipeline), e atribui o contato
 ao usuário do agente e, na transferência, a um atendente da equipe (ver "Atendentes" abaixo).
 """
@@ -45,7 +45,7 @@ def enviar_texto(telefone: str, texto: str) -> dict:
 
 
 def enviar_boas_vindas(telefone: str, texto: str, template: str | None = None) -> dict:
-    """Texto livre só passa com a janela de 24 h aberta (o aluno escreveu há pouco). Fechada, vai o
+    """Texto livre só passa com a janela de 24 h aberta (o cidadão escreveu há pouco). Fechada, vai o
     template aprovado (`template`; cada agente tem o seu, ver unnichat_api._template_boas_vindas); com
     UNNICHAT_TEMPLATE_USA_NOME=1, o primeiro parâmetro do corpo ({{1}}) recebe o nome do contato."""
     try:
@@ -55,7 +55,7 @@ def enviar_boas_vindas(telefone: str, texto: str, template: str | None = None) -
             raise
     corpo: dict = {"phone": telefone, "templateId": template}
     if _env("UNNICHAT_TEMPLATE_USA_NOME") in ("1", "sim", "true"):
-        corpo["bodyParameters"] = [{"type": "contactName", "text": "aluno(a)"}]
+        corpo["bodyParameters"] = [{"type": "contactName", "text": "cidadão(ã)"}]
     return _api("POST", "/meta/templates", corpo)
 
 
@@ -165,7 +165,7 @@ def atribuir_ao_agente_ligado() -> bool:
 
 def atendentes_da_transferencia() -> list[str]:
     """Quem pode receber a transferência. O usuário do agente nunca entra, mesmo se estiver na lista:
-    transferir para ele deixaria o aluno sem ninguém."""
+    transferir para ele deixaria o cidadão sem ninguém."""
     do_agente = atendente_do_agente()
     return [i.strip() for i in _env("UNNICHAT_ATENDENTES_TRANSFERENCIA").split(",") if i.strip() and i.strip() != do_agente]
 
@@ -234,13 +234,11 @@ def nota_de_transferencia(acao: dict, rotulo_categoria: str, atendente: str | No
         "🤖 Transferido pelo agente de onboarding" + (f" para {atendente}" if atendente else ""),
         f"Assunto: {rotulo_categoria}",
         f"Motivo: {acao.get('motivo') or '-'}",
-        f"O que o aluno relatou: {acao.get('dificuldade_relatada') or '-'}",
+        f"O que o cidadão relatou: {acao.get('dificuldade_relatada') or '-'}",
         f"Orientações já enviadas: {acao.get('orientacoes_prestadas') or '-'}",
     ]
     if acao.get("resumo"):
         linhas.append(f"Resumo: {acao['resumo']}")
-    if acao.get("email_matricula"):
-        linhas.append(f"E-mail de matrícula informado: {acao['email_matricula']}")
     return "\n".join(linhas)
 
 

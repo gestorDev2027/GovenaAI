@@ -1,10 +1,10 @@
 /**
  * Temas das transferências: o agente escolhe uma categoria e escreve o motivo ao transferir, mas a categoria
- * sozinha esconde o problema ("Outro assunto" era quase tudo pedido de apostila física). O tema sai do motivo,
- * por palavras-chave, na ordem da lista (o primeiro que casa vence).
+ * sozinha esconde o problema. O tema sai do motivo, por palavras-chave, na ordem da lista (o primeiro que
+ * casa vence). A lista é a mesma de painel_api.TEMAS_TRANSFERENCIA (o link da gestão recebe o tema pronto).
  *
  * tipo: evitavel = o agente resolveria com uma ferramenta ou conteúdo novo; correta = precisa de humano;
- * produto = defeito da plataforma, não do agente; revisar = não se encaixou em nenhum tema.
+ * produto = defeito do sistema, não do agente; revisar = não se encaixou em nenhum tema.
  * Mudou um tema ou uma palavra: confira a tela com as transferências reais (Visão geral › Transferências).
  */
 
@@ -21,74 +21,53 @@ export interface TemaTransferencia {
 
 export const TEMAS: TemaTransferencia[] = [
   {
-    id: "brinde",
-    rotulo: "Apostila física, brinde ou sorteio",
-    tipo: "evitavel",
-    acao: "Ferramenta consultar_brindes: confirme se o agente a usa antes de transferir. Vale criar a categoria própria (hoje cai em “Outro assunto”).",
-    padrao: /apostila|livro f[ií]sico|brinde|material f[ií]sico|500 primeiros|sorteio/i,
+    id: "pessoa",
+    rotulo: "Pediu uma pessoa",
+    tipo: "correta",
+    acao: "Transferência correta: escolha do servidor.",
+    padrao: /atendente|humano|falar com (uma )?pessoa|falar com (o|a) (respons|coorden|secret)/i,
   },
   {
-    id: "video",
-    rotulo: "Vídeo não abre (iPhone, tela preta)",
+    id: "sistema",
+    rotulo: "Falha do sistema ou do painel",
     tipo: "produto",
-    acao: "Defeito da plataforma, não do agente: levar ao time de produto com a lista de casos.",
-    padrao: /iphone|tela (preta|em branco|branca)|v[ií]deo ?aula/i,
+    acao: "Defeito do sistema, não do agente: levar à equipe técnica com a lista de casos.",
+    padrao: /erro|falha|n[ãa]o abre|n[ãa]o carrega|travou|fora do ar/i,
   },
   {
-    id: "termos",
-    rotulo: "Termos de uso pendentes",
-    tipo: "produto",
-    acao: "Falha de integração (assinatura não reconhecida): levar ao time de produto.",
-    padrao: /termo|zapsign/i,
-  },
-  {
-    id: "bloqueado",
-    rotulo: "Conteúdo bloqueado após a compra",
-    tipo: "evitavel",
-    acao: "Dar ao agente a consulta de liberação do Acesso Único: hoje ele só vê o cadastro e precisa transferir.",
-    padrao: /cadeado|trancad|bloquead|liberar|libera[çc][ãa]o/i,
-  },
-  {
-    id: "email",
-    rotulo: "E-mail do cadastro não encontrado",
-    tipo: "evitavel",
-    acao: "Buscar também por telefone e CPF antes de transferir.",
-    padrao: /e-?mail/i,
-  },
-  {
-    id: "compra",
-    rotulo: "Interesse em compra ou preço",
+    id: "outro_setor",
+    rotulo: "Assunto de outro setor",
     tipo: "correta",
-    acao: "Transferência correta: é oportunidade de venda. Vale medir quantas viraram compra em 7 dias.",
-    padrao: /pre[çc]o|valor|condi[çc]|desconto|adquirir|comprar|interesse/i,
+    acao: "Transferência correta: vale dar ao outro setor um agente próprio pela Fábrica.",
+    padrao: /outro setor|de outro setor|n[ãa]o [ée] (do|deste) setor|jur[ií]dico|recursos humanos|\bRH\b|tesouraria|contabilidade/i,
   },
   {
-    id: "pagamento",
-    rotulo: "Pagamento e comprovante",
+    id: "norma",
+    rotulo: "Norma ou legislação",
     tipo: "evitavel",
-    acao: "Avaliar uma ferramenta de segunda via e comprovante.",
-    padrao: /pagamento|cart[ãa]o|boleto|comprovante|cobran/i,
+    acao: "Pôr a norma (lei, portaria, decreto) na base de conhecimento ou no Conhecimento do painel: o agente passa a citar sozinho.",
+    padrao: /\blei\b|portaria|norma|decreto|resolu[çc][ãa]o|legisla/i,
   },
   {
-    id: "cancelamento",
-    rotulo: "Cancelamento ou reembolso",
-    tipo: "correta",
-    acao: "Transferência correta: exige decisão humana.",
-    padrao: /cancel|estorno|reembolso/i,
-  },
-  {
-    id: "atendente",
-    rotulo: "Pediu atendente",
-    tipo: "correta",
-    acao: "Transferência correta: escolha do aluno.",
-    padrao: /atendente|humano|suporte humano/i,
-  },
-  {
-    id: "ementa",
-    rotulo: "Ementa ou matriz curricular",
+    id: "cadastro",
+    rotulo: "Cadastro da secretaria incompleto",
     tipo: "evitavel",
-    acao: "Pôr as ementas na base de conhecimento: o agente passa a enviar sozinho.",
-    padrao: /ementa|matriz|projeto pedag/i,
+    acao: "Completar o cadastro na implantação: setores, responsáveis e unidades.",
+    padrao: /cadastr|unidade|cnes|setor n[ãa]o|sem respons[áa]vel/i,
+  },
+  {
+    id: "dados",
+    rotulo: "Faltam dados do setor",
+    tipo: "evitavel",
+    acao: "Enviar a planilha ou o documento ao Conhecimento do painel: o agente passa a usar sozinho.",
+    padrao: /planilha|dados|n[úu]mero|quantidade|saldo|relat[óo]rio|indicador/i,
+  },
+  {
+    id: "aprovacao",
+    rotulo: "Decisão do responsável",
+    tipo: "correta",
+    acao: "Transferência correta: a decisão é do responsável do setor.",
+    padrao: /aprova|decis|autoriz|assinatura|respons[áa]vel/i,
   },
 ];
 
@@ -102,7 +81,7 @@ export const OUTROS: Omit<TemaTransferencia, "padrao"> = {
 export const TIPOS: Record<TipoTransferencia, { rotulo: string; ajuda: string }> = {
   evitavel: { rotulo: "Evitável", ajuda: "o agente resolveria com uma ferramenta ou um conteúdo novo" },
   correta: { rotulo: "Correta", ajuda: "precisa mesmo de uma pessoa" },
-  produto: { rotulo: "Produto", ajuda: "defeito da plataforma, não do agente" },
+  produto: { rotulo: "Sistema", ajuda: "defeito do sistema, não do agente" },
   revisar: { rotulo: "Revisar", ajuda: "não se encaixou em nenhum tema" },
 };
 

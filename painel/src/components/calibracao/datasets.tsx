@@ -15,9 +15,8 @@ type Tipo = "todos" | "gold" | "bad";
 const FERRAMENTA: Record<string, string> = {
   transferir_para_humano: "Transferir para humano",
   encerrar_atendimento: "Encerrar atendimento",
-  consultar_cadastro: "Consultar cadastro",
-  buscar_aula: "Buscar aula",
-  consultar_brindes: "Apostilas e brindes",
+  consultar_secretaria: "Consultar a secretaria",
+  listar_unidades: "Listar unidades",
 };
 
 const ORIGEM: Record<string, string> = {
@@ -47,7 +46,7 @@ function ChipsDoCaso({ tipos }: { tipos: CasoDataset["tipos"] }) {
   );
 }
 
-/** Linha do JSONL exportado: o caso inteiro, sem o telefone do aluno. */
+/** Linha do JSONL exportado: o caso inteiro, sem o telefone do servidor. */
 function paraExportar(c: CasoDataset) {
   const { telefone: _telefone, ...resto } = c;
   return JSON.stringify(resto);
@@ -140,7 +139,7 @@ export function Datasets() {
           className="ml-auto"
           disabled={!visiveis.length}
           onClick={exportar}
-          title="Um caso por linha, sem o telefone do aluno"
+          title="Um caso por linha, sem o telefone do servidor"
         >
           <Download /> Exportar JSONL ({visiveis.length})
         </Button>
@@ -151,7 +150,7 @@ export function Datasets() {
           <TableHeader>
             <tr>
               <TableHead icone={Database}>Caso</TableHead>
-              <TableHead icone={MessageSquare}>Mensagem do aluno</TableHead>
+              <TableHead icone={MessageSquare}>Mensagem do servidor</TableHead>
               <TableHead icone={CheckCircle2}>Gabarito</TableHead>
               <TableHead icone={XCircle}>Resposta ruim</TableHead>
               <TableHead icone={Wrench}>Ferramentas</TableHead>
@@ -235,7 +234,7 @@ export function Datasets() {
         {aberto && (
           <div className="space-y-5">
             <ChipsDoCaso tipos={aberto.tipos} />
-            <Campo rotulo={aberto.mensagens.length > 1 ? "Mensagens do aluno, em ordem" : "Mensagem do aluno"}>
+            <Campo rotulo={aberto.mensagens.length > 1 ? "Mensagens do servidor, em ordem" : "Mensagem do servidor"}>
               <div className="space-y-1.5">
                 {aberto.mensagens.map((m, i) => (
                   <div key={i} className="rounded-lg bg-secondary px-3 py-2 text-sm whitespace-pre-wrap">

@@ -12,19 +12,19 @@ import { ROTULO_FERRAMENTA } from "@/pages/conversas";
 import { TextoComLinks } from "@/pages/chat";
 
 /*
- * Rastreamento de uma conversa: por que o agente respondeu o que respondeu. Para cada mensagem do aluno, o
+ * Rastreamento de uma conversa: por que o agente respondeu o que respondeu. Para cada mensagem do servidor, o
  * resumo do raciocínio do modelo, as ferramentas (argumentos e resultado), o contexto que entrou nas instruções
  * (histórico do WhatsApp, trechos, exemplos), as chamadas ao modelo com tempo e tokens; e, da conversa inteira,
- * o que o Learning registrou (resumo da sessão com o plano, perfil e memórias do aluno). Só leitura.
+ * o que o Learning registrou (resumo da sessão com o plano, perfil e memórias do servidor). Só leitura.
  */
 
 const ROTULO_CAMPO: Record<string, string> = {
   name: "Nome",
   preferred_name: "Como prefere ser chamado",
-  curso: "Curso",
-  email_matricula: "E-mail da matrícula",
-  aparelho: "Aparelho",
-  situacao_acesso: "Situação do acesso",
+  setor: "Setor",
+  unidade: "Unidade",
+  cargo: "Cargo",
+  formato_preferido: "Formato preferido",
 };
 
 export function PainelRastreamento({ id, nome, aoFechar, aoVoltar }: { id: string; nome?: string; aoFechar: () => void; aoVoltar?: () => void }) {
@@ -45,7 +45,7 @@ export function PainelRastreamento({ id, nome, aoFechar, aoVoltar }: { id: strin
       largura="xl"
       icone={<Route />}
       rotulo="Rastreamento da conversa"
-      titulo={nome || r?.nome || "Aluno sem nome"}
+      titulo={nome || r?.nome || "Servidor sem nome"}
       descricao={r?.status ? <StatusBadge status={r.status} /> : undefined}
       destaque={
         <IndicadoresPainel
@@ -105,7 +105,7 @@ export function PainelRastreamento({ id, nome, aoFechar, aoVoltar }: { id: strin
           </SecaoPainel>
 
           {(r.perfil && Object.keys(r.perfil).length > 0) || r.memorias?.length ? (
-            <SecaoPainel titulo="O que o agente sabe do aluno">
+            <SecaoPainel titulo="O que o agente sabe do servidor">
               {r.perfil && (
                 <dl className="grid gap-x-4 gap-y-1.5 text-xs sm:grid-cols-2">
                   {Object.entries(r.perfil).map(([campo, valor]) => (
@@ -146,7 +146,7 @@ export function PainelRastreamento({ id, nome, aoFechar, aoVoltar }: { id: strin
           )}
 
           <SecaoPainel titulo="Resposta por resposta" contagem={respostas.length}>
-            {respostas.length === 0 && <p className="text-xs text-muted-foreground">O aluno ainda não respondeu: só as boas-vindas foram enviadas.</p>}
+            {respostas.length === 0 && <p className="text-xs text-muted-foreground">O servidor ainda não respondeu: só as boas-vindas foram enviadas.</p>}
             <div className="space-y-2">
               {respostas.map((x, i) => (
                 <CartaoResposta key={x.run_id} x={x} numero={i + 1} aberto={i === respostas.length - 1} />
@@ -168,7 +168,7 @@ function CartaoResposta({ x, numero, aberto }: { x: RespostaRastreada; numero: n
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-medium">
             <span className="text-muted-foreground">{numero}. </span>
-            {x.aluno || "(anexo)"}
+            {x.mensagem || "(anexo)"}
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-1">
             {x.quando && <span className="text-[11px] text-muted-foreground">{fmtDataHora(x.quando)}</span>}
@@ -187,8 +187,8 @@ function CartaoResposta({ x, numero, aberto }: { x: RespostaRastreada; numero: n
         </div>
       </summary>
       <div className="space-y-4 border-t border-border px-3 py-3">
-        <Bloco icone={<MessageSquare className="size-3.5" />} titulo="Mensagem do aluno">
-          <p className="text-[13px] whitespace-pre-wrap">{x.aluno || "(anexo sem texto)"}</p>
+        <Bloco icone={<MessageSquare className="size-3.5" />} titulo="Mensagem do servidor">
+          <p className="text-[13px] whitespace-pre-wrap">{x.mensagem || "(anexo sem texto)"}</p>
         </Bloco>
         <Bloco icone={<Brain className="size-3.5" />} titulo="Raciocínio do modelo" nota="resumo escrito pelo Gemini, em inglês">
           {x.raciocinio ? (

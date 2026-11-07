@@ -2,8 +2,8 @@
 
 O login é o do Google, só com contas do domínio da empresa (painel_api.py). Quem entra pela primeira vez
 fica PENDENTE até o dono (ou um administrador) aprovar e escolher o papel. O papel é um conjunto pronto
-de permissões; o dono pode ligar ou desligar permissões de cada pessoa. Mesmo modelo do nexaBI
-(cf-analytics: papéis no banco, o primeiro administrador definido na instalação, gestão pelo painel).
+de permissões; o dono pode ligar ou desligar permissões de cada pessoa. O primeiro administrador é definido na
+instalação; a gestão é pelo painel.
 
 O dono: o e-mail de PAINEL_DONO, se definido; senão, o primeiro a entrar com o Google. Ele tem todas as
 permissões, não pode ser bloqueado nem rebaixado por outra pessoa e é o único que mexe em administradores.

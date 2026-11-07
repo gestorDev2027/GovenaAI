@@ -206,7 +206,7 @@ export function Calibracao() {
         <div className="space-y-8">
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">
-              Mensagens que o guardrail barrou como tentativa de manipulação (o aluno recebeu a resposta de “Pedido fora do atendimento”). CPF e
+              Mensagens que o guardrail barrou como tentativa de manipulação (o servidor recebeu a resposta de “Pedido fora do atendimento”). CPF e
               cartão já chegam mascarados. <strong className="text-foreground">Confirmar</strong>: era manipulação mesmo, e o caso entra no
               dataset. <strong className="text-foreground">Falso positivo</strong>: a mensagem era legítima; desligue ou ajuste a frase que barrou.
             </p>
@@ -259,7 +259,7 @@ function Fila({
   const visiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase();
     const filtradas = termo
-      ? avaliacoes.filter((a) => [a.mensagem_aluno, a.resposta_agente, a.avaliador, a.comentario ?? ""].some((t) => t.toLowerCase().includes(termo)))
+      ? avaliacoes.filter((a) => [a.mensagem_contato, a.resposta_agente, a.avaliador, a.comentario ?? ""].some((t) => t.toLowerCase().includes(termo)))
       : avaliacoes;
     const fator = direcao === "asc" ? 1 : -1;
     return [...filtradas].sort((x, y) => (chave === "nota" ? (x.nota - y.nota) * fator : x.criada_em.localeCompare(y.criada_em) * fator));
@@ -462,7 +462,7 @@ function Fila({
                   <TableCell className="max-w-[20rem]">
                     <div className="flex items-center gap-2">
                       <NotaChip nota={a.nota} guardrail={a.origem === "guardrail"} />
-                      <span className="truncate font-medium">{a.mensagem_aluno}</span>
+                      <span className="truncate font-medium">{a.mensagem_contato}</span>
                     </div>
                     <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
                       #{a.id} · {ORIGEM[a.origem] ?? a.origem} · {a.avaliador}
@@ -680,17 +680,17 @@ function DetalheAvaliacao({
                 <div className="thin-scroll max-h-48 space-y-1.5 overflow-y-auto rounded-lg border border-border bg-muted/30 p-3 text-xs">
                   {anteriores.map((h, i) => (
                     <div key={i}>
-                      <span className="font-semibold">{h.papel === "aluno" ? "Aluno" : "Agente"}:</span> {h.texto}
+                      <span className="font-semibold">{h.papel === "contato" ? "Servidor" : "Agente"}:</span> {h.texto}
                     </div>
                   ))}
                 </div>
               </Campo>
             )}
 
-            <Campo rotulo="Aluno">
-              <div className="rounded-lg bg-secondary px-3 py-2 text-sm whitespace-pre-wrap">{a.mensagem_aluno}</div>
+            <Campo rotulo="Servidor">
+              <div className="rounded-lg bg-secondary px-3 py-2 text-sm whitespace-pre-wrap">{a.mensagem_contato}</div>
             </Campo>
-            <Campo rotulo={doGuardrail ? "O aluno recebeu" : "O agente respondeu"}>
+            <Campo rotulo={doGuardrail ? "O servidor recebeu" : "O agente respondeu"}>
               <div className="rounded-lg border border-border px-3 py-2 text-sm whitespace-pre-wrap">{a.resposta_agente}</div>
             </Campo>
 
@@ -715,7 +715,7 @@ function DetalheAvaliacao({
                 a.situacao === "aprovada"
                   ? "Edite (ou peça ao assistente) e suba uma nova versão: o exemplo do agente é atualizado."
                   : doGuardrail
-                    ? "Vazio: vale a resposta que o aluno recebeu."
+                    ? "Vazio: vale a resposta que o servidor recebeu."
                     : a.nota === 1
                     ? "Vazio: vale a própria resposta do agente."
                     : "Obrigatório para aprovar um 👎. É o que vira gabarito e exemplo."
@@ -984,7 +984,7 @@ function Exemplos() {
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         Cada avaliação aprovada vira um exemplo, com nome, e-mail, telefone e CPF retirados. O agente recebe até 3 dos mais parecidos
-        com a mensagem do aluno. Tirar de uso não apaga: dá para voltar.
+        com a mensagem do servidor. Tirar de uso não apaga: dá para voltar.
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-96">
@@ -1006,7 +1006,7 @@ function Exemplos() {
           <TableHeader>
             <tr>
               <TableHead icone={BookMarked}>Exemplo</TableHead>
-              <TableHead icone={MessageSquare}>Mensagem do aluno</TableHead>
+              <TableHead icone={MessageSquare}>Mensagem do servidor</TableHead>
               <TableHead icone={CheckCircle2}>Resposta aprovada</TableHead>
               <TableHead icone={UserCheck}>Aprovado por</TableHead>
               <TableHead icone={Calendar}>Criado</TableHead>
@@ -1071,7 +1071,7 @@ function Exemplos() {
                 <div className="rounded-lg border border-border bg-muted/30 px-3 py-2 text-sm whitespace-pre-wrap">{aberto.contexto}</div>
               </Campo>
             )}
-            <Campo rotulo="Mensagem do aluno">
+            <Campo rotulo="Mensagem do servidor">
               <div className="rounded-lg bg-secondary px-3 py-2 text-sm whitespace-pre-wrap">{aberto.mensagem}</div>
             </Campo>
             <Campo rotulo="Resposta aprovada">

@@ -216,11 +216,11 @@ function PainelConversa({ resumo, aoFechar }: { resumo: ConversaCentral; aoFecha
 
   return (
     <>
-      <CabecalhoPainel icone={<Headset />} cor={corDaConversa(resumo)} rotulo={`Conversa · ${resumo.origem}`} titulo={resumo.nome || "Aluno sem nome"} aoFechar={aoFechar}>
+      <CabecalhoPainel icone={<Headset />} cor={corDaConversa(resumo)} rotulo={`Conversa · ${resumo.origem}`} titulo={resumo.nome || "Servidor sem nome"} aoFechar={aoFechar}>
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
           <StatusBadge status={resumo.status} />
           {resumo.status === "em_atendimento" && (
-            <span className="text-[11px] text-muted-foreground">{conversandoAgora(resumo) ? "conversando agora" : "esperando o aluno"}</span>
+            <span className="text-[11px] text-muted-foreground">{conversandoAgora(resumo) ? "conversando agora" : "esperando o servidor"}</span>
           )}
         </div>
       </CabecalhoPainel>
@@ -250,20 +250,20 @@ function PainelConversa({ resumo, aoFechar }: { resumo: ConversaCentral; aoFecha
               <Hourglass className="size-5" />
             </span>
             <p className="text-sm font-semibold">
-              {conversa.data!.nao_chegou ? "O agente ainda não falou com este aluno" : "Só as boas-vindas foram enviadas"}
+              {conversa.data!.nao_chegou ? "O agente ainda não falou com este servidor" : "Só as boas-vindas foram enviadas"}
             </p>
             <p className="text-xs leading-relaxed text-muted-foreground">
               {conversa.data!.nao_chegou
                 ? "O aviso de entrada da Unnichat não chegou ao servidor, então as boas-vindas não saíram. Confira na Unnichat."
-                : `As boas-vindas saíram ${conversa.data!.criada_em ? `em ${fmtDataHora(conversa.data!.criada_em)}` : ""} e o aluno ainda não respondeu. A conversa aparece aqui quando ele escrever.`}
+                : `As boas-vindas saíram ${conversa.data!.criada_em ? `em ${fmtDataHora(conversa.data!.criada_em)}` : ""} e o servidor ainda não respondeu. A conversa aparece aqui quando ele escrever.`}
             </p>
           </div>
         )}
         {conversa.data?.itens.map((item, i) =>
-          item.papel === "aluno" ? (
+          item.papel === "contato" ? (
             <div key={i} className="flex justify-end">
               <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-secondary px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-secondary-foreground">
-                {item.texto === "(o aluno enviou o anexo sem texto)" ? "📎 anexo" : item.texto}
+                {item.texto === "(o servidor enviou o anexo sem texto)" ? "📎 anexo" : item.texto}
                 {!!item.anexos?.length && <div className="mt-1 text-[11px] opacity-70">📎 {item.anexos.map((a) => a.nome).join(", ")}</div>}
               </div>
             </div>
@@ -353,7 +353,7 @@ export function Central() {
   const todas = useMemo(() => agentes.flatMap((a) => a.conversas), [agentes]);
   const ativas = todas.filter((c) => c.status === "em_atendimento");
   // A mesma régua da Visão geral (painel_api._agora): atendendo agora = na mesa (mensagem nos últimos 15 min);
-  // o resto do que está aberto é espera pelo aluno, separada em boas-vindas sem resposta e conversas paradas.
+  // o resto do que está aberto é espera pelo servidor, separada em boas-vindas sem resposta e conversas paradas.
   const atendendoAgora = ativas.filter(naMesa);
   const aguardando = ativas.filter((c) => !naMesa(c));
   const boasVindasAguardando = aguardando.filter((c) => c.mensagens === 0).length;
@@ -441,7 +441,7 @@ export function Central() {
           />
           <Numero
             icone={<Hourglass />}
-            rotulo="Aguardando o aluno"
+            rotulo="Aguardando o servidor"
             valor={fmtInt(aguardando.length)}
             detalhe={`${fmtInt(boasVindasAguardando)} boas-vindas sem resposta · ${fmtInt(aguardando.length - boasVindasAguardando)} conversas paradas`}
             cor="#3b82f6"
@@ -474,7 +474,7 @@ export function Central() {
                 )}
                 style={{ background: cor }}
               >
-                <img src="/painel/espaco/cf-branco.png" alt="" className="size-[18px]" />
+                <img src="/painel/espaco/gestorgov-branco.png" alt="" className="size-[18px]" />
                 {doAgente.length > 0 && (
                   <span
                     className={cn("absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full ring-2 ring-card", doAgente.some(conversandoAgora) ? "bg-[#22c55e]" : "bg-[#f59e0b]")}
@@ -625,7 +625,7 @@ export function Central() {
           <span className="size-2 rounded-full bg-[#22c55e]" /> Conversando agora
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-[#f59e0b]" /> Esperando o aluno (até 15 min)
+          <span className="size-2 rounded-full bg-[#f59e0b]" /> Esperando o servidor (até 15 min)
         </span>
         <span className="flex items-center gap-1.5">
           <span className="size-2 rounded-full bg-[#f7931e]" /> Transferida

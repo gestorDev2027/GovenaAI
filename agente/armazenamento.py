@@ -13,8 +13,7 @@ BUCKET = os.getenv("SUPABASE_BUCKET_AGENTES", "agentes")
 
 
 def _env(nome: str) -> str:
-    # Os nomes antigos do projeto base (SUPABASE_NEXA_*) continuam aceitos.
-    return (os.getenv(nome) or os.getenv(nome.replace("SUPABASE_", "SUPABASE_NEXA_", 1)) or "").strip()
+    return (os.getenv(nome) or "").strip()
 
 
 def disponivel() -> bool:

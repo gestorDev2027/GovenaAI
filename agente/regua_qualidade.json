@@ -1,0 +1,76 @@
+{
+  "versao": "gestorgov-qualidade-v1",
+  "copiada_em": "2026-11-06",
+  "fonte": "Régua do GestorGov: os cinco critérios do Supervisor de atendimento, reescritos para o trabalho dos agentes com os servidores da Secretaria de Saúde. Mudou a régua: troque a versão (avaliações de versões diferentes não se comparam).",
+  "dimensoes": [
+    {
+      "dimensao": "compreensao_necessidade",
+      "rotulo": "Compreensão do pedido",
+      "pergunta": "Entendeu o pedido antes de agir -- e confirmou esse entendimento quando havia dúvida?",
+      "criterio_abaixo": "saiu respondendo sobre outra coisa, pediu informação que o servidor já tinha dado, ou agiu supondo o pedido errado. OU leu errado uma palavra-chave do pedido; OU produziu um documento parecido, mas não o que foi pedido (ex.: um edital quando o pedido era o termo de referência).",
+      "criterio_dentro": "entendeu o que estava sendo pedido e agiu sobre o pedido certo. Também é dentro: explicar por que o pedido não é possível ou não é do setor, mostrando que entendeu o que foi pedido.",
+      "criterio_acima": "devolveu o entendimento em palavras próprias antes de produzir (\"então o que você precisa é X, para a unidade Y, até Z, correto?\"), ou fez a pergunta que faltava e que mudou o rumo do trabalho.",
+      "criterio_nao_avaliavel": "o pedido era direto e não havia nada a interpretar.",
+      "nota_extra": "FRONTEIRA: compreender é identificar o pedido; qualidade_resposta é responder ou entregar de forma correta e suficiente. Uma única falha não deve virar duas marcações abaixo."
+    },
+    {
+      "dimensao": "qualidade_resposta",
+      "rotulo": "Qualidade da resposta",
+      "pergunta": "A informação ou a entrega estava correta e completa para o pedido?",
+      "criterio_abaixo": "deixou pergunta sem resposta, respondeu pela metade (ex.: só uma de duas perguntas), ou entregou algo que não atendia o pedido; OU inventou número, norma, valor, prazo ou nome que não estava na base de conhecimento, nos documentos ou nas ferramentas; OU respondeu de forma vaga sobre informação que estava disponível.",
+      "criterio_dentro": "respondeu o que foi perguntado ou entregou o que foi pedido, de forma correta e suficiente, dizendo de onde veio cada número. Dizer o que falta e onde costuma estar, quando a informação não está disponível, é resposta, não omissão.",
+      "criterio_acima": "entregou e já cobriu a dúvida seguinte de forma visível, ou corrigiu uma premissa errada do pedido com cuidado. É raro: entrega completa e correta é dentro, não acima.",
+      "criterio_nao_avaliavel": "o servidor não fez pergunta nem pedido que exigisse resposta de conteúdo.",
+      "nota_extra": "FRONTEIRA: informação errada ou incompleta fica aqui; orientação correta, porém impossível de executar, pertence a clareza_orientacao. Não desconte o mesmo fato duas vezes. Lei ou norma citada sem estar na base ou nos documentos conta como informação inventada. ANTES de marcar abaixo por pergunta sem resposta, leia as mensagens seguintes do agente."
+    },
+    {
+      "dimensao": "clareza_orientacao",
+      "rotulo": "Clareza da orientação",
+      "pergunta": "As orientações do agente deixaram o servidor sabendo exatamente o que fazer?",
+      "criterio_abaixo": "mandou \"verificar no sistema\" ou \"aguardar\" sem dizer onde, o que enviar ou em quanto tempo; OU não deixou claro que a entrega precisa da aprovação do responsável do setor; OU transferiu sem passar nenhuma informação básica que ele mesmo podia dar.",
+      "criterio_dentro": "deu a orientação de forma executável: o caminho, o documento, o prazo e quem aprova. Citar pelo nome uma tela do painel ou um setor da secretaria conta como caminho.",
+      "criterio_acima": "orientou passo a passo e antecipou o tropeço comum (ex.: o anexo que costuma faltar no processo), ou confirmou depois que o servidor conseguiu.",
+      "criterio_nao_avaliavel": "o agente não deu nenhuma orientação que exigisse ação do servidor. Se ele orientou qualquer coisa, julgue.",
+      "nota_extra": "FRONTEIRA: esta dimensão mede se a orientação é executável -- passo, caminho, documento, prazo e responsável. Correção e completude da informação pertencem a qualidade_resposta."
+    },
+    {
+      "dimensao": "encaminhamento",
+      "rotulo": "Desfecho do atendimento",
+      "pergunta": "A conversa terminou em algum lugar, ou no vazio? (não é sobre mandar para outro setor)",
+      "criterio_abaixo": "a conversa morreu com o servidor falando por último e sem retorno; OU o agente prometeu produzir ou enviar algo e isso não aconteceu; OU encerrou sem ter dado resposta clara ao que já tinha sido pedido.",
+      "criterio_dentro": "entregou o que foi pedido, OU deixou claro o próximo passo e de quem é a vez (ex.: a minuta segue para a aprovação do responsável). Também é dentro: transferir para o setor certo ou para o responsável, avisando, com o resumo do que foi feito.",
+      "criterio_acima": "fechou dizendo o que, quem e quando -- e o que foi combinado aconteceu dentro da conversa.",
+      "criterio_nao_avaliavel": "a conversa se encerrou resolvida na hora, sem nada pendente.",
+      "nota_extra": "PROMESSA: só conte promessa não cumprida quando o agente disse que ia produzir, verificar ou enviar algo e a conversa terminou sem isso. Transferir e avisar não é promessa."
+    },
+    {
+      "dimensao": "portugues_correto",
+      "rotulo": "Português correto",
+      "pergunta": "O agente escreveu em português correto, adequado à administração pública?",
+      "criterio_abaixo": "qualquer erro que um revisor corrigiria num documento oficial: concordância ou regência, palavra trocada que muda o sentido, frase ambígua ou mal construída que obriga a reler, ou mensagens sem pontuação. Um único caso claro já é abaixo. Aponte a mensagem com o erro mais claro.",
+      "criterio_dentro": "escrita correta, pontuada e objetiva, em linguagem de administração pública.",
+      "criterio_acima": "conversa com explicação ou documento de verdade -- textos longos ou passo a passo -- escrita sem nenhum erro, com frases bem construídas e vocabulário adequado ao servidor.",
+      "criterio_nao_avaliavel": "o agente escreveu pouco demais para julgar: só saudação ou só mensagens prontas.",
+      "nota_extra": "Julgue a LÍNGUA, não o conteúdo: resposta errada ou incompleta já é qualidade_resposta, e orientação confusa já é clareza_orientacao -- não conte a mesma falha duas vezes. Não é erro: nome próprio, termo técnico, sigla, link, texto colado de sistema. Mensagens do servidor não contam."
+    }
+  ],
+  "catalogo": [
+    {"motivo": "compras", "rotulo_motivo": "Compras e licitações", "subcausa": "pedido_compra", "rotulo_subcausa": "Pedido de compra", "descricao": "pedido de compra, cotação, levantamento de demanda das unidades"},
+    {"motivo": "compras", "rotulo_motivo": "Compras e licitações", "subcausa": "termo_referencia", "rotulo_subcausa": "Termo de referência e edital", "descricao": "termo de referência, estudo técnico preliminar, edital, minuta de licitação"},
+    {"motivo": "compras", "rotulo_motivo": "Compras e licitações", "subcausa": "contratos_atas", "rotulo_subcausa": "Contratos e atas", "descricao": "contrato vencendo, saldo de ata de registro de preços, aditivo"},
+    {"motivo": "atencao_primaria", "rotulo_motivo": "Atenção primária", "subcausa": "indicadores_equipes", "rotulo_subcausa": "Indicadores das equipes", "descricao": "indicadores das equipes de Saúde da Família, metas, financiamento da APS"},
+    {"motivo": "atencao_primaria", "rotulo_motivo": "Atenção primária", "subcausa": "visitas_acs", "rotulo_subcausa": "Visitas dos ACS", "descricao": "visitas domiciliares, cobertura e produção dos agentes comunitários"},
+    {"motivo": "atencao_primaria", "rotulo_motivo": "Atenção primária", "subcausa": "linhas_cuidado", "rotulo_subcausa": "Gestantes e linhas de cuidado", "descricao": "pré-natal, gestantes, hipertensos, diabéticos, vacinação"},
+    {"motivo": "regulacao", "rotulo_motivo": "Regulação", "subcausa": "fila_espera", "rotulo_subcausa": "Fila de espera", "descricao": "fila acima do prazo, prioridades, tempo de espera por especialidade"},
+    {"motivo": "regulacao", "rotulo_motivo": "Regulação", "subcausa": "vagas_agenda", "rotulo_subcausa": "Vagas e agenda", "descricao": "vagas sem uso, absenteísmo, oferta de consultas e exames"},
+    {"motivo": "regulacao", "rotulo_motivo": "Regulação", "subcausa": "encaminhamentos", "rotulo_subcausa": "Encaminhamentos", "descricao": "encaminhamento para outro município, TFD, pactuação"},
+    {"motivo": "implantacao", "rotulo_motivo": "Implantação e cadastro", "subcausa": "cadastro_secretaria", "rotulo_subcausa": "Cadastro da secretaria", "descricao": "município, unidades (CNES), setores, responsáveis, servidores"},
+    {"motivo": "implantacao", "rotulo_motivo": "Implantação e cadastro", "subcausa": "atividades_agentes", "rotulo_subcausa": "Atividades e agentes", "descricao": "atividades de rotina e sob demanda, agentes do setor, aprovações"},
+    {"motivo": "documentos", "rotulo_motivo": "Documentos e normas", "subcausa": "minuta_documento", "rotulo_subcausa": "Minuta de documento", "descricao": "ofício, memorando, relatório, parecer ou outro documento sob demanda"},
+    {"motivo": "documentos", "rotulo_motivo": "Documentos e normas", "subcausa": "normas_legislacao", "rotulo_subcausa": "Normas e legislação", "descricao": "portaria, lei, norma do SUS, prazo legal"},
+    {"motivo": "dados", "rotulo_motivo": "Dados e relatórios", "subcausa": "planilhas_indicadores", "rotulo_subcausa": "Planilhas e indicadores", "descricao": "leitura de planilha, cálculo de indicador, comparação entre períodos ou unidades"},
+    {"motivo": "outro_setor", "rotulo_motivo": "Assunto de outro setor", "subcausa": "outro_setor", "rotulo_subcausa": "Assunto de outro setor", "descricao": "pedido que pertence a outro setor da secretaria ou da prefeitura"},
+    {"motivo": "sem_pedido", "rotulo_motivo": "Sem pedido", "subcausa": "so_saudacao", "rotulo_subcausa": "Só saudação ou teste", "descricao": "só cumprimentou, testou o agente ou não fez pedido"},
+    {"motivo": "outro", "rotulo_motivo": "Outro", "subcausa": "outro", "rotulo_subcausa": "Outro", "descricao": "nenhum dos temas acima"}
+  ]
+}

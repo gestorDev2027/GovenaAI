@@ -1,10 +1,10 @@
 """Rastreamento de uma conversa para o painel (Central ao vivo e Conversas): por que o agente respondeu o que
 respondeu. Só leitura.
 
-Junta, por resposta: a mensagem do aluno, o resumo do raciocínio do modelo (AGENTE_PENSAMENTOS), as ferramentas
+Junta, por resposta: a mensagem do contato, o resumo do raciocínio do modelo (AGENTE_PENSAMENTOS), as ferramentas
 com argumentos e resultado, tempo e tokens, e o contexto que entrou nas instruções daquela resposta (histórico do
 WhatsApp, trechos de documentos, exemplos aprovados, roteiro), lido das etapas do trace (agno_spans). E, da
-conversa inteira: o que o Learning registrou (resumo da sessão com o plano, perfil e memórias do aluno) e as ações
+conversa inteira: o que o Learning registrou (resumo da sessão com o plano, perfil e memórias do contato) e as ações
 (transferência, encerramento).
 """
 
@@ -89,7 +89,7 @@ def _etapas(engine: Engine, schema: str | None, session_id: str) -> dict[str, di
 
 
 def _aprendizado(engine: Engine, schema: str | None, session_id: str, user_id: str | None) -> dict:
-    """O que o Learning guardou: resumo da sessão (com o plano) e, do aluno, perfil e memórias."""
+    """O que o Learning guardou: resumo da sessão (com o plano) e, do contato, perfil e memórias."""
     if "agno_learnings" not in set(inspect(engine).get_table_names(schema=schema)):
         return {}
     tabela = Table("agno_learnings", MetaData(schema=schema), autoload_with=engine)
@@ -126,7 +126,7 @@ def conversa(sessao, engine: Engine, schema: str | None) -> dict:
             "run_id": run.run_id,
             "quando": datetime.fromtimestamp(run.created_at, timezone.utc).isoformat() if run.created_at else None,
             "agente": getattr(run, "agent_id", None),
-            "aluno": str(getattr(entrada, "input_content", entrada) or ""),
+            "mensagem": str(getattr(entrada, "input_content", entrada) or ""),
             "resposta": run.content or "",
             "raciocinio": getattr(run, "reasoning_content", None) or None,
             "duracao_s": round(metricas.duration, 2) if metricas and metricas.duration else None,
@@ -143,7 +143,7 @@ def conversa(sessao, engine: Engine, schema: str | None) -> dict:
     return {
         "session_id": sessao.session_id,
         "status": estado.get("status"),
-        "nome": estado.get("nome_aluno") or "",
+        "nome": estado.get("nome_contato") or "",
         "acoes": estado.get("acoes") or [],
         **_aprendizado(engine, schema, sessao.session_id, getattr(sessao, "user_id", None)),
         "respostas": respostas,

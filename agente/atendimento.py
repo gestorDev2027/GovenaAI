@@ -1,4 +1,4 @@
-"""Uma troca de mensagens com o aluno, com as regras de estado do atendimento.
+"""Uma troca de mensagens com o contato, com as regras de estado do atendimento.
 
 Usado pelo chat de teste do painel e pela Unnichat (WhatsApp): o agente só responde
 enquanto a conversa está "em_atendimento"; transferida ou encerrada, a mensagem é ignorada.
@@ -73,7 +73,7 @@ def _parametros(ctx: dict | None, whatsapp: str | None = None) -> dict:
     dependencias = {**({"calibracao": ctx} if ctx else {}), **({"whatsapp": whatsapp} if whatsapp else {})}
     return {
         "dependencies": dependencias or None,
-        "add_dependencies_to_context": False,  # entra pelas instruções desta resposta, não na mensagem do aluno
+        "add_dependencies_to_context": False,  # entra pelas instruções desta resposta, não na mensagem do contato
         "metadata": {"calibracao": conhecimento.ids_usados(ctx)} if ctx else None,
     }
 
@@ -97,10 +97,10 @@ def rodar(
     anexos: list[tuple[str, str, bytes]] | None = None,
     whatsapp: str | None = None,
 ):
-    """Uma resposta do agente, do jeito que o aluno a recebe: com os exemplos aprovados e os trechos
+    """Uma resposta do agente, do jeito que o contato a recebe: com os exemplos aprovados e os trechos
     (documentos e, no modo busca, o roteiro) parecidos com a mensagem e, do canal, a conversa do contato com a
     equipe (`whatsapp`). Usada pelo atendimento e pelas avaliações, para que elas meçam exatamente o que vai
-    para o aluno. Devolve (RunOutput, contexto); na equipe, a resposta vem como a do agente que respondeu (agent_id)."""
+    para o contato. Devolve (RunOutput, contexto); na equipe, a resposta vem como a do agente que respondeu (agent_id)."""
     if equipes.eh_equipe(agente):
         por_agente = _contexto_da_equipe(agente, mensagem)
         dependencias = {"calibracao_por_agente": por_agente, **({"whatsapp": whatsapp} if whatsapp else {})}
@@ -125,7 +125,7 @@ def rodar(
 
 
 def _aplicar_guardrail(agente: Agent, session_id: str, mensagem: str, saida: RunOutput, session_state: dict) -> bool:
-    """Pedido de manipulação barrado (agente/guardrails.py): o aluno recebe a seção do roteiro, não o aviso
+    """Pedido de manipulação barrado (agente/guardrails.py): o contato recebe a seção do roteiro, não o aviso
     técnico, e o caso vai para a fila da Calibração (o curador confirma ou aponta falso positivo)."""
     if saida.content != guardrails.BLOQUEIO_MANIPULACAO:
         return False
@@ -136,7 +136,7 @@ def _aplicar_guardrail(agente: Agent, session_id: str, mensagem: str, saida: Run
         agente.db.db_engine, getattr(agente.db, "db_schema", None), quem, session_id, saida.run_id or "",
         guardrails.mascarar_texto(mensagem), saida.content, session_state.get("telefone") or None,
     )
-    ao_vivo.publicar("guardrail", quem, session_id, session_state.get("nome_aluno", ""), texto=mensagem)
+    ao_vivo.publicar("guardrail", quem, session_id, session_state.get("nome_contato", ""), texto=mensagem)
     return True
 
 
@@ -182,14 +182,14 @@ def responder(
     agente: Agent,
     session_id: str,
     mensagem: str,
-    nome_aluno: str = "",
+    nome_contato: str = "",
     user_id: str | None = None,
     telefone: str = "",
     anexos: list[tuple[str, str, bytes]] | None = None,
     estado_extra: dict | None = None,
     whatsapp: str | None = None,
 ) -> dict:
-    """Uma mensagem do aluno. `anexos`: (nome do arquivo, tipo MIME, conteúdo), como chegam do WhatsApp:
+    """Uma mensagem do contato. `anexos`: (nome do arquivo, tipo MIME, conteúdo), como chegam do WhatsApp:
     print do erro (imagem), PDF (boleto, documento) ou áudio. `whatsapp`: a conversa do contato com a equipe
     no canal (agente/historico_canal.py), que entra só nas instruções desta resposta."""
     estado = _estado(agente, session_id)
@@ -199,21 +199,21 @@ def responder(
 
     acoes_antes = len(estado.get("acoes", []))
     quem = _quem_atende(agente, session_id)
-    ao_vivo.publicar("mensagem", quem, session_id, nome_aluno, texto=mensagem)
-    ao_vivo.publicar("pensando", quem, session_id, nome_aluno)
+    ao_vivo.publicar("mensagem", quem, session_id, nome_contato, texto=mensagem)
+    ao_vivo.publicar("pensando", quem, session_id, nome_contato)
     try:
         saida, ctx = rodar(
             agente, session_id, mensagem, user_id or session_id,
-            # O telefone do WhatsApp é o que a consulta ao cadastro usa para achar o aluno.
+            # O telefone do WhatsApp é o que a consulta ao cadastro usa para achar o contato.
             # estado_extra: dados do canal (ex.: o id do contato na Unnichat, para a despedida por inatividade).
-            {"nome_aluno": nome_aluno, "telefone": telefone, **(estado_extra or {})},
+            {"nome_contato": nome_contato, "telefone": telefone, **(estado_extra or {})},
             anexos,
             whatsapp,
         )
     except Exception as erro:
-        ao_vivo.publicar("erro", quem, session_id, nome_aluno, texto=f"{type(erro).__name__}: {erro}")
+        ao_vivo.publicar("erro", quem, session_id, nome_contato, texto=f"{type(erro).__name__}: {erro}")
         raise
-    _avisar_desfecho(agente, session_id, nome_aluno, saida, acoes_antes)
+    _avisar_desfecho(agente, session_id, nome_contato, saida, acoes_antes)
     return _resultado(agente, session_id, saida, ctx)
 
 
@@ -221,7 +221,7 @@ def responder_em_etapas(
     agente: Agent,
     session_id: str,
     mensagem: str,
-    nome_aluno: str = "",
+    nome_contato: str = "",
     user_id: str | None = None,
     telefone: str = "",
     anexos: list[tuple[str, str, bytes]] | None = None,
@@ -236,7 +236,7 @@ def responder_em_etapas(
         # Equipe: a recepção escolhe o agente e a resposta vem inteira (sem as etapas do modelo).
         yield {"tipo": "etapa", "id": "recepcao", "chave": "recepcao", "estado": "rodando"}
         inicio = time.perf_counter()
-        resultado = responder(agente, session_id, mensagem, nome_aluno, user_id, telefone, anexos)
+        resultado = responder(agente, session_id, mensagem, nome_contato, user_id, telefone, anexos)
         yield {"tipo": "etapa", "id": "recepcao", "chave": "recepcao", "estado": "concluida",
                "duracao_s": round(time.perf_counter() - inicio, 2), "agente": resultado.get("agente"),
                "nome": perfis.identidade(resultado.get("agente"))["nome"] if resultado.get("agente") else None}
@@ -252,8 +252,8 @@ def responder_em_etapas(
         return
 
     acoes_antes = len(estado.get("acoes", []))
-    ao_vivo.publicar("mensagem", agente.id, session_id, nome_aluno, texto=mensagem)
-    ao_vivo.publicar("pensando", agente.id, session_id, nome_aluno)
+    ao_vivo.publicar("mensagem", agente.id, session_id, nome_contato, texto=mensagem)
+    ao_vivo.publicar("pensando", agente.id, session_id, nome_contato)
     yield {"tipo": "etapa", "id": "contexto", "chave": "contexto", "estado": "rodando"}
     inicio = time.perf_counter()
     ctx = _contexto(agente, mensagem)
@@ -273,7 +273,7 @@ def responder_em_etapas(
             **_midias(anexos),
             session_id=session_id,
             user_id=user_id or session_id,
-            session_state={"nome_aluno": nome_aluno, "telefone": telefone},
+            session_state={"nome_contato": nome_contato, "telefone": telefone},
             stream=True,
             stream_events=True,
             yield_run_output=True,
@@ -316,16 +316,16 @@ def responder_em_etapas(
                     barrado = RunOutput(run_id=getattr(item, "run_id", None), agent_id=agente.id,
                                         session_id=session_id, content=conteudo)
                     continue
-                ao_vivo.publicar("erro", agente.id, session_id, nome_aluno, texto=conteudo or "falha no modelo")
+                ao_vivo.publicar("erro", agente.id, session_id, nome_contato, texto=conteudo or "falha no modelo")
                 raise RuntimeError(conteudo or "O agente não conseguiu responder.")
 
     saida = saida or barrado
     if saida is None:
-        ao_vivo.publicar("erro", agente.id, session_id, nome_aluno, texto="terminou sem resposta")
+        ao_vivo.publicar("erro", agente.id, session_id, nome_contato, texto="terminou sem resposta")
         raise RuntimeError("O agente terminou sem resposta.")
-    if _aplicar_guardrail(agente, session_id, mensagem, saida, {"nome_aluno": nome_aluno, "telefone": telefone}):
+    if _aplicar_guardrail(agente, session_id, mensagem, saida, {"nome_contato": nome_contato, "telefone": telefone}):
         yield {"tipo": "texto", "delta": saida.content}
-    _avisar_desfecho(agente, session_id, nome_aluno, saida, acoes_antes)
+    _avisar_desfecho(agente, session_id, nome_contato, saida, acoes_antes)
     yield {"tipo": "fim", **_resultado(agente, session_id, saida, ctx)}
 
 
@@ -339,13 +339,13 @@ def encerrar_por_inatividade(agente: Agent, session_id: str) -> dict:
     if status in (STATUS_TRANSFERIDO, STATUS_ENCERRADO):
         return {"encerrou": False, "status": status, "mensagem": None}
     if not estado:
-        # O aluno não chegou a responder às boas-vindas: não há conversa gravada para encerrar.
+        # O contato não chegou a responder às boas-vindas: não há conversa gravada para encerrar.
         return {"encerrou": True, "status": STATUS_ENCERRADO, "mensagem": despedida}
     # registrado_em como nas ações das ferramentas (agente/ferramentas.py): sem ele, a Central não sabe quando encerrou.
-    acoes = estado.get("acoes", []) + [{"tipo": "inatividade", "motivo": "Sem resposta do aluno",
+    acoes = estado.get("acoes", []) + [{"tipo": "inatividade", "motivo": "Sem resposta do contato",
                                         "registrado_em": datetime.now().isoformat(timespec="seconds")}]
     agente.update_session_state({"status": STATUS_ENCERRADO, "acoes": acoes}, session_id=session_id)
-    ao_vivo.publicar("encerrou", quem, session_id, estado.get("nome_aluno", ""), motivo="inatividade")
+    ao_vivo.publicar("encerrou", quem, session_id, estado.get("nome_contato", ""), motivo="inatividade")
     return {"encerrou": True, "status": STATUS_ENCERRADO, "mensagem": despedida}
 
 

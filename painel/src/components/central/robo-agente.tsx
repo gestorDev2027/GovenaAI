@@ -177,7 +177,7 @@ export function RoboAgente({
   /** Expressão imposta pela cena até um instante (performance.now(), em ms). */
   reacao?: MutableRefObject<{ humor: Humor; ate: number } | null>;
 }) {
-  const logo = useTexture("/painel/espaco/cf-laranja.png");
+  const logo = useTexture("/painel/espaco/gestorgov-cor.png");
   logo.colorSpace = THREE.SRGBColorSpace;
 
   const tela = useMemo(() => {

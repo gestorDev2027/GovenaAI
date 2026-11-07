@@ -25,7 +25,7 @@ class Analise(BaseModel):
     confianca: Literal["alta", "media", "baixa"]
     motivo: str = Field(description="Por que, em até 3 frases, citando o trecho do roteiro quando houver.")
     resposta_ideal_sugerida: str = Field(
-        description="Como a resposta deveria ser, pronta para o aluno no WhatsApp, seguindo o roteiro. Vazia só ao recusar.")
+        description="Como a resposta deveria ser, pronta para o contato no WhatsApp, seguindo o roteiro. Vazia só ao recusar.")
     alertas: list[str] = Field(default_factory=list, description="Riscos concretos; lista vazia se não houver.")
 
 
@@ -48,7 +48,7 @@ class RespostaDoAssistente(BaseModel):
     resposta: str = Field(description="O que você diz ao curador: curto e direto.")
     resposta_ideal: str = Field(
         default="",
-        description="Só quando o curador pedir para escrever ou ajustar a resposta: o texto COMPLETO, pronto para o aluno. "
+        description="Só quando o curador pedir para escrever ou ajustar a resposta: o texto COMPLETO, pronto para o contato. "
         "Vazio nas demais perguntas.")
 
 
@@ -61,7 +61,7 @@ informação que não está no roteiro: se faltar, diga o que falta."""
 def _contexto(avaliacao: dict, ideal_atual: str | None = None) -> str:
     roteiro = base.obter(avaliacao.get("agente") or base.AGENTE_PADRAO).texto()
     historico = "\n".join(
-        f"{'Aluno' if h.get('papel') == 'aluno' else 'Agente'}: {h.get('texto', '')}" for h in (avaliacao.get("historico") or [])[:-2])
+        f"{'Contato' if h.get('papel') == 'contato' else 'Agente'}: {h.get('texto', '')}" for h in (avaliacao.get("historico") or [])[:-2])
     pedido = f"""<roteiro>
 {roteiro}
 </roteiro>
@@ -70,9 +70,9 @@ def _contexto(avaliacao: dict, ideal_atual: str | None = None) -> str:
 {historico or "(sem mensagens anteriores)"}
 </conversa_anterior>
 
-<mensagem_do_aluno>
-{avaliacao.get("mensagem_aluno", "")}
-</mensagem_do_aluno>
+<mensagem_do_contato>
+{avaliacao.get("mensagem_contato", "")}
+</mensagem_do_contato>
 
 <resposta_do_agente>
 {avaliacao.get("resposta_agente", "")}

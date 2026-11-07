@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 const prefersReduced = () =>
   typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-/** Anima de um número ao outro quando `target` muda (mesmo hook do NexaCF). Respeita reduced-motion. */
+/** Anima de um número ao outro quando `target` muda. Respeita reduced-motion. */
 export function useCountUp(target: number, duration = 700): number {
   const [value, setValue] = useState(target);
   const fromRef = useRef(target);

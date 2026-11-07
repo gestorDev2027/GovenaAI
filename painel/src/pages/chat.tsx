@@ -65,7 +65,7 @@ import { UsoNaResposta } from "@/components/conhecimento/uso";
  */
 
 interface Mensagem {
-  papel: "aluno" | "agente";
+  papel: "contato" | "agente";
   texto: string;
   quando: string;
   automatica?: boolean;
@@ -87,46 +87,33 @@ export type EtapaExibida = EtapaChat & { inicio: number; fim?: number };
 // Perguntas de exemplo de cada agente (as do script dele); um agente novo sem lista usa as do padrão.
 const SUGESTOES: Record<string, string[]> = {
   onboarding: [
-    "Esqueci minha senha",
-    "Não recebi o e-mail de acesso",
-    "No iPhone a página não abre",
-    "Não acho a aula de Simples Nacional",
-    "Preciso fazer TCC na pós?",
-    "Como peço o certificado da minha pós?",
-    "Por que minha nota fiscal vem todo mês?",
-    "Quero cancelar minha matrícula",
+    "Quero implantar o GestorGov no meu município",
+    "Nosso CEP é 01001-000",
+    "Importe as unidades do CNES",
+    "Quais setores a secretaria pode ter?",
+    "Sugira as atividades da Regulação",
+    "O responsável pelas Compras é a Ana",
+    "Como está a implantação?",
     "Quero falar com uma pessoa",
   ],
-  sdr: [
-    "Quero saber da pós em Reforma Tributária",
-    "Sou formado mas não tenho CRC, o que vocês indicam?",
-    "Quero passar no exame do CFC",
-    "Quanto custa a Escola Contábil?",
-    "Tem desconto à vista?",
-    "Achei caro",
-    "A empresa onde trabalho vai pagar o curso",
-    "Já sou aluno e não consigo acessar",
-    "Quero falar com um consultor",
+  compras: [
+    "Preciso de um termo de referência para luvas de procedimento",
+    "Quais contratos vencem nos próximos 60 dias?",
+    "Qual o saldo da ata de medicamentos?",
+    "Monte o pedido de compra das unidades básicas",
+    "Quero falar com o responsável",
   ],
-  recuperacao: [
-    "Meu cartão foi recusado na matrícula",
-    "O pix venceu antes de eu pagar",
-    "Comecei a matrícula e não terminei",
-    "Por que meu pagamento não passou?",
-    "Posso pagar no boleto?",
-    "Achei caro, tem desconto?",
-    "Quero tentar com outro cartão",
-    "Quero falar com um consultor",
+  atencao_primaria: [
+    "Como estão os indicadores das equipes de Saúde da Família?",
+    "Quais ACS estão com visitas atrasadas?",
+    "Quantas gestantes estão sem consulta no mês?",
+    "Monte um resumo para a reunião de coordenação",
   ],
-  financeiro: [
-    "Paguei e ainda não liberou o acesso",
-    "Tenho parcelas do boleto em atraso",
-    "Como troco o cartão da assinatura?",
-    "Não recebi minha nota fiscal",
-    "Por que a nota vem dividida?",
-    "Quero o reembolso, me arrependi",
-    "Preciso da segunda via do boleto",
-    "Quero cancelar minha matrícula",
+  regulacao: [
+    "Quem espera há mais de 90 dias?",
+    "Quais especialidades têm vagas sem uso?",
+    "Qual o tempo médio de espera em ortopedia?",
+    "Prepare o relatório da fila para o secretário",
   ],
 };
 
@@ -137,7 +124,7 @@ const buscarConfig = (agente: string) => api<Config>(`/config?agente=${encodeURI
 const ACEITOS = "image/png,image/jpeg,image/webp,image/gif,application/pdf,audio/ogg,audio/mpeg,audio/mp4,audio/wav,audio/webm,audio/aac";
 const MAX_ANEXOS = 4;
 const MAX_BYTES = 10 * 1024 * 1024;
-const SEM_TEXTO = "(o aluno enviou o anexo sem texto)";
+const SEM_TEXTO = "(o servidor enviou o anexo sem texto)";
 
 /** "23 h", "1 h 30 min", "10 min": o prazo de inatividade do agente, para o botão que o simula. */
 function tempoSemResposta(minutos: number) {
@@ -209,9 +196,10 @@ function Ferramentas({ nomes }: { nomes: string[] }) {
 const ETAPA_FERRAMENTA: Record<string, string> = {
   transferir_para_humano: "Transferindo para a equipe",
   encerrar_atendimento: "Encerrando o atendimento",
-  consultar_cadastro: "Consultando o cadastro",
-  buscar_aula: "Buscando a aula",
-  consultar_brindes: "Consultando apostilas e brindes",
+  consultar_secretaria: "Consultando a secretaria",
+  listar_unidades: "Listando as unidades",
+  buscar_municipio: "Buscando o município",
+  importar_unidades_cnes: "Importando as unidades do CNES",
   update_user_memory: "Registrando na memória",
 };
 
@@ -254,7 +242,7 @@ function descreverEtapa(e: EtapaExibida, indiceModelo: number): { rotulo: string
       };
     }
     case "memoria":
-      return { rotulo: rodando ? "Atualizando a memória do aluno" : "Memória do aluno atualizada" };
+      return { rotulo: rodando ? "Atualizando a memória do servidor" : "Memória do servidor atualizada" };
     case "recepcao":
       return { rotulo: rodando ? "Recepção escolhendo quem responde" : `Recepção → ${e.nome ?? e.agente ?? "agente"}` };
   }
@@ -377,7 +365,7 @@ function MensagemAgente({ m, sessao }: { m: Mensagem; sessao?: string }) {
   );
 }
 
-function MensagemAluno({ m }: { m: Mensagem }) {
+function MensagemContato({ m }: { m: Mensagem }) {
   const temTexto = m.texto && m.texto !== SEM_TEXTO;
   return (
     <div className="flex items-start gap-4 pt-4" title={fmtDataHora(m.quando)}>
@@ -406,16 +394,16 @@ export function PontosPensando() {
 
 /* Colunas recolhíveis: a escolha fica guardada neste navegador. */
 const CHAVE_PAINEIS = "chat-teste-paineis";
-type Paineis = { sessoes: boolean; aluno: boolean };
+type Paineis = { sessoes: boolean; contato: boolean };
 
 function lerPaineis(): Paineis {
   try {
     const salvo = JSON.parse(localStorage.getItem(CHAVE_PAINEIS) ?? "null");
-    if (salvo && typeof salvo.sessoes === "boolean" && typeof salvo.aluno === "boolean") return salvo;
+    if (salvo && typeof salvo.sessoes === "boolean" && typeof salvo.contato === "boolean") return salvo;
   } catch {
     /* sem armazenamento: as duas colunas abertas */
   }
-  return { sessoes: true, aluno: true };
+  return { sessoes: true, contato: true };
 }
 
 function BotaoBarra({ titulo, onClick, className, children }: { titulo: string; onClick: () => void; className?: string; children: ReactNode }) {
@@ -486,7 +474,7 @@ export function Chat() {
   const [pendentes, setPendentes] = useState<File[]>([]);
   const [arrastando, setArrastando] = useState(false);
   const [busca, setBusca] = useState("");
-  const [gaveta, setGaveta] = useState<null | "sessoes" | "aluno">(null);
+  const [gaveta, setGaveta] = useState<null | "sessoes" | "contato">(null);
   const [paineis, setPaineis] = useState<Paineis>(lerPaineis);
   const fimRef = useRef<HTMLDivElement>(null);
 
@@ -497,14 +485,14 @@ export function Chat() {
       /* sem armazenamento: vale só nesta visita */
     }
   }, [paineis]);
-  const foco = !paineis.sessoes && !paineis.aluno;
+  const foco = !paineis.sessoes && !paineis.contato;
   const arquivoRef = useRef<HTMLInputElement>(null);
   const textoRef = useRef<HTMLDivElement>(null);
 
   const boasVindas = (c: Config | undefined = config.data): Mensagem[] =>
     c ? [{ papel: "agente", texto: c.boas_vindas, quando: agora(), automatica: true }] : [];
 
-  // Começa como no fluxo real: a mensagem de boas-vindas já foi enviada ao aluno. Trocar de agente
+  // Começa como no fluxo real: a mensagem de boas-vindas já foi enviada ao servidor. Trocar de agente
   // antes da primeira mensagem troca as boas-vindas.
   useEffect(() => {
     if (config.data && !sessao && mensagens.every((m) => m.automatica)) setMensagens(boasVindas());
@@ -565,7 +553,7 @@ export function Chat() {
       const corpo = new FormData();
       corpo.append("mensagem", mensagem);
       if (sessao) corpo.append("session_id", sessao);
-      corpo.append("nome_aluno", nome);
+      corpo.append("nome_contato", nome);
       corpo.append("telefone", telefone);
       corpo.append("agente", agente);
       arquivos.forEach((f) => corpo.append("arquivos", f, f.name));
@@ -621,7 +609,7 @@ export function Chat() {
     },
     onError: (e: Error) => {
       toast.error("O agente não respondeu", { description: e.message });
-      // Tira a resposta incompleta e a mensagem do aluno, que pode ser enviada de novo.
+      // Tira a resposta incompleta e a mensagem do servidor, que pode ser enviada de novo.
       setMensagens((m) => m.filter((x) => !x.escrevendo).slice(0, -1));
     },
   });
@@ -692,7 +680,7 @@ export function Chat() {
     setMensagens((m) => [
       ...m,
       {
-        papel: "aluno",
+        papel: "contato",
         texto: mensagem,
         quando: agora(),
         anexos: previas
@@ -885,11 +873,11 @@ export function Chat() {
     </div>
   );
 
-  /* ───────── Coluna do aluno simulado ───────── */
-  const colunaAluno = (
+  /* ───────── Coluna do servidor simulado ───────── */
+  const colunaContato = (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <Rotulo>{agente === AGENTE_PADRAO ? "Aluno simulado" : "Contato simulado"}</Rotulo>
+        <Rotulo>{agente === AGENTE_PADRAO ? "Servidor simulado" : "Contato simulado"}</Rotulo>
         <input className={campo} placeholder="Nome no CRM (ex.: Maria)" value={nome} disabled={!!sessao} onChange={(e) => setNome(e.target.value)} />
         <input
           className={campo}
@@ -901,7 +889,7 @@ export function Chat() {
         />
         <p className="text-[11px] leading-relaxed text-muted-foreground">
           Com o telefone, o agente consulta o cadastro real, como faz com o número que chega pelo WhatsApp. O mesmo nome numa conversa
-          nova simula o aluno voltando (memória). Os dois ficam fixos depois da primeira mensagem.
+          nova simula o servidor voltando (memória). Os dois ficam fixos depois da primeira mensagem.
         </p>
         <button
           type="button"
@@ -970,7 +958,7 @@ export function Chat() {
       <PageHeader
         title="Chat de teste"
         icon={Bot}
-        description="Converse com o agente como um aluno no WhatsApp (texto, prints, PDFs e áudios) e avalie cada resposta."
+        description="Converse com o agente como um servidor no WhatsApp (texto, prints, PDFs e áudios) e avalie cada resposta."
       />
     <div className="-mx-4 flex min-h-[520px] flex-1 gap-1.5 p-1.5 sm:-mx-8">
       {paineis.sessoes && <aside className="hidden w-64 shrink-0 px-2 py-3 lg:block">{colunaSessoes}</aside>}
@@ -1016,33 +1004,33 @@ export function Chat() {
           <StatusBadge status={status} className="ml-auto" />
           <BotaoBarra
             titulo={foco ? "Sair do modo foco" : "Modo foco: recolher as duas colunas"}
-            onClick={() => setPaineis(foco ? { sessoes: true, aluno: true } : { sessoes: false, aluno: false })}
+            onClick={() => setPaineis(foco ? { sessoes: true, contato: true } : { sessoes: false, contato: false })}
             className="hidden lg:grid"
           >
             {foco ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
           </BotaoBarra>
           <BotaoBarra
-            titulo={paineis.aluno ? "Recolher o aluno simulado" : "Mostrar o aluno simulado"}
-            onClick={() => setPaineis((p) => ({ ...p, aluno: !p.aluno }))}
+            titulo={paineis.contato ? "Recolher o servidor simulado" : "Mostrar o servidor simulado"}
+            onClick={() => setPaineis((p) => ({ ...p, contato: !p.contato }))}
             className="hidden xl:grid"
           >
-            {paineis.aluno ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
+            {paineis.contato ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
           </BotaoBarra>
           <button
             type="button"
-            onClick={() => setGaveta((g) => (g === "aluno" ? null : "aluno"))}
+            onClick={() => setGaveta((g) => (g === "contato" ? null : "contato"))}
             className={cn(
               "flex items-center gap-1 rounded-lg border px-2 py-1 font-mono text-[11px] uppercase",
-              paineis.aluno ? "xl:hidden" : "",
+              paineis.contato ? "xl:hidden" : "",
             )}
           >
-            <User className="size-3" /> Aluno
+            <User className="size-3" /> Servidor
           </button>
         </div>
 
         {gaveta && (
           <div className="thin-scroll absolute inset-x-0 top-11 bottom-0 z-20 overflow-y-auto bg-background/95 p-4 backdrop-blur-sm">
-            {gaveta === "sessoes" ? colunaSessoes : colunaAluno}
+            {gaveta === "sessoes" ? colunaSessoes : colunaContato}
           </div>
         )}
 
@@ -1052,7 +1040,7 @@ export function Chat() {
               <p className="text-center font-mono text-[11px] text-muted-foreground uppercase">Abrindo sessão…</p>
             )}
             {mensagens.map((m, i) =>
-              m.papel === "agente" ? <MensagemAgente key={i} m={m} sessao={sessao ?? undefined} /> : <MensagemAluno key={i} m={m} />,
+              m.papel === "agente" ? <MensagemAgente key={i} m={m} sessao={sessao ?? undefined} /> : <MensagemContato key={i} m={m} />,
             )}
             {soBoasVindas && !enviar.isPending && (
               <div className="flex flex-wrap gap-2 pl-10">
@@ -1131,7 +1119,7 @@ export function Chat() {
               <Paperclip className="size-4" />
             </button>
             <CaixaTexto
-              placeholder={bloqueada ? "Sessão finalizada" : "Escreva como o aluno escreveria"}
+              placeholder={bloqueada ? "Sessão finalizada" : "Escreva como o servidor escreveria"}
               value={texto}
               disabled={bloqueada}
               onChange={(e) => setTexto(e.target.value)}
@@ -1155,7 +1143,7 @@ export function Chat() {
         </form>
       </main>
 
-      {paineis.aluno && <aside className="thin-scroll hidden w-72 shrink-0 overflow-y-auto px-2 py-3 xl:block">{colunaAluno}</aside>}
+      {paineis.contato && <aside className="thin-scroll hidden w-72 shrink-0 overflow-y-auto px-2 py-3 xl:block">{colunaContato}</aside>}
     </div>
     </div>
   );

@@ -118,7 +118,7 @@ export function NovoAgente({
           tipo="agente"
           titulo="Criar com IA"
           ajuda="Descreva o atendimento. A IA preenche nome, área, descrição, motivos de transferência, quando transferir e memória; você revisa antes de criar."
-          placeholder="Ex.: uma agente para tirar dúvidas de matrícula dos alunos novos da pós-graduação: prazos, documentos, acesso à plataforma. Pedidos de desconto vão para a equipe."
+          placeholder="Ex.: um agente para o setor de Farmácia: acompanha o estoque das unidades, aponta medicamentos perto de faltar ou de vencer e prepara o pedido de reposição para a aprovação do responsável."
           rotuloBotao="Criar rascunho com IA"
           aoReceber={(r) => {
             setSugerido(r);
@@ -167,7 +167,7 @@ export function NovoAgente({
           <Input
             value={f.descricao}
             maxLength={160}
-            placeholder="Ex.: Tira dúvidas de matrícula e acesso dos alunos novos"
+            placeholder="Ex.: Acompanha o estoque de medicamentos e prepara a reposição"
             onChange={(e) => setF({ ...f, descricao: e.target.value })}
           />
         </Campo>

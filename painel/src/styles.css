@@ -64,7 +64,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
-  /* Sombras tingidas pela cor do texto (preset do nexa-forms). */
+  /* Sombras tingidas pela cor do texto. */
   --shadow-xs: 0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent);
   --shadow-sm: 0 1px 3px color-mix(in oklab, var(--foreground) 6%, transparent),
     0 1px 2px color-mix(in oklab, var(--foreground) 4%, transparent);
@@ -228,7 +228,7 @@
       0 12px 32px -16px oklch(0 0 0 / 0.6);
   }
 
-  /* ── Vidro do Nexa BI: só dentro do casco (`.bi-shell`) e nos painéis laterais (`.vidro`).
+  /* ── Vidro: só dentro do casco (`.bi-shell`) e nos painéis laterais (`.vidro`).
      🪤 `:where()` zera o peso do escopo e a regra fica com a MESMA especificidade de `.surface-card`:
      um `.bi-shell .surface-card` comum passaria por cima das classes de canto, borda e fundo que os
      cards põem em si mesmos. `.vidro` é o mesmo acabamento para quem não é surface-card (KPI e painel lateral). */
@@ -424,7 +424,7 @@
     animation-delay: calc(var(--i, 0) * 160ms);
   }
 
-  /* Tabela larga: a sombra aparece no lado em que há colunas escondidas (padrão do nexa-forms). */
+  /* Tabela larga: a sombra aparece no lado em que há colunas escondidas. */
   .sombra-de-rolagem {
     background-image:
       linear-gradient(to right, var(--color-card) 30%, transparent),
@@ -529,7 +529,7 @@
   }
 }
 
-/* ── Casco do app: fundo ambiente do Nexa BI (.bi-canvas::before), uma camada parada atrás de tudo:
+/* ── Casco do app: fundo ambiente (.bi-canvas::before), uma camada parada atrás de tudo:
    brilho laranja no alto à direita, azul à esquerda e um pontilhado quase invisível — é o que dá ao
    vidro alguma coisa para desfocar. Sem animação: dezenas de cards desfocam este fundo. ── */
 .bi-shell,
@@ -627,4 +627,4 @@
 }
 
 /* O antigo "visual sóbrio" (cantos retos, sem sombra e sem vidro) saiu em 05/11/2026: o painel passou ao
-   acabamento do Nexa BI, com o mesmo vidro, raios e fundo. */
+   acabamento do casco, com o mesmo vidro, raios e fundo. */

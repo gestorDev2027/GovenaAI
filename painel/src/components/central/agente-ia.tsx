@@ -6,7 +6,7 @@ import * as THREE from "three";
 /*
  * O agente de IA na planta: um astronauta com proporções humanas (cabeça ≈ 1/7 da altura). Traje branco
  * com juntas, luvas e faixas na cor do agente, mochila de suporte de vida, capacete com viseira espelhada
- * e o CF no painel do peito. Fica de frente para +z. Sentado na mesa, respira, digita quando atende e
+ * e o símbolo do GestorGov no painel do peito. Fica de frente para +z. Sentado na mesa, respira, digita quando atende e
  * olha em volta quando está livre; quando sai para um setor (postura vinda da cena), levanta, anda
  * balançando braços e pernas, busca com as mãos à frente e volta, às vezes carregando uma pasta. Em foco
  * ou com o mouse em cima, acena. Todas as animações são ângulos calculados a cada quadro (nunca somados).
@@ -64,7 +64,7 @@ export function AgenteIA({
   aoClicar: () => void;
   postura?: MutableRefObject<PosturaAgente>;
 }) {
-  const logo = useTexture("/painel/espaco/cf-laranja.png");
+  const logo = useTexture("/painel/espaco/gestorgov-cor.png");
   logo.colorSpace = THREE.SRGBColorSpace;
   const m = useMemo(
     () => ({
@@ -205,7 +205,7 @@ export function AgenteIA({
           <mesh position={[0, 0.46, 0]} scale={[1, 0.45, 0.7]} material={m.traje} castShadow>
             <sphereGeometry args={[0.215, 28, 16]} />
           </mesh>
-          {/* Painel do peito com o CF e luzes de status */}
+          {/* Painel do peito com o símbolo do GestorGov e luzes de status */}
           <RoundedBox args={[0.2, 0.15, 0.05]} radius={0.02} position={[0, 0.3, 0.14]} material={m.painel} />
           <mesh position={[-0.035, 0.3, 0.167]} material={m.logo}>
             <planeGeometry args={[0.11, 0.11]} />

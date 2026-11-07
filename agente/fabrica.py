@@ -12,7 +12,7 @@ Tabelas, no schema do agente:
   do código; as gravadas no painel começam na 1.
 
 As instruções são um texto com marcadores que o servidor preenche a cada mensagem (ver
-agente/instrucoes_agente.py): @@BASE_DE_CONHECIMENTO@@ (obrigatório), @@BOAS_VINDAS@@ e {nome_aluno}.
+agente/instrucoes_agente.py): @@BASE_DE_CONHECIMENTO@@ (obrigatório), @@BOAS_VINDAS@@ e {nome_contato}.
 A base de conhecimento continua em agente/base.py, uma por agente; o agente novo nasce com
 agente/base_conhecimento_modelo.md.
 
@@ -86,7 +86,7 @@ INSTRUCOES_MODELO = """
 Você é @@NOME@@, agente do setor de @@AREA@@ da Secretaria Municipal de Saúde, no GestorGov: @@DESCRICAO@@
 Quem conversa com você são servidores da secretaria, pelo painel do GestorGov.
 
-Nome do servidor: {nome_aluno}
+Nome do servidor: {nome_contato}
 Se o nome estiver vazio, não use nome.
 
 <objetivo>

@@ -1,6 +1,6 @@
 """Documentos de referência e exemplos aprovados dos agentes, pelo painel (/painel/api/conhecimento).
 
-Documentos: o painel envia o arquivo, o servidor guarda no bucket privado do nexa-DB e processa em
+Documentos: o painel envia o arquivo, o servidor guarda no bucket privado do Supabase e processa em
 segundo plano (texto, trechos, embeddings); a versão nova passa a valer quando fica pronta.
 Exemplos: nascem da aprovação na Calibração (calibracao_api.py); aqui só se ativam ou desativam.
 Bases compartilhadas (/bases): conjuntos de documentos para vários agentes. Os documentos de uma base usam

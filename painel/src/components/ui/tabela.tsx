@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 /**
  * Tabela do painel: a rolagem é do cartão (não da página), nos dois sentidos, com a altura limitada à
  * tela; a lateral se anuncia com sombra e o cabeçalho fica fixo ao rolar. Acabamento das tabelas do
- * Nexa BI: rótulos em caixa alta pequenos, linhas com divisória fina e realce leve no hover, número
+ * Padrão do painel: rótulos em caixa alta pequenos, linhas com divisória fina e realce leve no hover, número
  * em coluna própria com numeral tabular.
  */
 
@@ -156,7 +156,7 @@ export function CabecalhoOrdenavel<Chave extends string>({
   );
 }
 
-/** Rótulo colorido de estado (ponto + texto), como "Publicado" no nexa-forms. */
+/** Rótulo colorido de estado (ponto + texto). */
 export function Chip({
   tom = "neutro",
   children,

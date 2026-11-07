@@ -98,5 +98,5 @@ def avisar_ferramenta(agent, run_context, function_name: str, function_call, arg
     """Gancho de ferramenta do Agno (tool_hooks): avisa a Central quando o agente usa uma ferramenta."""
     estado = getattr(run_context, "session_state", None) or {}
     session_id = getattr(run_context, "session_id", "") or ""
-    publicar("ferramenta", getattr(agent, "id", ""), session_id, estado.get("nome_aluno", ""), ferramenta=function_name)
+    publicar("ferramenta", getattr(agent, "id", ""), session_id, estado.get("nome_contato", ""), ferramenta=function_name)
     return function_call(**arguments)

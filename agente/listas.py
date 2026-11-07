@@ -1,7 +1,7 @@
 """Listas de conversas para o painel, sem baixar o que as telas não usam.
 
 Cada resposta gravada (agno_runs.run_data) leva o histórico inteiro que o modelo recebeu (`messages`, com o
-roteiro completo), os dados do provedor e os anexos do aluno: em 30 dias, 811 respostas somavam 70 MB, 95%
+roteiro completo), os dados do provedor e os anexos do contato: em 30 dias, 811 respostas somavam 70 MB, 95%
 disso nesses campos. As telas de lista (Visão geral, Conversas, Central) usam só o texto da entrada, a
 resposta, as ferramentas, as métricas e o raciocínio. Abrir uma conversa (get_session) e o agente
 respondendo continuam lendo a resposta completa.

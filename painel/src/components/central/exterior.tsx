@@ -2,10 +2,10 @@ import { useEffect, useMemo, useRef } from "react";
 import { useFrame, type ThreeEvent } from "@react-three/fiber";
 import { RoundedBox } from "@react-three/drei";
 import * as THREE from "three";
-import { DivisoriaVidro, LogoCF, Planta, Sofa, type Paleta } from "./moveis";
+import { DivisoriaVidro, LogoGestorGov, Planta, Sofa, type Paleta } from "./moveis";
 
 /*
- * O prédio do CF numa maquete de quarteirão. O escritório (a cena da Central) fica no segundo andar; embaixo,
+ * O prédio da Secretaria de Saúde numa maquete de quarteirão. O escritório (a cena da Central) fica no segundo andar; embaixo,
  * o térreo de vidro com a recepção, os elevadores e a entrada com marquise e totem. Em volta, calçada, jardins
  * (cerca viva, canteiros floridos, árvores de três tipos e uma praça com chafariz) e duas ruas, na frente e à
  * direita (os lados que a câmera vê), com faixa, postes e carros passando.
@@ -338,7 +338,7 @@ function CarroAndando({ c, cor, de, ate, eixo, faixa, velocidade, inicio }: { c:
 
 /* ───────── Térreo ───────── */
 
-/** Totem com o símbolo e o nome do CF, ao lado da entrada (de frente para +z). */
+/** Totem com o símbolo e o nome do GestorGov, ao lado da entrada (de frente para +z). */
 function Totem({ c }: { c: Cores }) {
   const nome = useTextoEmTextura(["Secretaria", "de Saúde"]);
   return (
@@ -351,7 +351,7 @@ function Totem({ c }: { c: Cores }) {
         <meshStandardMaterial color={c.led} emissive={c.led} emissiveIntensity={2} toneMapped={false} />
       </mesh>
       <group position={[0, 1.85, 0.18]}>
-        <LogoCF tamanho={0.95} />
+        <LogoGestorGov tamanho={0.95} />
       </group>
       <mesh position={[0, 0.95, 0.18]}>
         <planeGeometry args={[1.35, 0.34]} />
@@ -409,7 +409,7 @@ function Terreo({ c, p, predio, entradaX }: { c: Cores; p: Paleta; predio: Retan
         <DivisoriaVidro p={p} comprimento={profundidade} altura={alturaVidro} />
       </group>
 
-      {/* Recepção: balcão com o filete laranja, a parede de madeira com o CF, sofás, plantas e tapete */}
+      {/* Recepção: balcão com o filete laranja, a parede de madeira com o GestorGov, sofás, plantas e tapete */}
       <group position={[entradaX, 0, z1 - 5.2]}>
         <mesh position={[0, 0.006, 1.6]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[5, 3]} />
@@ -426,7 +426,7 @@ function Terreo({ c, p, predio, entradaX }: { c: Cores; p: Paleta; predio: Retan
           <meshStandardMaterial color={p.madeira} roughness={0.8} />
         </RoundedBox>
         <group position={[0, 1.6, -1.48]}>
-          <LogoCF tamanho={1.3} />
+          <LogoGestorGov tamanho={1.3} />
         </group>
         <group position={[-3.6, 0, 1.4]} rotation={[0, Math.PI / 2, 0]}>
           <Sofa cor="#334155" />
@@ -830,7 +830,7 @@ export function CascaDoAndar({ predio, escuro, aberto, aoAbrir }: { predio: Reta
             <boxGeometry args={[8.4, 1.1, 0.12]} />
           </mesh>
           <group position={[-3.45, 0.55, 0.07]}>
-            <LogoCF tamanho={0.95} />
+            <LogoGestorGov tamanho={0.95} />
           </group>
           <mesh position={[0.55, 0.55, 0.07]} material={m.nome}>
             <planeGeometry args={[6.6, 0.82]} />

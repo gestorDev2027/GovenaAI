@@ -19,7 +19,7 @@ aplica sobre o texto original. Reescrita inteira mudava o que não devia (um car
 de 3.500 caracteres). Link que não está no documento nem no roteiro vira aviso na sugestão.
 
 "Atualizar com IA" (sugerir_de_texto): o mesmo caminho a partir de uma frase escrita no painel, sem documento, para a
-correção pequena (ex.: "na promoção, o aluno pode escolher qualquer pós"): a pessoa não procura a seção nem o lugar.
+correção pequena (ex.: "o prazo do pedido de compra agora é de 15 dias"): a pessoa não procura a seção nem o lugar.
 """
 
 import re
@@ -43,8 +43,8 @@ Uma pessoa da equipe revisa cada sugestão antes de aplicar.
 Regras do que muda:
 - O documento é a informação mais recente. Quando o roteiro contradiz o documento, a correção é do roteiro.
 - Só o que o documento cobre. Seções sem relação com ele não mudam, e nada se reescreve por estilo.
-- O que o documento marca como uso interno não vira texto para o aluno: vira instrução explícita para o agente não
-  informar (ex.: "Não informe as datas da campanha ao aluno.").
+- O que o documento marca como uso interno não vira texto para o contato: vira instrução explícita para o agente não
+  informar (ex.: "Não informe as datas da campanha ao contato.").
 - O que o documento manda levar à equipe (consultar o suporte, encaminhar para análise, confirmar direito a benefício)
   vira regra de transferência, na seção de "Sempre transferir" do roteiro, se existir.
 - Se o roteiro manda transferir algo que o documento agora explica (ex.: como emitir um certificado), sai da regra de
@@ -72,7 +72,7 @@ Agora: escreva as edições de UMA seção do roteiro, a <secao>, conforme o <mo
 - Não reescreva a seção. Liste só o que muda: em trecho_atual, copie EXATAMENTE (letra por letra, com a pontuação) a
   frase ou linha da seção que muda; em texto_novo, o texto que entra no lugar (vazio para tirar a frase).
 - Para acrescentar ao fim da seção, deixe trecho_atual vazio.
-- Escreva como a seção já escreve: português do Brasil, frases curtas de WhatsApp, os mesmos marcadores ([NOME DO ALUNO]),
+- Escreva como a seção já escreve: português do Brasil, frases curtas de WhatsApp, os mesmos marcadores ([NOME DO CONTATO]),
   "### " para subtópicos. Copie links, prazos, nomes de produtos e passos exatamente como no documento. Não invente link,
   prazo, preço ou nome."""
 
@@ -81,7 +81,7 @@ INSTRUCOES_NOVA = CONTEXTO + """
 Agora: escreva o texto de uma seção NOVA do roteiro, conforme o <motivo>, usando o <documento>.
 - Só o texto, sem a linha do título. Use "### " para subtópicos, como o roteiro.
 - Escreva como o roteiro escreve (veja o <exemplo_de_secao>): português do Brasil, frases curtas de WhatsApp, os mesmos
-  marcadores ([NOME DO ALUNO]). Copie links, prazos, nomes de produtos e passos exatamente como no documento. Não
+  marcadores ([NOME DO CONTATO]). Copie links, prazos, nomes de produtos e passos exatamente como no documento. Não
   invente link, prazo, preço ou nome."""
 
 
@@ -351,7 +351,7 @@ def _comparar(texto: str, nome: str, agente_id: str, nome_agente: str, origem: d
         if not exemplos:
             return []
         lista = "\n\n".join(
-            f"<exemplo id=\"{i}\">\nAluno: {e['mensagem'][:400]}\nResposta aprovada: {e['resposta_ideal'][:600]}\n</exemplo>"
+            f"<exemplo id=\"{i}\">\nContato: {e['mensagem'][:400]}\nResposta aprovada: {e['resposta_ideal'][:600]}\n</exemplo>"
             for i, e in exemplos.items())
         try:
             resposta = _rodar(Conflitos, INSTRUCOES_EXEMPLOS, f"{bloco_documento}\n\n{lista}")

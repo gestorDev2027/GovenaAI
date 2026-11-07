@@ -10,7 +10,7 @@ import { IndicadoresPainel, PainelLateral, SecaoPainel } from "@/components/ui/p
 
 /*
  * "Usou 2 trechos · 1 exemplo": o que entrou no contexto de uma resposta do agente. O selo abre um
- * painel com o conteúdo de cada trecho e exemplo, na ordem de semelhança com a mensagem do aluno.
+ * painel com o conteúdo de cada trecho e exemplo, na ordem de semelhança com a mensagem do servidor.
  */
 
 function plural(n: number, um: string, varios: string) {
@@ -26,7 +26,7 @@ function Semelhanca({ valor }: { valor: number | null }) {
   if (valor == null) return null;
   const pct = Math.round(valor * 100);
   return (
-    <span className="flex items-center gap-1.5" title="Semelhança com a mensagem do aluno">
+    <span className="flex items-center gap-1.5" title="Semelhança com a mensagem do servidor">
       <span className="h-1 w-14 overflow-hidden rounded-full bg-muted">
         <span className={cn("block h-full rounded-full", pct >= 70 ? "bg-success" : pct >= 50 ? "bg-primary" : "bg-warning")} style={{ width: `${pct}%` }} />
       </span>
@@ -110,7 +110,7 @@ function PainelUso({ uso, aberto, aoMudar }: { uso: UsoCalibracao; aberto: boole
       rotulo="Contexto da resposta"
       icone={<BookOpen />}
       titulo="O que o agente consultou"
-      descricao="Trechos e exemplos que entraram nas instruções desta resposta, do mais ao menos parecido com a mensagem do aluno."
+      descricao="Trechos e exemplos que entraram nas instruções desta resposta, do mais ao menos parecido com a mensagem do servidor."
       largura="lg"
       destaque={
         <IndicadoresPainel
@@ -175,7 +175,7 @@ function PainelUso({ uso, aberto, aoMudar }: { uso: UsoCalibracao; aberto: boole
                         </p>
                       )}
                       <div className="rounded-lg bg-muted/50 px-3 py-2">
-                        <div className="mb-0.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">Aluno</div>
+                        <div className="mb-0.5 font-mono text-[10px] tracking-wider text-muted-foreground uppercase">Servidor</div>
                         <p className="text-sm whitespace-pre-wrap">{e.mensagem}</p>
                       </div>
                       <div className="rounded-lg border border-success/25 bg-success/5 px-3 py-2">

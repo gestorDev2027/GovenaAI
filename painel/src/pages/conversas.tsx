@@ -25,9 +25,8 @@ import {
 import {
   api,
   type Acao,
-  type CompraCadastro,
   type Conversa,
-  type FichaAluno,
+  type FichaContato,
   type MensagemUnnichat,
   type ResumoConversa,
   type Status,
@@ -44,9 +43,8 @@ type Filtro = "todas" | Status;
 export const ROTULO_FERRAMENTA: Record<string, string> = {
   transferir_para_humano: "Transferiu para humano",
   encerrar_atendimento: "Encerrou o atendimento",
-  consultar_cadastro: "Consultou o cadastro",
-  buscar_aula: "Buscou aula",
-  consultar_brindes: "Consultou apostilas e brindes",
+  consultar_secretaria: "Consultou a secretaria",
+  listar_unidades: "Listou as unidades",
   update_user_memory: "Registrou na memória",
 };
 
@@ -82,7 +80,7 @@ function BotaoBarra({ titulo, onClick, className, children }: { titulo: string; 
   );
 }
 
-/** Abas pequenas (as da coluna do aluno e a troca entre a conversa do agente e o WhatsApp inteiro). */
+/** Abas pequenas (as da coluna do servidor e a troca entre a conversa do agente e o WhatsApp inteiro). */
 function Abas<T extends string>({ opcoes, valor, onChange }: { opcoes: { value: T; label: string }[]; valor: T; onChange: (v: T) => void }) {
   return (
     <div role="tablist" className="inline-flex shrink-0 items-center gap-0.5 rounded-lg border bg-muted/50 p-0.5">
@@ -105,7 +103,7 @@ function Abas<T extends string>({ opcoes, valor, onChange }: { opcoes: { value: 
   );
 }
 
-/** Linha "rótulo: valor" da coluna do aluno. Sem valor, não aparece. */
+/** Linha "rótulo: valor" da coluna do servidor. Sem valor, não aparece. */
 function Dado({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   if (children === null || children === undefined || children === "") return null;
   return (
@@ -122,19 +120,19 @@ function Cartao({ children, className }: { children: ReactNode; className?: stri
 
 /* Colunas recolhíveis: a escolha fica guardada neste navegador. */
 const CHAVE_PAINEIS = "conversas-paineis";
-type Paineis = { lista: boolean; aluno: boolean };
+type Paineis = { lista: boolean; contato: boolean };
 
 function lerPaineis(): Paineis {
   try {
     const salvo = JSON.parse(localStorage.getItem(CHAVE_PAINEIS) ?? "null");
-    if (salvo && typeof salvo.lista === "boolean" && typeof salvo.aluno === "boolean") return salvo;
+    if (salvo && typeof salvo.lista === "boolean" && typeof salvo.contato === "boolean") return salvo;
   } catch {
     /* sem armazenamento: as duas colunas abertas */
   }
-  return { lista: true, aluno: true };
+  return { lista: true, contato: true };
 }
 
-type Aba = "aluno" | "unnichat" | "curso";
+type Aba = "contato" | "unnichat";
 
 /* ───────── Tela ───────── */
 
@@ -154,11 +152,11 @@ export function Conversas() {
   const nomeDoAgente = (id?: string | null) => agentes.find((a) => a.id === id)?.nome ?? id ?? "";
   const selecionada = search.id;
   const [paineis, setPaineis] = useState<Paineis>(lerPaineis);
-  const [gaveta, setGaveta] = useState<null | "lista" | "aluno">(null);
-  const aba: Aba = search.aba === "unnichat" || search.aba === "curso" ? search.aba : "aluno";
+  const [gaveta, setGaveta] = useState<null | "lista" | "contato">(null);
+  const aba: Aba = search.aba === "unnichat" ? search.aba : "contato";
   type Busca = { id?: string; status?: string; aba?: string };
-  const setAba = (a: Aba) => navigate({ search: (s: Busca) => ({ ...s, aba: a === "aluno" ? undefined : a }) });
-  const foco = !paineis.lista && !paineis.aluno;
+  const setAba = (a: Aba) => navigate({ search: (s: Busca) => ({ ...s, aba: a === "contato" ? undefined : a }) });
+  const foco = !paineis.lista && !paineis.contato;
 
   useEffect(() => {
     try {
@@ -190,8 +188,8 @@ export function Conversas() {
     refetchInterval: 20_000,
   });
   const ficha = useQuery({
-    queryKey: ["conversa-aluno", selecionada],
-    queryFn: () => api<FichaAluno>(`/conversas/${encodeURIComponent(selecionada!)}/aluno`),
+    queryKey: ["conversa-servidor", selecionada],
+    queryFn: () => api<FichaContato>(`/conversas/${encodeURIComponent(selecionada!)}/ficha`),
     enabled: !!selecionada,
     staleTime: 60_000,
   });
@@ -200,8 +198,8 @@ export function Conversas() {
     if (!selecionada) return;
     setAtualizando(true);
     try {
-      const nova = await api<FichaAluno>(`/conversas/${encodeURIComponent(selecionada)}/aluno?atualizar=true`);
-      qc.setQueryData(["conversa-aluno", selecionada], nova);
+      const nova = await api<FichaContato>(`/conversas/${encodeURIComponent(selecionada)}/ficha?atualizar=true`);
+      qc.setQueryData(["conversa-servidor", selecionada], nova);
     } finally {
       setAtualizando(false);
     }
@@ -300,7 +298,7 @@ export function Conversas() {
                           : "bg-muted-foreground/50",
                   )}
                 />
-                <span className={cn("truncate text-sm font-medium", atual && "text-primary")}>{c.nome || "Aluno sem nome"}</span>
+                <span className={cn("truncate text-sm font-medium", atual && "text-primary")}>{c.nome || "Servidor sem nome"}</span>
                 <span className="ml-auto shrink-0 font-mono text-[11px] text-muted-foreground">{fmtRelativo(c.atualizada_em)}</span>
               </span>
               <span className="truncate text-xs text-muted-foreground">
@@ -308,7 +306,7 @@ export function Conversas() {
                   (c.nao_chegou
                     ? "Agente ainda não interagiu: sem boas-vindas"
                     : c.so_boas_vindas
-                      ? "Boas-vindas enviadas, aguardando o aluno"
+                      ? "Boas-vindas enviadas, aguardando o servidor"
                       : "—")}
               </span>
               <span className="flex flex-wrap items-center gap-1 font-mono text-[10px] text-muted-foreground">
@@ -323,39 +321,36 @@ export function Conversas() {
     </div>
   );
 
-  /* ───────── Coluna do aluno ───────── */
-  const colunaAluno = (
+  /* ───────── Coluna do servidor ───────── */
+  const colunaContato = (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <Abas
           opcoes={[
-            { value: "aluno", label: "Aluno" },
+            { value: "contato", label: "Servidor" },
             { value: "unnichat", label: "Unnichat" },
-            { value: "curso", label: "Curso" },
           ]}
           valor={aba}
           onChange={setAba}
         />
         {selecionada && (
-          <BotaoBarra titulo="Consultar de novo o Unnichat e o cadastro" onClick={atualizarFicha}>
+          <BotaoBarra titulo="Consultar de novo o Unnichat" onClick={atualizarFicha}>
             <RefreshCw className={cn("size-3.5", (atualizando || ficha.isFetching) && "animate-spin")} />
           </BotaoBarra>
         )}
       </div>
       {!selecionada ? (
-        <p className="py-6 text-center text-xs text-muted-foreground">Selecione uma conversa para ver o aluno.</p>
-      ) : aba === "aluno" ? (
-        <AbaAluno conversa={conversa.data} ficha={ficha.data} nomeDoAgente={nomeDoAgente} />
+        <p className="py-6 text-center text-xs text-muted-foreground">Selecione uma conversa para ver o servidor.</p>
+      ) : aba === "contato" ? (
+        <AbaContato conversa={conversa.data} ficha={ficha.data} nomeDoAgente={nomeDoAgente} />
       ) : ficha.isLoading ? (
         <p className="py-6 text-center text-xs text-muted-foreground">Consultando…</p>
       ) : ficha.isError ? (
         <p className="py-6 text-center text-xs text-destructive">{(ficha.error as Error).message}</p>
-      ) : aba === "unnichat" ? (
-        <AbaUnnichat ficha={ficha.data} />
       ) : (
-        <AbaCurso ficha={ficha.data} />
+        <AbaUnnichat ficha={ficha.data} />
       )}
-      {ficha.data && aba !== "aluno" && (
+      {ficha.data && aba !== "contato" && (
         <p className="font-mono text-[10px] text-muted-foreground uppercase">Consultado {fmtRelativo(ficha.data.consultado_em)}</p>
       )}
     </div>
@@ -367,13 +362,13 @@ export function Conversas() {
       <PageHeader
         title="Conversas"
         icon={MessagesSquare}
-        description="O que os agentes conversaram com os alunos, a conversa inteira do WhatsApp e o que o Unnichat e o cadastro sabem de cada um."
+        description="O que os agentes conversaram com os servidores, a conversa inteira do WhatsApp e o que o Unnichat e o cadastro sabem de cada um."
       />
       <div className="-mx-4 flex min-h-[520px] flex-1 gap-1.5 p-1.5 sm:-mx-8">
         {paineis.lista && <aside className="hidden w-72 shrink-0 px-2 py-3 lg:block">{colunaLista}</aside>}
 
         <main className="surface-card relative flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl">
-          {/* Barra superior: o aluno, a situação e os botões para recolher as colunas */}
+          {/* Barra superior: o servidor, a situação e os botões para recolher as colunas */}
           <div className="flex h-11 shrink-0 items-center gap-2 px-3">
             <BotaoBarra
               titulo={paineis.lista ? "Recolher a lista" : "Mostrar a lista"}
@@ -391,38 +386,38 @@ export function Conversas() {
             </button>
             {c && (
               <>
-                <span className="truncate text-sm font-semibold">{c.nome || "Aluno sem nome"}</span>
+                <span className="truncate text-sm font-semibold">{c.nome || "Servidor sem nome"}</span>
                 <StatusBadge status={c.status} className="hidden sm:inline-flex" />
               </>
             )}
             <div className="ml-auto flex items-center gap-2">
               <BotaoBarra
                 titulo={foco ? "Sair do modo foco" : "Modo foco: recolher as duas colunas"}
-                onClick={() => setPaineis(foco ? { lista: true, aluno: true } : { lista: false, aluno: false })}
+                onClick={() => setPaineis(foco ? { lista: true, contato: true } : { lista: false, contato: false })}
                 className="hidden lg:grid"
               >
                 {foco ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
               </BotaoBarra>
               <BotaoBarra
-                titulo={paineis.aluno ? "Recolher o aluno" : "Mostrar o aluno"}
-                onClick={() => setPaineis((p) => ({ ...p, aluno: !p.aluno }))}
+                titulo={paineis.contato ? "Recolher o servidor" : "Mostrar o servidor"}
+                onClick={() => setPaineis((p) => ({ ...p, contato: !p.contato }))}
                 className="hidden xl:grid"
               >
-                {paineis.aluno ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
+                {paineis.contato ? <PanelRightClose className="size-4" /> : <PanelRightOpen className="size-4" />}
               </BotaoBarra>
               <button
                 type="button"
-                onClick={() => setGaveta((g) => (g === "aluno" ? null : "aluno"))}
-                className={cn("flex items-center gap-1 rounded-lg border px-2 py-1 font-mono text-[11px] uppercase", paineis.aluno ? "xl:hidden" : "")}
+                onClick={() => setGaveta((g) => (g === "contato" ? null : "contato"))}
+                className={cn("flex items-center gap-1 rounded-lg border px-2 py-1 font-mono text-[11px] uppercase", paineis.contato ? "xl:hidden" : "")}
               >
-                <User className="size-3" /> Aluno
+                <User className="size-3" /> Servidor
               </button>
             </div>
           </div>
 
           {gaveta && (
             <div className="thin-scroll absolute inset-x-0 top-11 bottom-0 z-20 overflow-y-auto bg-background/95 p-4 backdrop-blur-sm">
-              {gaveta === "lista" ? colunaLista : colunaAluno}
+              {gaveta === "lista" ? colunaLista : colunaContato}
             </div>
           )}
 
@@ -431,7 +426,7 @@ export function Conversas() {
               {!selecionada ? (
                 <div className="grid flex-1 place-items-center">
                   <EmptyState icon={<MessagesSquare className="size-5" />} title="Selecione uma conversa">
-                    A conversa inteira do WhatsApp, com os detalhes de cada resposta do agente, e os dados do aluno aparecem aqui.
+                    A conversa inteira do WhatsApp, com os detalhes de cada resposta do agente, e os dados do servidor aparecem aqui.
                   </EmptyState>
                 </div>
               ) : conversa.isLoading ? (
@@ -445,7 +440,7 @@ export function Conversas() {
           </div>
         </main>
 
-        {paineis.aluno && <aside className="thin-scroll hidden w-80 shrink-0 overflow-y-auto px-2 py-3 xl:block">{colunaAluno}</aside>}
+        {paineis.contato && <aside className="thin-scroll hidden w-80 shrink-0 overflow-y-auto px-2 py-3 xl:block">{colunaContato}</aside>}
       </div>
     </div>
   );
@@ -468,7 +463,7 @@ const comparavel = (texto: string) => texto.replace(/\s+/g, " ").trim().toLowerC
  * que não aparece no WhatsApp (a trava calou o agente, falha no envio) fica marcada como não enviada. Sem o
  * Unnichat (conversa do painel), vale só o registro do agente.
  */
-function LinhaDoTempo({ c, ficha, carregandoFicha }: { c: Conversa; ficha?: FichaAluno; carregandoFicha: boolean }) {
+function LinhaDoTempo({ c, ficha, carregandoFicha }: { c: Conversa; ficha?: FichaContato; carregandoFicha: boolean }) {
   const transferencia = useMemo(() => c.acoes.filter((a) => a.tipo === "transferencia").at(-1), [c]);
   const u = ficha?.unnichat && !("erro" in ficha.unnichat) ? ficha.unnichat : null;
   const itens = useMemo<LinhaDoTempoItem[] | null>(() => {
@@ -516,17 +511,17 @@ function LinhaDoTempo({ c, ficha, carregandoFicha }: { c: Conversa; ficha?: Fich
             item.papel === "agente" ? (
               <RespostaDoAgente key={i} c={c} item={item} />
             ) : (
-              <Balao key={i} papel="aluno" texto={item.texto} quando={item.quando} anexos={item.anexos} />
+              <Balao key={i} papel="contato" texto={item.texto} quando={item.quando} anexos={item.anexos} />
             ),
           )}
       {!itens && !carregandoFicha && c.itens.length === 0 && (
         <p className="text-center text-xs text-muted-foreground">
           {c.nao_chegou
-            ? "A Unnichat pôs o aluno com o agente, mas o aviso de entrada não chegou ao servidor: as boas-vindas não foram enviadas. Fale com ele pela Unnichat."
-            : "O aluno ainda não respondeu: só as boas-vindas foram enviadas."}
+            ? "A Unnichat pôs o contato com o agente, mas o aviso de entrada não chegou ao GestorGov: as boas-vindas não foram enviadas. Fale com ele pela Unnichat."
+            : "O servidor ainda não respondeu: só as boas-vindas foram enviadas."}
         </p>
       )}
-      {c.fim === "inatividade" && <div className="text-center text-xs text-muted-foreground">Encerrada por falta de resposta do aluno.</div>}
+      {c.fim === "inatividade" && <div className="text-center text-xs text-muted-foreground">Encerrada por falta de resposta do servidor.</div>}
     </div>
   );
 }
@@ -572,9 +567,8 @@ function CartaoTransferencia({ transferencia, rotulo }: { transferencia: Acao; r
       <dl className="grid gap-x-4 gap-y-1.5 sm:grid-cols-[auto_1fr]">
         {[
           ["Motivo", transferencia.motivo],
-          ["O que o aluno relatou", transferencia.dificuldade_relatada],
+          ["O que o servidor relatou", transferencia.dificuldade_relatada],
           ["Orientações já dadas", transferencia.orientacoes_prestadas],
-          ["E-mail de matrícula", transferencia.email_matricula],
         ]
           .filter(([, v]) => v)
           .map(([k, v]) => (
@@ -589,7 +583,7 @@ function CartaoTransferencia({ transferencia, rotulo }: { transferencia: Acao; r
 }
 
 const AUTOR: Record<MensagemUnnichat["autor"], { rotulo: string; icone: typeof Bot }> = {
-  aluno: { rotulo: "Aluno", icone: User },
+  contato: { rotulo: "Contato", icone: User },
   agente: { rotulo: "Agente", icone: Bot },
   automacao: { rotulo: "Automação", icone: Zap },
   equipe: { rotulo: "Equipe", icone: Users },
@@ -613,24 +607,24 @@ function AvisoWhatsApp({ m }: { m: MensagemUnnichat }) {
 }
 
 function MensagemWhatsApp({ m, children, rodape }: { m: MensagemUnnichat; children?: ReactNode; rodape?: ReactNode }) {
-  const aluno = m.autor === "aluno";
+  const servidor = m.autor === "contato";
   const Icone = AUTOR[m.autor].icone;
   const semTexto = !m.texto;
   return (
-    <div className={cn("flex gap-2.5", !aluno && "flex-row-reverse")}>
+    <div className={cn("flex gap-2.5", !servidor && "flex-row-reverse")}>
       <div
         className={cn(
           "grid size-8 shrink-0 place-items-center rounded-full",
-          aluno ? "bg-muted text-muted-foreground" : m.autor === "agente" ? "bg-primary/14 text-primary" : "bg-secondary text-secondary-foreground",
+          servidor ? "bg-muted text-muted-foreground" : m.autor === "agente" ? "bg-primary/14 text-primary" : "bg-secondary text-secondary-foreground",
         )}
       >
         <Icone className="size-4" />
       </div>
-      <div className={cn("flex max-w-[85%] flex-col gap-1", aluno ? "items-start" : "items-end")}>
+      <div className={cn("flex max-w-[85%] flex-col gap-1", servidor ? "items-start" : "items-end")}>
         <div
           className={cn(
             "rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
-            aluno ? "rounded-tl-sm bg-secondary text-secondary-foreground" : "rounded-tr-sm border bg-background/60 dark:bg-card/70",
+            servidor ? "rounded-tl-sm bg-secondary text-secondary-foreground" : "rounded-tr-sm border bg-background/60 dark:bg-card/70",
             semTexto && "text-muted-foreground italic",
           )}
         >
@@ -647,7 +641,7 @@ function MensagemWhatsApp({ m, children, rodape }: { m: MensagemUnnichat; childr
   );
 }
 
-/* ───────── Direita: as abas do aluno ───────── */
+/* ───────── Direita: as abas do servidor ───────── */
 
 const ROTULO_ACAO: Record<Acao["tipo"], string> = {
   transferencia: "Transferência",
@@ -655,7 +649,7 @@ const ROTULO_ACAO: Record<Acao["tipo"], string> = {
   inatividade: "Encerrada por inatividade",
 };
 
-function AbaAluno({ conversa, ficha, nomeDoAgente }: { conversa?: Conversa; ficha?: FichaAluno; nomeDoAgente: (id?: string | null) => string }) {
+function AbaContato({ conversa, ficha, nomeDoAgente }: { conversa?: Conversa; ficha?: FichaContato; nomeDoAgente: (id?: string | null) => string }) {
   if (!conversa) return <p className="py-6 text-center text-xs text-muted-foreground">Carregando…</p>;
   const u = ficha?.unnichat && !("erro" in ficha.unnichat) ? ficha.unnichat : null;
   return (
@@ -679,7 +673,7 @@ function AbaAluno({ conversa, ficha, nomeDoAgente }: { conversa?: Conversa; fich
           <Dado rotulo="Origem">{conversa.origem}</Dado>
           <Dado rotulo="Início">{fmtDataHora(conversa.criada_em)}</Dado>
           <Dado rotulo="Última atividade">{fmtDataHora(conversa.atualizada_em)}</Dado>
-          <Dado rotulo="Mensagens do aluno">{fmtInt(conversa.mensagens)}</Dado>
+          <Dado rotulo="Mensagens do servidor">{fmtInt(conversa.mensagens)}</Dado>
           <Dado rotulo="Resposta média">{fmtSegundos(conversa.duracao_media_s)}</Dado>
           <Dado rotulo="Tokens">{fmtInt((conversa.tokens_entrada ?? 0) + (conversa.tokens_saida ?? 0))}</Dado>
           <Dado rotulo="Sessão">
@@ -705,7 +699,7 @@ function AbaAluno({ conversa, ficha, nomeDoAgente }: { conversa?: Conversa; fich
   );
 }
 
-function AbaUnnichat({ ficha }: { ficha?: FichaAluno }) {
+function AbaUnnichat({ ficha }: { ficha?: FichaContato }) {
   const u = ficha?.unnichat;
   if (!u) return <p className="py-6 text-center text-xs text-muted-foreground">Esta conversa não veio do Unnichat.</p>;
   if ("erro" in u) return <p className="py-6 text-center text-xs text-destructive">{u.erro}</p>;
@@ -788,128 +782,6 @@ function AbaUnnichat({ ficha }: { ficha?: FichaAluno }) {
   );
 }
 
-const ROTULO_SITUACAO: Record<string, string> = {
-  aprovada: "Aprovada",
-  pagamento_pendente: "Pagamento pendente",
-  estornada_ou_contestada: "Estornada ou contestada",
-  recusada: "Recusada",
-  expirada: "Expirada",
-  abandonada: "Não finalizada",
-};
-
-const ROTULO_MEIO: Record<string, string> = { cartao: "cartão", pix: "Pix", boleto: "boleto" };
-
-/** "2026-10-28" → "28/10/2026" (as datas das compras vêm só com o dia). */
-function dia(iso: string | null) {
-  const m = iso?.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-}
-
-function Compra({ c }: { c: CompraCadastro }) {
-  return (
-    <Cartao>
-      <div className="flex items-center justify-between gap-2 text-xs font-semibold">
-        <span className="min-w-0 truncate">{c.produto ?? c.grupo ?? "Produto"}</span>
-        <span
-          className={cn(
-            "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium",
-            c.situacao === "aprovada" ? "bg-emerald-500/12 text-emerald-600 dark:text-emerald-400" : "bg-muted text-muted-foreground",
-          )}
-        >
-          {ROTULO_SITUACAO[c.situacao] ?? c.situacao.replaceAll("_", " ")}
-        </span>
-      </div>
-      <div className="mt-0.5 text-[11px] text-muted-foreground">
-        {[
-          c.data_confirmacao ? `confirmada em ${dia(c.data_confirmacao)}` : c.data_pedido ? `pedido em ${dia(c.data_pedido)}` : null,
-          c.meio_pagamento ? (ROTULO_MEIO[c.meio_pagamento] ?? c.meio_pagamento) : null,
-          c.renovacao_automatica ? "renovação automática" : null,
-          c.email_da_compra,
-        ]
-          .filter(Boolean)
-          .join(" · ")}
-      </div>
-      {c.motivo_estorno_interno && <div className="mt-1 text-[11px] text-muted-foreground">Motivo do estorno: {c.motivo_estorno_interno}</div>}
-    </Cartao>
-  );
-}
-
-/** Valor da área do aluno, que chega no formato da função do banco: listas e objetos viram texto legível. */
-function valorLegivel(v: unknown): ReactNode {
-  if (v === null || v === undefined || v === "") return null;
-  if (typeof v === "boolean") return v ? "sim" : "não";
-  if (Array.isArray(v)) {
-    if (v.length === 0) return "nenhum";
-    return (
-      <span className="flex flex-col gap-0.5">
-        {v.map((item, i) => (
-          <span key={i}>{typeof item === "object" && item ? Object.values(item).filter((x) => x !== null && x !== "").join(" · ") : String(item)}</span>
-        ))}
-      </span>
-    );
-  }
-  if (typeof v === "object") return Object.entries(v as Record<string, unknown>).map(([k, x]) => `${k}: ${String(x)}`).join(" · ");
-  return String(v);
-}
-
-function AbaCurso({ ficha }: { ficha?: FichaAluno }) {
-  const cad = ficha?.cadastro;
-  if (!cad) return <p className="py-6 text-center text-xs text-muted-foreground">Sem telefone para consultar o cadastro.</p>;
-  if ("erro" in cad) return <p className="py-6 text-center text-xs text-destructive">{cad.erro}</p>;
-  const compras = cad.compras;
-  const area = cad.area_do_aluno;
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <Rotulo>Compras</Rotulo>
-        {!compras ? (
-          <Cartao className="text-xs text-muted-foreground">Consulta de compras não configurada.</Cartao>
-        ) : !compras.encontrado ? (
-          <Cartao className="text-xs text-muted-foreground">Nenhuma compra neste telefone.</Cartao>
-        ) : compras.telefone_confere === false ? (
-          <Cartao className="text-xs text-muted-foreground">As compras deste e-mail são de outro telefone.</Cartao>
-        ) : (compras.pessoas ?? 1) > 1 && !compras.compras ? (
-          <Cartao className="text-xs text-muted-foreground">Telefone com compras de {compras.pessoas} pessoas: o agente pede o e-mail antes de mostrar.</Cartao>
-        ) : (
-          <>
-            {compras.emails_das_compras && compras.emails_das_compras.length > 0 && (
-              <p className="text-[11px] text-muted-foreground">E-mail das compras: {compras.emails_das_compras.join(", ")}</p>
-            )}
-            {(compras.compras ?? []).map((c, i) => <Compra key={i} c={c} />)}
-            {(compras.compras ?? []).length === 0 && <Cartao className="text-xs text-muted-foreground">Nenhuma compra concluída.</Cartao>}
-          </>
-        )}
-      </div>
-      {compras?.tentativas_nao_concluidas && compras.tentativas_nao_concluidas.length > 0 && (
-        <div className="flex flex-col gap-1">
-          <Rotulo>Tentativas não concluídas</Rotulo>
-          {compras.tentativas_nao_concluidas.map((c, i) => <Compra key={i} c={c} />)}
-        </div>
-      )}
-      <div className="flex flex-col gap-1">
-        <Rotulo>Área do aluno</Rotulo>
-        {!area ? (
-          <Cartao className="text-xs text-muted-foreground">Consulta da área do aluno não configurada.</Cartao>
-        ) : !area.alunos ? (
-          <Cartao className="text-xs text-muted-foreground">
-            {(area.encontrados ?? 0) > 1 ? `${area.encontrados} cadastros neste telefone: o agente pede o e-mail.` : "Nenhum cadastro na plataforma."}
-          </Cartao>
-        ) : (
-          area.alunos.map((aluno, i) => (
-            <Cartao key={i}>
-              {Object.entries(aluno).map(([k, v]) => (
-                <Dado key={k} rotulo={k.replaceAll("_", " ")}>
-                  {valorLegivel(v)}
-                </Dado>
-              ))}
-            </Cartao>
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
 /** O agente que respondeu, na cor dele (conversas de equipe). */
 function QuemRespondeu({ id }: { id: string }) {
   const agente = useAgentes().find((a) => a.id === id);
@@ -962,7 +834,7 @@ export function Balao({
   anexos,
   rodape,
 }: {
-  papel: "aluno" | "agente";
+  papel: "contato" | "agente";
   texto: string;
   quando?: string | null;
   children?: React.ReactNode;
@@ -970,25 +842,25 @@ export function Balao({
   anexos?: AnexoExibido[];
   rodape?: React.ReactNode;
 }) {
-  const aluno = papel === "aluno";
-  const semTexto = !texto || texto === "(o aluno enviou o anexo sem texto)";
+  const servidor = papel === "contato";
+  const semTexto = !texto || texto === "(o servidor enviou o anexo sem texto)";
   return (
-    <div className={cn("flex gap-2.5", !aluno && "flex-row-reverse")}>
+    <div className={cn("flex gap-2.5", !servidor && "flex-row-reverse")}>
       <div
         className={cn(
           "grid size-8 shrink-0 place-items-center rounded-full",
-          aluno ? "bg-muted text-muted-foreground" : "bg-primary/14 text-primary",
+          servidor ? "bg-muted text-muted-foreground" : "bg-primary/14 text-primary",
         )}
       >
-        {aluno ? <User className="size-4" /> : <Bot className="size-4" />}
+        {servidor ? <User className="size-4" /> : <Bot className="size-4" />}
       </div>
-      <div className={cn("flex max-w-[85%] flex-col gap-1.5", aluno ? "items-start" : "items-end")}>
+      <div className={cn("flex max-w-[85%] flex-col gap-1.5", servidor ? "items-start" : "items-end")}>
         {anexos && anexos.length > 0 && <Anexos anexos={anexos} />}
         {!semTexto && (
           <div
             className={cn(
               "rounded-2xl px-4 py-2.5 text-sm leading-relaxed whitespace-pre-wrap break-words",
-              aluno
+              servidor
                 ? "rounded-tl-sm bg-secondary text-secondary-foreground"
                 : "rounded-tr-sm border bg-background/60 dark:bg-card/70",
             )}
@@ -997,7 +869,7 @@ export function Balao({
           </div>
         )}
         <div className="flex flex-wrap items-center gap-2">
-          {aluno && <span className="font-mono text-[11px] text-muted-foreground uppercase">Aluno</span>}
+          {servidor && <span className="font-mono text-[11px] text-muted-foreground uppercase">Servidor</span>}
           {automatica && <span className="text-[11px] text-muted-foreground">Mensagem automática</span>}
           {children}
           {quando && <span className="text-[11px] text-muted-foreground">{fmtDataHora(quando)}</span>}

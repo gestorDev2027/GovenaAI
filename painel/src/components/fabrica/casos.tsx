@@ -105,7 +105,7 @@ export function CasosDoAgente({ agente }: { agente: AlvoCasos }) {
         tipo="casos"
         titulo="Sugerir casos com IA"
         ajuda="A IA lê as instruções e os motivos de transferência do agente e propõe de 6 a 10 casos. Você escolhe quais salvar."
-        placeholder="Opcional: o que testar, ex.: pedidos de reembolso, aluno irritado, pergunta fora do assunto."
+        placeholder="Opcional: o que testar, ex.: termo de referência sem quantidade, servidor com pressa, pergunta de outro setor."
         agente={agente.id}
         pedidoOpcional
         rotuloBotao="Sugerir casos"
@@ -513,7 +513,7 @@ function FormCaso({
         ? {
             titulo: caso.titulo,
             mensagem: caso.mensagem,
-            nome: caso.contexto.nome_aluno ?? "",
+            nome: caso.contexto.nome_contato ?? "",
             telefone: caso.contexto.telefone ?? "",
             acao: caso.esperado.acao,
             categoria: caso.esperado.categoria ?? "",
@@ -538,7 +538,7 @@ function FormCaso({
       const corpo: CasoNovo = {
         titulo: f.titulo.trim(),
         mensagem: f.mensagem.trim(),
-        contexto: { nome_aluno: f.nome.trim(), telefone: f.telefone.trim() },
+        contexto: { nome_contato: f.nome.trim(), telefone: f.telefone.trim() },
         esperado: {
           acao: f.acao,
           categoria: f.acao === "transferir" && f.categoria ? f.categoria : null,

@@ -334,7 +334,7 @@ export function FormSkill({
             tipo="skill"
             titulo="Montar a skill com IA"
             ajuda="Descreva o assunto ou cole o material (política, tabela, passo a passo). A IA preenche os campos; nada é salvo até você criar."
-            placeholder="Ex.: segunda via de boleto: o aluno pede o boleto, a gente confere o CPF, explica onde baixar e o prazo de compensação de 3 dias úteis…"
+            placeholder="Ex.: termo de referência: o servidor pede o termo, o agente confirma objeto, quantidades e unidades, monta a minuta e lembra que precisa da aprovação do responsável…"
             aberto={nova}
             aoReceber={(r) =>
               setF((x) => ({

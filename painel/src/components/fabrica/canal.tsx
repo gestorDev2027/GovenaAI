@@ -15,7 +15,7 @@ import { Selecao } from "./campos";
 
 /**
  * Canais: por onde os agentes atendem. Hoje um só, o WhatsApp pela automação única da Unnichat, com a
- * configuração guardada no banco (agente/canal.py): quem atende, o que fazer com quem não é aluno, as
+ * configuração guardada no banco (agente/canal.py): quem atende, o que fazer com quem não é cidadão, as
  * tags que calam o agente e se quem o agente atende é decidido pela tag que a automação da Unnichat põe. A URL da automação fica só com o token; `&agente=` e `&leads=` na URL, se
  * houver, valem por cima do que está aqui.
  */
@@ -316,7 +316,7 @@ function FormCanal({ canal: c, aberto, aoFechar }: { canal: CanalWhatsApp; abert
                 </>
               ) : (
                 <>
-                  Aluno vai para <b className="text-foreground">{nome(r.atendente)}</b>; lead {destinoLead}.
+                  Cidadão vai para <b className="text-foreground">{nome(r.atendente)}</b>; lead {destinoLead}.
                 </>
               )}
             </p>
@@ -360,7 +360,7 @@ function FormCanal({ canal: c, aberto, aoFechar }: { canal: CanalWhatsApp; abert
                   ajuda="Sem &agente= nem &leads=: o que está aqui vale. Se a URL trouxer, a URL vale por cima."
                 >
                   <code className="block rounded-md bg-muted px-2.5 py-2 text-xs break-all">
-                    https://nexaagentes.contabilidadefacilitada.com.br/unnichat/auto?token=…
+                    https://&lt;endereço-do-gestorgov&gt;/unnichat/auto?token=…
                   </code>
                 </Campo>
               </SecaoPainel>
@@ -397,7 +397,7 @@ function FormCanal({ canal: c, aberto, aoFechar }: { canal: CanalWhatsApp; abert
                 )}
                 {r.pelaTag && !c.pela_tag && (
                   <Aviso>
-                    Ligue junto com o filtro pela tag na automação da Unnichat. Quem não tem a tag deixa de ser atendido, inclusive os alunos
+                    Ligue junto com o filtro pela tag na automação da Unnichat. Quem não tem a tag deixa de ser atendido, inclusive os cidadãos
                     que o agente atende hoje.
                   </Aviso>
                 )}
@@ -405,10 +405,9 @@ function FormCanal({ canal: c, aberto, aoFechar }: { canal: CanalWhatsApp; abert
             )}
 
             {secao === "leads" && (
-              <SecaoPainel titulo="Quem não é aluno (leads)">
+              <SecaoPainel titulo="Quem não é cidadão (leads)">
                 <p className="text-sm text-muted-foreground">
-                  Ao abrir uma conversa, o servidor consulta as compras e a área do aluno pelo telefone. Isto vale para quem não tem nenhuma
-                  das duas.
+                  O que fazer com quem chega pelo WhatsApp e ainda não é atendido por um agente.
                 </p>
                 <Pills
                   rotulo="Leads"
@@ -420,7 +419,7 @@ function FormCanal({ canal: c, aberto, aoFechar }: { canal: CanalWhatsApp; abert
                     { value: "agente", label: "Vão para um agente" },
                   ]}
                 />
-                {r.modo === "todos" && <p className="text-xs text-muted-foreground">Não há consulta: aluno e lead vão para quem atende.</p>}
+                {r.modo === "todos" && <p className="text-xs text-muted-foreground">Não há consulta: cidadão e lead vão para quem atende.</p>}
                 {r.modo === "time" && (
                   <p className="text-xs text-muted-foreground">
                     Nenhum agente responde ao lead; a mensagem fica na caixa da Unnichat para o time.

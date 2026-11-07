@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 export const HoverCard = HoverCardPrimitive.Root;
 export const HoverCardTrigger = HoverCardPrimitive.Trigger;
 
-/** Vai por portal para o `body` (como no NexaCF): dentro do card de vidro o balão ficaria preso. */
+/** Vai por portal para o `body`: dentro do card de vidro o balão ficaria preso. */
 export function HoverCardContent({
   className,
   align = "center",

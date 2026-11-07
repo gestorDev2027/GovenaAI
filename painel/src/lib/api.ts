@@ -187,8 +187,8 @@ export interface OpcoesUsuarios {
 }
 
 /**
- * sem_resposta: só as boas-vindas, e o aluno não respondeu no prazo da inatividade.
- * nao_chegou: a Unnichat pôs o aluno com o agente e o aviso de entrada não chegou ao servidor (sem boas-vindas).
+ * sem_resposta: só as boas-vindas, e o servidor não respondeu no prazo da inatividade.
+ * nao_chegou: a Unnichat pôs o cidadão com o agente e o aviso de entrada não chegou ao GestorGov (sem boas-vindas).
  */
 export type Status = "em_atendimento" | "transferido" | "encerrado" | "sem_resposta" | "nao_chegou";
 
@@ -198,7 +198,6 @@ export interface Acao {
   motivo?: string;
   dificuldade_relatada?: string;
   orientacoes_prestadas?: string;
-  email_matricula?: string;
   resumo?: string;
   registrado_em?: string;
 }
@@ -208,7 +207,7 @@ export interface RespostaRastreada {
   run_id: string;
   quando: string | null;
   agente?: string | null;
-  aluno: string;
+  mensagem: string;
   resposta: string;
   /** Resumo do raciocínio do modelo (o Gemini escreve em inglês). */
   raciocinio: string | null;
@@ -253,7 +252,7 @@ export interface ResumoConversa {
   tokens_entrada: number;
   tokens_saida: number;
   duracao_media_s: number | null;
-  /** Só as boas-vindas: o aluno ainda não respondeu (não há sessão do agente). */
+  /** Só as boas-vindas: o servidor ainda não respondeu (não há sessão do agente). */
   so_boas_vindas?: boolean;
   /** O aviso de entrada da Unnichat não chegou: o agente não mandou as boas-vindas. */
   nao_chegou?: boolean;
@@ -266,7 +265,7 @@ export interface Anexo {
 }
 
 export interface ItemConversa {
-  papel: "aluno" | "agente";
+  papel: "contato" | "agente";
   /** Numa conversa de equipe, quem respondeu esta mensagem. */
   agente?: string | null;
   run_id?: string;
@@ -287,9 +286,9 @@ export interface Conversa extends ResumoConversa {
   telefone: string;
 }
 
-/** Mensagem do histórico do Unnichat: aluno, agente (pela API), automação, equipe (Live Chat), nota interna ou aviso do sistema. */
+/** Mensagem do histórico do Unnichat: servidor, agente (pela API), automação, equipe (Live Chat), nota interna ou aviso do sistema. */
 export interface MensagemUnnichat {
-  autor: "aluno" | "agente" | "automacao" | "equipe" | "nota" | "sistema";
+  autor: "contato" | "agente" | "automacao" | "equipe" | "nota" | "sistema";
   tipo: string;
   texto: string;
   quando: string | null;
@@ -302,19 +301,6 @@ export interface NegocioUnnichat {
   status: "open" | "won" | "lost" | string;
   criado_em: string | null;
   produtos: string[];
-}
-
-export interface CompraCadastro {
-  produto: string | null;
-  grupo: string | null;
-  situacao: string;
-  meio_pagamento: string | null;
-  data_pedido: string | null;
-  data_confirmacao: string | null;
-  data_desfecho: string | null;
-  renovacao_automatica: boolean;
-  email_da_compra: string | null;
-  motivo_estorno_interno?: string | null;
 }
 
 /** Uma parte da ficha que não pôde ser consultada (o resto da ficha continua valendo). */
@@ -335,32 +321,17 @@ export interface UnnichatDaFicha {
   mensagens: MensagemUnnichat[];
 }
 
-export interface CadastroDaFicha {
-  compras: {
-    encontrado: boolean;
-    pessoas?: number;
-    primeiro_nome?: string | null;
-    emails_das_compras?: string[];
-    telefone_confere?: boolean;
-    compras?: CompraCadastro[];
-    tentativas_nao_concluidas?: CompraCadastro[];
-  } | null;
-  /** Da área do aluno: o formato vem da função do banco de acesso; a tela mostra os campos que vierem. */
-  area_do_aluno: { encontrados?: number; alunos?: Record<string, unknown>[] } | null;
-}
-
-/** GET /conversas/{id}/aluno. Cada parte é null quando não se aplica, ou { erro } quando a consulta falhou. */
-export interface FichaAluno {
+/** GET /conversas/{id}/ficha. null quando não se aplica, ou { erro } quando a consulta falhou. */
+export interface FichaContato {
   consultado_em: string;
   unnichat: UnnichatDaFicha | FalhaFicha | null;
-  cadastro: CadastroDaFicha | FalhaFicha | null;
 }
 
 /** Os números de um período (GET /indicadores). Taxas de 0 a 1, sobre as conversas terminadas. */
 export interface MedidasPeriodo {
   /** Com sessão do agente + só de boas-vindas. */
   conversas: number;
-  /** Em que o aluno escreveu ao menos uma vez (têm sessão do agente). */
+  /** Em que o servidor escreveu ao menos uma vez (têm sessão do agente). */
   com_resposta: number;
   /** Transferidas + retidas: as que já terminaram. */
   terminadas: number;
@@ -373,7 +344,7 @@ export interface MedidasPeriodo {
   /** Retidas ÷ terminadas: a taxa de retenção. */
   retencao_pct: number | null;
   transferencia_pct: number | null;
-  /** Encerradas pelo agente (o aluno disse que não precisava de mais nada) ÷ terminadas. */
+  /** Encerradas pelo agente (o servidor disse que não precisava de mais nada) ÷ terminadas. */
   resolucao_confirmada_pct: number | null;
   respostas: number;
   mensagens_por_conversa: number | null;
@@ -382,7 +353,7 @@ export interface MedidasPeriodo {
   lacuna_pct: number | null;
   /** Tempo médio do modelo por resposta. */
   tempo_modelo_s: number | null;
-  /** Do início à última mensagem, nas que terminaram com o aluno conversando. */
+  /** Do início à última mensagem, nas que terminaram com o servidor conversando. */
   duracao_mediana_min: number | null;
   tokens_entrada: number;
   tokens_saida: number;
@@ -390,7 +361,7 @@ export interface MedidasPeriodo {
   custo_reais: number | null;
   custo_por_conversa: number | null;
   custo_por_retida: number | null;
-  /** Em andamento, separado: boas-vindas ainda no prazo (o aluno não escreveu) e conversas abertas. */
+  /** Em andamento, separado: boas-vindas ainda no prazo (o servidor não escreveu) e conversas abertas. */
   aguardando_boas_vindas: number;
   abertas: number;
   /** 90% das respostas do agente saem em até esse tempo. */
@@ -461,11 +432,11 @@ export interface AvaliacaoQualidade {
 export interface AgoraAtendimento {
   /** Conversa aberta com mensagem nos últimos 15 min (na mesa do escritório). */
   atendendo_agora: number;
-  /** O aluno conversou e parou há mais de 15 min, sem a conversa terminar. */
+  /** O servidor conversou e parou há mais de 15 min, sem a conversa terminar. */
   abertas_paradas: number;
   /** Destas, as que passaram do prazo de inatividade (a rotina já deveria ter encerrado). */
   abertas_fora_do_prazo: number;
-  /** Boas-vindas enviadas, ainda no prazo, sem resposta do aluno. */
+  /** Boas-vindas enviadas, ainda no prazo, sem resposta do servidor. */
   aguardando_boas_vindas: number;
 }
 
@@ -512,7 +483,7 @@ export interface Indicadores {
   ultimas_transferencias: ResumoConversa[];
   /** Todas as transferências do período, com o motivo que o agente escreveu. */
   transferencias: { id: string; categoria: string; rotulo: string; motivo: string; tema?: string }[];
-  /** Conversas abertas pelo aluno em cada hora do dia (0 a 23, Brasília). */
+  /** Conversas abertas pelo servidor em cada hora do dia (0 a 23, Brasília). */
   por_hora: number[];
   agora: AgoraAtendimento;
 }
@@ -628,7 +599,7 @@ export interface CasoDataset {
   agente: string;
   origem: string;
   tipos: ("gold" | "bad")[];
-  /** Mensagens do aluno, em ordem; a última é a que foi respondida. */
+  /** Mensagens do servidor, em ordem; a última é a que foi respondida. */
   mensagens: string[];
   gabarito: string;
   /** A resposta original de um 👎 (null num 👍). */
@@ -660,8 +631,8 @@ export interface AvaliacaoHumana {
   origem: string;
   session_id: string;
   run_id: string;
-  historico: { papel: "aluno" | "agente"; texto: string; quando: string | null }[];
-  mensagem_aluno: string;
+  historico: { papel: "contato" | "agente"; texto: string; quando: string | null }[];
+  mensagem_contato: string;
   resposta_agente: string;
   nota: 1 | -1;
   problemas: string[];
@@ -1042,7 +1013,7 @@ export interface CanalWhatsApp {
   horas_pessoa: number;
   /** Só atende quem tem negócio aberto no pipeline do onboarding (o CS). */
   somente_pipeline: boolean;
-  /** Dias de conversa com o time antes da entrada no CS que marcam o aluno como do comercial. */
+  /** Dias de conversa com o time antes da entrada no CS que marcam o servidor como do comercial. */
   dias_comercial: number;
   /** Só atende quem tem a tag do agente (posta pela automação da Unnichat); as outras travas só ficam registradas. */
   pela_tag: boolean;
@@ -1176,7 +1147,7 @@ export interface CasoTeste {
   titulo: string;
   /** A mensagem do contato, como ele escreveria no WhatsApp. */
   mensagem: string;
-  contexto: { nome_aluno?: string; telefone?: string };
+  contexto: { nome_contato?: string; telefone?: string };
   /** agente: numa equipe, o membro que a recepção deve escolher (vazio = qualquer). */
   esperado: { acao: AcaoEsperada; categoria: string | null; mencionar: string[]; proibido: string[]; agente?: string | null };
   ativo: boolean;

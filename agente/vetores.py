@@ -1,6 +1,6 @@
 """Embeddings (Gemini) e busca por similaridade, para documentos e exemplos de calibração.
 
-Em produção (Postgres do nexa-DB) a coluna é `vector` do pgvector e a busca é feita no banco
+Em produção (Postgres do Supabase) a coluna é `vector` do pgvector e a busca é feita no banco
 (`<=>`, distância do cosseno). Localmente (SQLite, testes) a coluna guarda a lista em JSON e a conta
 é feita em Python: o código é o mesmo nos dois lugares.
 """
@@ -53,7 +53,7 @@ def _normalizar(vetor) -> list[float]:
 
 
 def embeddings(textos: list[str], tarefa: str) -> list[list[float]]:
-    """`tarefa`: RETRIEVAL_DOCUMENT para o que é guardado, RETRIEVAL_QUERY para a mensagem do aluno."""
+    """`tarefa`: RETRIEVAL_DOCUMENT para o que é guardado, RETRIEVAL_QUERY para a mensagem do contato."""
     from google.genai import types
 
     saida: list[list[float]] = []

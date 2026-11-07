@@ -40,7 +40,8 @@ Os agentes de setor seguem o mesmo molde (`agente/perfis/setor.py`). Os demais s
 - Herdados do NexaAgents: Fábrica de agentes, equipes, Conhecimento (documentos vetorizados), Calibração,
   Central ao vivo (prédio 3D), Observabilidade, usuários e permissões.
 - Reservados para o futuro agente do cidadão (WhatsApp), hoje sem uso: `agente/unnichat.py`, `agente/canal.py`,
-  `agente/cadastro.py`, `agente/brindes.py`, `agente/ficha.py`. Sem as variáveis da Unnichat, ficam desligados.
+  `agente/ficha.py` e `agente/alertas.py`. Sem as variáveis da Unnichat, ficam desligados.
+- Qualidade: `agente/qualidade.py` avalia as conversas concluídas com a régua de `agente/regua_qualidade.json`.
 
 ## Banco (Supabase)
 

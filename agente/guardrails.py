@@ -1,8 +1,8 @@
 """Guardrails da entrada dos agentes (pre_hooks do Agno), em português.
 
 - Dados sensíveis: CPF e número de cartão saem da mensagem antes de chegar ao modelo e ao histórico
-  (ficam como ***). Não bloqueia: o aluno que manda o CPF segue atendido. E-mail e telefone ficam,
-  porque a consulta ao cadastro usa o e-mail que o aluno informa.
+  (ficam como ***). Não bloqueia: o contato que manda o CPF segue atendido. E-mail e telefone ficam,
+  porque a consulta ao cadastro usa o e-mail que o contato informa.
 - Manipulação: pedido para ignorar as instruções, mostrar o prompt ou trocar de papel. As frases ficam
   no banco (guardrail_frases, editável no painel; agente/datasets.py). O Agno interrompe a resposta;
   atendimento.rodar troca o aviso pela seção "## Pedido fora do atendimento" do roteiro e registra o
@@ -55,7 +55,7 @@ def mascarar_dados_sensiveis() -> PIIDetectionGuardrail:
     return PIIDetectionGuardrail(
         mask_pii=True,
         enable_ssn_check=False,  # padrão americano
-        enable_email_check=False,  # o aluno informa o e-mail da matrícula para a consulta
+        enable_email_check=False,  # o servidor pode informar o próprio e-mail
         enable_phone_check=False,  # padrão americano; o telefone já vem do WhatsApp
         enable_credit_card_check=False,  # trocado pelo padrão abaixo, que aceita ponto entre os blocos
         custom_patterns={"CPF": PADRAO_CPF, "Cartão": PADRAO_CARTAO},
