@@ -119,8 +119,13 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
     # ── Organograma (migration 20261107_gestorgov_organograma.sql) ──
     t["membros"] = Table("membros", m,
         uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("email", Text, nullable=False),
-        Column("papel", Text, default="servidor"), Column("ativo", Boolean, default=True), criado(),
-        Column("criado_por", Text))
+        Column("nome", Text), Column("papel", Text, default="membro"), Column("ativo", Boolean, default=True), criado(),
+        Column("criado_por", Text), uid("cargo_id"))
+    t["convites"] = Table("convites", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("email", Text, nullable=False),
+        Column("nome", Text), uid("cargo_id"), Column("token_hash", Text, nullable=False, unique=True),
+        Column("criado_por", Text, nullable=False), criado(), Column("expira_em", DateTime(timezone=True), nullable=False),
+        Column("aceito_em", DateTime(timezone=True)), Column("cancelado_em", DateTime(timezone=True)))
     t["modelos_cargo"] = Table("modelos_cargo", m,
         Column("id", Text, primary_key=True), Column("nome", Text, nullable=False), Column("nivel", Text, nullable=False),
         Column("tipo_setor_id", Text), Column("superior_id", Text), Column("atribuicoes", Text, nullable=False),
@@ -134,7 +139,8 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
         uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("modelo_id", Text),
         Column("nome", Text, nullable=False), Column("nivel", Text, nullable=False), uid("superior_id"), uid("setor_id"),
         uid("unidade_id"), uid("responsavel_id"), Column("agente_id", Text), Column("atribuicoes", Text),
-        Column("ativo", Boolean, default=True), Column("ordem", SmallInteger, default=0), criado(), atualizado())
+        Column("permissoes", JSON, default=list), Column("ativo", Boolean, default=True), Column("ordem", SmallInteger, default=0),
+        criado(), atualizado())
     t["indicadores_cargo"] = Table("indicadores_cargo", m,
         uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
         Column("modelo_id", Text), Column("nome", Text, nullable=False), Column("fonte", Text, nullable=False),
@@ -193,10 +199,14 @@ def iniciar(engine: Engine, schema: str | None) -> None:
         metadata = next(iter(tabelas.values())).metadata
         metadata.create_all(engine)
         with engine.begin() as c:
-            # create_all não altera tabela que já existe: a coluna nova de uma migration entra aqui.
-            colunas = {linha[1] for linha in c.exec_driver_sql("pragma table_info(atividades_setor)")}
-            if "cargo_id" not in colunas:
-                c.exec_driver_sql("alter table atividades_setor add column cargo_id varchar(36)")
+            # create_all não altera tabela que já existe: as colunas novas das migrations entram aqui.
+            for tabela in tabelas.values():
+                existentes = {linha[1] for linha in c.exec_driver_sql(f"pragma table_info({tabela.name})")}
+                for coluna in tabela.columns:
+                    if coluna.name not in existentes:
+                        tipo = coluna.type.compile(dialect=engine.dialect)
+                        c.exec_driver_sql(f"alter table {tabela.name} add column {coluna.name} {tipo}")
+            c.exec_driver_sql("update membros set papel = 'dono' where papel = 'secretario'")  # nome antigo
             for comando in comandos_de_catalogo():
                 c.exec_driver_sql(comando)
     _estado.update(engine=engine, schema=schema, t=tabelas)
@@ -345,26 +355,28 @@ def municipio(municipio_id: str) -> dict | None:
     return _uma(select(_t("municipios")).where(_t("municipios").c.id == municipio_id))
 
 
-def membros(municipio_id: str) -> list[dict]:
+def membros(municipio_id: str, so_ativos: bool = True) -> list[dict]:
     t = _t("membros")
-    return _linhas(select(t).where(t.c.municipio_id == municipio_id, t.c.ativo.is_(True)))
+    consulta = select(t).where(t.c.municipio_id == municipio_id)
+    return _linhas(consulta.where(t.c.ativo.is_(True)) if so_ativos else consulta)
 
 
 def municipios_de(email: str) -> list[dict]:
     """Os municípios em que a pessoa é membro, com o papel dela."""
     tm, tb = _t("municipios"), _t("membros")
-    consulta = (select(tm, tb.c.papel).join(tb, tb.c.municipio_id == tm.c.id)
+    consulta = (select(tm, tb.c.papel, tb.c.cargo_id).join(tb, tb.c.municipio_id == tm.c.id)
                 .where(tb.c.email == (email or "").strip().lower(), tb.c.ativo.is_(True)))
     return _linhas(consulta)
 
 
-def adicionar_membro(municipio_id: str, email: str, papel: str, quem: str) -> None:
+def adicionar_membro(municipio_id: str, email: str, papel: str, quem: str, nome: str = "", cargo_id: str | None = None) -> None:
     t = _t("membros")
     email = email.strip().lower()
     with _estado["engine"].begin() as c:
         if c.execute(select(t.c.id).where(t.c.municipio_id == municipio_id, t.c.email == email)).first():
             return
-        c.execute(insert(t).values(id=_id(), municipio_id=municipio_id, email=email, papel=papel, criado_por=quem))
+        c.execute(insert(t).values(id=_id(), municipio_id=municipio_id, email=email, papel=papel, criado_por=quem,
+                                   nome=nome or None, cargo_id=cargo_id))
         auditar(c, municipio_id=municipio_id, origem="sistema", quem=quem, acao="adicionar_membro", entidade="membros",
                 depois={"email": email, "papel": papel})
 

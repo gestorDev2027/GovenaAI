@@ -148,7 +148,12 @@ export function AccessGate({ children }: { children: ReactNode }) {
     );
   }
   const usuario = acesso.data?.usuario;
-  if (liberado && usuario?.situacao === "pendente")
+  // Decide já neste desenho (o efeito que marca "liberado" só roda depois): sem isso, quem está logado
+  // passaria um instante como "não entrou" e seria mandado para a landing page.
+  const logado = liberado || !acesso.data?.requer_chave || !!usuario || !!lerChave();
+  // Dono ou membro de uma prefeitura entra no painel dela, mesmo sem aprovação da plataforma.
+  if (usuario && usuario.situacao !== "ativo" && acesso.data?.prefeitura) return <>{children}</>;
+  if (logado && usuario?.situacao === "pendente")
     return (
       <Aviso
         titulo="Seu acesso ao Painel está aguardando aprovação"
@@ -166,13 +171,13 @@ export function AccessGate({ children }: { children: ReactNode }) {
         assistente.
       </Aviso>
     );
-  if (liberado && usuario?.situacao === "bloqueado")
+  if (logado && usuario?.situacao === "bloqueado")
     return (
       <Aviso titulo="Seu acesso ao painel foi bloqueado" icone={<Ban className="size-5" />}>
         Se acha que é um engano, fale com o dono do painel.
       </Aviso>
     );
-  if (liberado) return <>{children}</>;
+  if (logado) return <>{children}</>;
   // Com cadastro e login por senha, quem não entrou vai para a landing page (Cadastrar ou Entrar).
   if (acesso.data?.aceita_senha) return <Navigate to="/inicio" />;
 

@@ -6,12 +6,15 @@ import { api, salvarChave, type Acesso, type Usuario } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/fields";
 import { carregarGsi } from "@/components/layout/access-gate";
-import { CascaPublica } from "@/components/publico/casca";
+import { TelaDeAcesso } from "@/components/publico/tela-de-acesso";
+import { CampoSenha } from "@/components/publico/campo-senha";
 
 /** Para onde vai quem acabou de entrar: implantação (ainda montando ou aguardando aprovação) ou o Painel. */
-export async function destinoDepoisDeEntrar(): Promise<"/implantacao" | "/"> {
+export async function destinoDepoisDeEntrar(): Promise<"/implantacao" | "/" | "/cidade"> {
   const acesso = await api<Acesso>("/acesso");
-  if (acesso.usuario?.situacao !== "ativo") return "/implantacao";
+  // Membro convidado (não é dono): vai direto à prefeitura dele.
+  if (acesso.prefeitura && acesso.prefeitura.papel !== "dono") return "/cidade";
+  if (acesso.usuario?.situacao !== "ativo") return acesso.prefeitura?.situacao_municipio === "ativo" ? "/cidade" : "/implantacao";
   const dela = await api<{ panorama: { municipio: { situacao: string | null } } | null }>("/implantacao").catch(() => null);
   const situacao = dela?.panorama?.municipio?.situacao;
   return dela && situacao !== "ativo" && dela.panorama ? "/implantacao" : "/";
@@ -81,7 +84,7 @@ export function Entrar() {
   }
 
   return (
-    <CascaPublica>
+    <>
       <FormularioCentral titulo="Entrar no GestorGov" descricao="Use o e-mail e a senha da sua conta.">
         {acesso.data && !acesso.data.aceita_senha && (
           <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning-text">
@@ -90,17 +93,16 @@ export function Entrar() {
         )}
         <form onSubmit={entrar} className="space-y-4">
           <Campo id="email" rotulo="E-mail">
-            <Input id="email" type="email" autoComplete="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" />
+            <Input id="email" type="email" autoComplete="email" required autoFocus value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
           </Campo>
           <Campo id="senha" rotulo="Senha">
-            <Input
+            <CampoSenha
               id="senha"
-              type="password"
               autoComplete="current-password"
               required
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
-              className="h-10"
+              className="h-11"
             />
           </Campo>
           {erro && (
@@ -108,7 +110,7 @@ export function Entrar() {
               {erro}
             </p>
           )}
-          <Button type="submit" size="lg" className="w-full" disabled={enviando || !email.trim() || !senha}>
+          <Button type="submit" size="lg" className="h-11 w-full" disabled={enviando || !email.trim() || !senha}>
             {enviando ? <Loader2 className="animate-spin" /> : <LogIn />}
             Entrar
           </Button>
@@ -129,7 +131,7 @@ export function Entrar() {
         </p>
         {acesso.data?.aceita_chave && <EntrarComChave aoEntrar={() => navegar({ to: "/" })} />}
       </FormularioCentral>
-    </CascaPublica>
+    </>
   );
 }
 
@@ -168,17 +170,12 @@ function EntrarComChave({ aoEntrar }: { aoEntrar: () => void }) {
   );
 }
 
+/** O formulário na tela de acesso dividida (formulário à esquerda, painel da marca fixo à direita). */
 export function FormularioCentral({ titulo, descricao, children }: { titulo: string; descricao: string; children: ReactNode }) {
   return (
-    <div className="mx-auto w-full max-w-md px-4 py-12 sm:py-16">
-      <div className="surface-card has-waves space-y-5 p-6 sm:p-8">
-        <div>
-          <h1 className="text-xl font-bold">{titulo}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{descricao}</p>
-        </div>
-        {children}
-      </div>
-    </div>
+    <TelaDeAcesso titulo={titulo} descricao={descricao}>
+      <div className="space-y-5">{children}</div>
+    </TelaDeAcesso>
   );
 }
 

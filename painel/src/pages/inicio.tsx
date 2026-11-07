@@ -13,6 +13,8 @@ import {
   UserPlus,
 } from "lucide-react";
 import { CascaPublica } from "@/components/publico/casca";
+import { Colagem } from "@/components/publico/tela-de-acesso";
+import { SimboloGestorGov } from "@/components/layout/logo";
 
 /*
  * Landing page do GestorGov: o que é, as três visões, como funciona e os dois caminhos (cadastrar a
@@ -68,38 +70,46 @@ export function Inicio() {
   }, []);
 
   return (
-    <CascaPublica>
-      {/* Abertura */}
-      <section className="border-b border-border bg-card">
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.2fr_1fr] md:py-20">
-          <div className="flex flex-col justify-center gap-5">
-            <p className="text-xs font-bold tracking-[0.2em] text-primary-text uppercase">Secretarias Municipais de Saúde</p>
-            <h1 className="text-3xl leading-tight font-bold tracking-tight text-foreground sm:text-4xl">
-              Cada cargo da secretaria com um agente de IA. Cada entrega com a aprovação de um servidor.
+    <CascaPublica escuro>
+      {/* Abertura: azul-marinho, com a colagem do que o sistema mostra */}
+      <section className="relative overflow-hidden bg-[#0D1B38] text-white">
+        <SimboloGestorGov sobreEscuro className="pointer-events-none absolute -top-40 -left-40 size-[560px] opacity-[0.05]" />
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(50%_60%_at_85%_20%,rgba(82,162,255,0.25),transparent_70%)]" />
+        <div className="relative mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pt-10 pb-20 sm:px-6 md:grid-cols-[1.1fr_1fr] md:pt-16 md:pb-28">
+          <div className="flex flex-col gap-6">
+            <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide">
+              <span className="size-1.5 rounded-full bg-[#F4B800]" /> Secretarias Municipais de Saúde
+            </span>
+            <h1 className="text-4xl leading-[1.1] font-bold tracking-tight sm:text-5xl">
+              Cada cargo da secretaria com um <span className="text-[#52A2FF]">agente de IA</span>. Cada entrega com a aprovação de um servidor.
             </h1>
-            <span aria-hidden="true" className="h-1 w-16 rounded-full bg-warning" />
-            <p className="max-w-xl text-base text-muted-foreground">
+            <p className="max-w-xl text-base text-white/75">
               O GestorGov faz as rotinas de cada setor, prepara os documentos sob demanda e aponta o que precisa de atenção, da
               fila da regulação ao estoque da farmácia. A implantação é uma conversa: em poucos minutos a sua secretaria está montada.
             </p>
             <div className="flex flex-wrap gap-3">
               <Link
                 to="/cadastro"
-                className="inline-flex h-11 items-center gap-2 rounded-md bg-primary px-5 text-sm font-semibold text-primary-foreground outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-12 items-center gap-2 rounded-full bg-[#F4B800] px-6 text-sm font-bold text-[#0D1B38] outline-none hover:brightness-105 focus-visible:ring-2 focus-visible:ring-white"
               >
                 <UserPlus className="size-4" />
                 Cadastrar prefeitura
               </Link>
               <Link
                 to="/entrar"
-                className="inline-flex h-11 items-center rounded-md border border-border px-5 text-sm font-semibold outline-none hover:bg-secondary focus-visible:ring-2 focus-visible:ring-ring"
+                className="inline-flex h-12 items-center rounded-full border border-white/25 px-6 text-sm font-semibold text-white outline-none hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white"
               >
                 Já tenho conta
               </Link>
             </div>
           </div>
-          <Organograma />
+          <Colagem />
         </div>
+      </section>
+
+      {/* O organograma, logo abaixo da abertura */}
+      <section className="mx-auto -mt-12 w-full max-w-4xl px-4 sm:px-6">
+        <Organograma />
       </section>
 
       {/* As três visões */}
@@ -108,8 +118,8 @@ export function Inicio() {
         <p className="mt-1 text-sm text-muted-foreground">Toda informação do mapa e do prédio também está no Painel: o 3D nunca é obrigatório.</p>
         <ul className="mt-6 grid gap-4 md:grid-cols-3">
           {VISOES.map(({ icone: Icone, titulo, texto }) => (
-            <li key={titulo} className="surface-card p-5">
-              <span aria-hidden="true" className="grid size-10 place-items-center rounded-md bg-primary/10 text-primary-text">
+            <li key={titulo} className="surface-card p-6 transition-shadow hover:shadow-md">
+              <span aria-hidden="true" className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary-text">
                 <Icone className="size-5" />
               </span>
               <h3 className="mt-3 font-semibold">{titulo}</h3>
@@ -147,20 +157,20 @@ export function Inicio() {
         <h2 className="text-xl font-bold">Feito para a gestão pública</h2>
         <ul className="mt-6 grid gap-3 sm:grid-cols-2">
           {PRINCIPIOS.map(({ icone: Icone, texto }) => (
-            <li key={texto} className="flex items-start gap-3 rounded-md border border-border bg-card p-4 text-sm">
+            <li key={texto} className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 text-sm">
               <Icone className="mt-0.5 size-4 shrink-0 text-primary-text" />
               {texto}
             </li>
           ))}
         </ul>
-        <div className="mt-10 flex flex-col items-start gap-3 rounded-md bg-accent p-6 text-accent-foreground sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-10 flex flex-col items-start gap-3 rounded-2xl bg-[#0D1B38] p-8 text-white sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="font-semibold">Pronto para montar a sua Secretaria de Saúde?</p>
             <p className="text-sm opacity-80">O cadastro leva um minuto; a implantação é uma conversa com o assistente.</p>
           </div>
           <Link
             to="/cadastro"
-            className="inline-flex h-11 shrink-0 items-center rounded-md bg-warning px-5 text-sm font-bold text-warning-foreground outline-none hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring"
+            className="inline-flex h-12 shrink-0 items-center rounded-full bg-[#F4B800] px-6 text-sm font-bold text-[#0D1B38] outline-none hover:brightness-105 focus-visible:ring-2 focus-visible:ring-white"
           >
             Cadastrar prefeitura
           </Link>
@@ -172,7 +182,7 @@ export function Inicio() {
 
 /** O organograma em miniatura: direção, superintendências e coordenações, com os agentes. */
 function Organograma() {
-  const caixa = "rounded-md border border-border bg-background px-3 py-2 text-xs font-medium shadow-xs";
+  const caixa = "rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium shadow-xs";
   const agente = (rotulo: string) => (
     <span className="mt-1 flex items-center gap-1 text-[10px] font-normal text-muted-foreground">
       <span aria-hidden="true" className="size-1.5 rounded-full bg-success" />
@@ -180,7 +190,7 @@ function Organograma() {
     </span>
   );
   return (
-    <figure aria-label="Exemplo de organograma da Secretaria de Saúde" className="surface-card flex flex-col items-center gap-3 p-5">
+    <figure aria-label="Exemplo de organograma da Secretaria de Saúde" className="surface-card relative flex flex-col items-center gap-3 p-6 shadow-lg">
       <div className={`${caixa} border-primary text-center`}>
         Secretário(a) de Saúde
         {agente("painel executivo · diário")}

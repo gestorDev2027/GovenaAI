@@ -38,6 +38,7 @@ from calibracao_api import criar_rotas_calibracao
 from conhecimento_api import criar_rotas_conhecimento
 from fabrica_api import criar_rotas_fabrica
 from gestao_api import criar_rotas_gestao
+from prefeitura_api import criar_rotas_prefeitura
 from painel_api import criar_rotas
 from qualidade_api import criar_rotas_qualidade
 
@@ -62,6 +63,7 @@ base_app = FastAPI(
 )
 base_app.include_router(criar_rotas(agente, agentes))
 base_app.include_router(criar_rotas_gestao())
+base_app.include_router(criar_rotas_prefeitura())
 base_app.include_router(criar_rotas_calibracao(agentes))
 base_app.include_router(criar_rotas_conhecimento(agentes))
 base_app.include_router(criar_rotas_banco(agentes))

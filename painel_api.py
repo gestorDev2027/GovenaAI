@@ -32,7 +32,7 @@ from sqlalchemy import MetaData, Table, func, select, true
 from starlette.concurrency import run_in_threadpool
 
 from agente import alertas as alertas_mod
-from agente import ao_vivo, base, conhecimento, datasets, equipes, ficha, gestao, guardrails, lacunas, listas, perfis, usuarios
+from agente import acessos, ao_vivo, base, conhecimento, datasets, equipes, ficha, gestao, guardrails, lacunas, listas, perfis, usuarios
 from agente.atendimento import encerrar_inativas, encerrar_por_inatividade, responder, responder_em_etapas
 from agente.ferramentas import STATUS_EM_ATENDIMENTO, STATUS_ENCERRADO, STATUS_TRANSFERIDO
 
@@ -507,6 +507,8 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             "google_client_id": _google_client_id() or None,
             # Com o Google ligado, pessoas entram por ele; a chave fica para rotinas (PAINEL_LOGIN_CHAVE=sim reabre).
             "aceita_chave": not google or os.getenv("PAINEL_LOGIN_CHAVE", "").strip().lower() in ("1", "sim", "true"),
+            # A prefeitura da pessoa (dono ou membro) e as permissões dela lá (agente/acessos.py).
+            "prefeitura": acessos.contexto(sessao["email"]) if sessao else None,
             "usuario": {
                 "email": sessao["email"], "nome": sessao.get("nome") or "",
                 "papel": (dele or {}).get("papel"), "situacao": (dele or {}).get("situacao", "pendente"),

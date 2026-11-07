@@ -125,8 +125,8 @@ def registrar_municipio(run_context: RunContext, codigo_ibge: str, nome: str, uf
                                      secretario_email=secretario_email, quem=_quem(run_context),
                                      session_id=_sessao(run_context))
     _estado(run_context)["municipio_id"] = str(mun["id"])
-    if conta:  # quem cadastrou a prefeitura entra como secretário dela
-        gestao.adicionar_membro(str(mun["id"]), conta, "secretario", conta)
+    if conta:  # quem cadastrou a prefeitura é o dono dela: convida a equipe e define os cargos e as permissões
+        gestao.adicionar_membro(str(mun["id"]), conta, "dono", conta, nome=_estado(run_context).get("conta_nome") or "")
     return _json({"registrado": True, "municipio": mun, "proxima_etapa": "unidades"})
 
 

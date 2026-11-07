@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Building2, Landmark, MapPinned, MessagesSquare, Rocket, Users } from "lucide-react";
 import { api } from "@/lib/api";
+import { useAcesso } from "@/hooks/use-permissoes";
 import { fmtInt } from "@/lib/formato";
 import { EmptyState, PageHeader, PageLoader } from "@/components/widgets/widgets";
 import { Table, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableWrapper } from "@/components/ui/tabela";
@@ -59,10 +60,15 @@ const ETAPAS: Record<string, string> = {
 };
 
 export function Cidade() {
-  const panorama = useQuery({ queryKey: ["gestao-panorama"], queryFn: () => api<Panorama>("/gestao/panorama") });
+  // Quem é de uma prefeitura vê a dela; a equipe GestorGov, o município padrão do servidor.
+  const daPrefeitura = !!useAcesso().data?.prefeitura;
+  const panorama = useQuery({
+    queryKey: ["gestao-panorama", daPrefeitura],
+    queryFn: () => api<Panorama>(daPrefeitura ? "/prefeitura/panorama" : "/gestao/panorama"),
+  });
   const catalogo = useQuery({
     queryKey: ["gestao-catalogo"],
-    queryFn: () => api<{ tipos_unidade: TipoUnidade[] }>("/gestao/catalogo"),
+    queryFn: () => api<{ tipos_unidade: TipoUnidade[] }>("/implantacao/catalogo"),
     staleTime: Infinity,
   });
   const tipos = useMemo(() => new Map((catalogo.data?.tipos_unidade ?? []).map((t) => [t.id, t])), [catalogo.data]);

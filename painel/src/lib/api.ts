@@ -158,8 +158,33 @@ export interface Usuario {
   permissoes?: Permissao[];
 }
 
+/** A prefeitura de quem está logado (dono ou membro) e o que ele pode fazer nela (agente/acessos.py). */
+export type PermissaoPrefeitura =
+  | "ver_painel"
+  | "aprovar_entregas"
+  | "gerenciar_fluxos"
+  | "criar_agentes"
+  | "definir_metas"
+  | "registrar_dados"
+  | "gerenciar_cargos"
+  | "gerenciar_equipe"
+  | "ver_auditoria";
+
+export interface ContextoPrefeitura {
+  municipio_id: string;
+  municipio: string | null;
+  uf: string | null;
+  situacao_municipio: string | null;
+  papel: "dono" | "membro";
+  cargo_id: string | null;
+  cargo: string | null;
+  permissoes: PermissaoPrefeitura[];
+}
+
 export interface Acesso {
   requer_chave: boolean;
+  /** A prefeitura da pessoa logada, se ela é dona ou membro ativo de uma. */
+  prefeitura?: ContextoPrefeitura | null;
   /** Cadastro e login com e-mail e senha ligados (o servidor tem a OS_SECURITY_KEY). */
   aceita_senha?: boolean;
   google_client_id: string | null;

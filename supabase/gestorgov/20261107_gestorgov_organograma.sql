@@ -9,10 +9,13 @@
 --   Os alertas sobem pela hierarquia (coordenação → superintendência → Adjunto → Secretário).
 --
 -- Tabelas:
---   membros            quem é quem em cada prefeitura (secretário, coordenador, servidor, administrador)
+--   membros            quem acessa cada prefeitura: o dono (quem a cadastrou) e os membros que ele convida,
+--                      cada um num cargo
+--   convites           os convites do dono para a equipe (link com validade; a pessoa define a própria senha)
 --   modelos_cargo      catálogo dos cargos do documento (o onboarding sugere estes)
 --   modelos_indicador  catálogo dos indicadores de cada cargo, com fonte e periodicidade
---   cargos             os cargos de cada município, com o superior (a hierarquia), o setor e o agente
+--   cargos             os cargos de cada município, com o superior (a hierarquia), o setor, o agente e as
+--                      PERMISSÕES de quem ocupa o cargo (aprovar entregas, gerenciar fluxos, criar agentes...)
 --   indicadores_cargo  os indicadores de cada cargo, com a meta que o município define
 --   medicoes           cada valor medido de um indicador (para a tendência)
 --   entregas           documentos e relatórios com prazo e situação, e quem aprovou
@@ -32,16 +35,17 @@ create table if not exists gestorgov.membros (
   id              uuid primary key default extensions.gen_random_uuid(),
   municipio_id    uuid not null references gestorgov.municipios(id) on delete cascade,
   email           text not null,
-  papel           text not null default 'servidor'
-                  check (papel in ('secretario', 'administrador', 'coordenador', 'servidor')),
-  ativo           boolean not null default true,
+  nome            text,
+  papel           text not null default 'membro' check (papel in ('dono', 'membro')),
+  ativo           boolean not null default true,                -- false = bloqueado pelo dono
   criado_em       timestamptz not null default now(),
   criado_por      text,
   unique (municipio_id, email)
 );
 create index if not exists ix_membros_email on gestorgov.membros (email);
 comment on table gestorgov.membros is
-  'Quem é quem em cada prefeitura. Quem cadastra a prefeitura entra como secretário.';
+  'Quem acessa cada prefeitura. O dono é quem a cadastrou: convida a equipe e define o cargo (e as permissões) de cada um. '
+  'O cargo da pessoa fica em cargo_id (coluna criada depois da tabela cargos).';
 
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -347,6 +351,7 @@ create table if not exists gestorgov.cargos (
   responsavel_id   uuid references gestorgov.servidores(id) on delete set null,    -- a pessoa que responde pelo cargo
   agente_id        text,                                                          -- o agente da Fábrica do cargo
   atribuicoes      text,
+  permissoes       jsonb not null default '[]'::jsonb,        -- o que quem ocupa o cargo pode fazer no sistema
   ativo            boolean not null default true,
   ordem            smallint not null default 0,
   criado_em        timestamptz not null default now(),
@@ -455,6 +460,25 @@ comment on table gestorgov.alertas_cargo is
   'Alertas ao superior direto: meta fora por 2 ciclos, entrega vencendo em 48 h, pendência parada há 7 dias, '
   'cargo sem atualização há 24 h úteis, evento crítico. Sobem pela hierarquia quando ninguém trata.';
 
+-- O cargo de cada membro (as permissões dele vêm do cargo).
+alter table gestorgov.membros add column if not exists cargo_id uuid references gestorgov.cargos(id) on delete set null;
+
+-- Convites do dono para a equipe: o link leva o token; aqui fica só o hash dele.
+create table if not exists gestorgov.convites (
+  id               uuid primary key default extensions.gen_random_uuid(),
+  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
+  email            text not null,
+  nome             text,
+  cargo_id         uuid references gestorgov.cargos(id) on delete set null,
+  token_hash       text not null unique,
+  criado_por       text not null,
+  criado_em        timestamptz not null default now(),
+  expira_em        timestamptz not null,
+  aceito_em        timestamptz,
+  cancelado_em     timestamptz
+);
+create index if not exists ix_convites_municipio on gestorgov.convites (municipio_id);
+
 -- A rotina passa a ser do cargo (o setor continua sendo a sala).
 alter table gestorgov.atividades_setor add column if not exists cargo_id uuid references gestorgov.cargos(id) on delete set null;
 
@@ -464,7 +488,7 @@ alter table gestorgov.atividades_setor add column if not exists cargo_id uuid re
 -- ─────────────────────────────────────────────────────────────────────────────
 grant select on gestorgov.modelos_cargo, gestorgov.modelos_indicador to gestorgov_app;
 grant select, insert, update, delete on
-  gestorgov.membros, gestorgov.cargos, gestorgov.indicadores_cargo, gestorgov.medicoes, gestorgov.entregas,
+  gestorgov.membros, gestorgov.convites, gestorgov.cargos, gestorgov.indicadores_cargo, gestorgov.medicoes, gestorgov.entregas,
   gestorgov.pendencias, gestorgov.status_cargo, gestorgov.alertas_cargo
   to gestorgov_app;
 grant usage, select on all sequences in schema gestorgov to gestorgov_app;
@@ -473,7 +497,7 @@ do $$
 declare
   t text;
 begin
-  foreach t in array array['membros', 'modelos_cargo', 'modelos_indicador', 'cargos', 'indicadores_cargo', 'medicoes',
+  foreach t in array array['membros', 'convites', 'modelos_cargo', 'modelos_indicador', 'cargos', 'indicadores_cargo', 'medicoes',
                            'entregas', 'pendencias', 'status_cargo', 'alertas_cargo']
   loop
     execute format('alter table gestorgov.%I enable row level security', t);

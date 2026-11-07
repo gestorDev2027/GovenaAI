@@ -5,18 +5,19 @@
 
 /* =========================================================
    Painel do GestorGov. Cores da marca: azul-marinho #0D1B38, azul #1A63D8, azul-claro #52A2FF,
-   amarelo #F4B800 (só destaque e alerta) e cinza-azulado #424E6B. Cantos quase retos: visual institucional.
+   amarelo #F4B800 (só destaque e alerta) e cinza-azulado #424E6B. Meio-termo entre o institucional e o moderno:
+   menu azul-marinho com o item ativo em pílula azul, cartões brancos com cantos médios, sem degradês fortes.
    Claro + escuro obrigatórios. Toda animação nova entra no bloco `prefers-reduced-motion` do fim.
    ========================================================= */
 
-/* Raios das classes rounded-*: quase retos (rounded-full continua redondo, para pontos e avatares). */
+/* Raios das classes rounded-*: médios (rounded-full continua redondo, para pontos, avatares e selos). */
 @theme {
-  --radius-sm: 2px;
-  --radius-md: 3px;
-  --radius-lg: 4px;
-  --radius-xl: 4px;
-  --radius-2xl: 6px;
-  --radius-3xl: 6px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
 }
 
 @theme inline {
@@ -99,8 +100,8 @@
 
 /* ---------------- CLARO ---------------- */
 :root {
-  --radius: 4px;
-  --background: #F6F8FB;
+  --radius: 10px;
+  --background: #F3F6FB;
   --foreground: #0D1B38;
   --card: #FFFFFF;
   --card-foreground: #0D1B38;
@@ -134,14 +135,15 @@
   --viz-1: #1A63D8;
   --viz-2: #E0A500;
   --viz-3: #1BAF7A;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #2A3654;
+  /* O menu é azul-marinho nos dois temas (como nas referências). */
+  --sidebar: #0D1B38;
+  --sidebar-foreground: #E3EAF6;
   --sidebar-primary: #1A63D8;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EDF1F7;
-  --sidebar-accent-foreground: #0D1B38;
-  --sidebar-border: #DCE3EE;
-  --sidebar-ring: #1A63D8;
+  --sidebar-accent: #1A2B52;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #22365F;
+  --sidebar-ring: #52A2FF;
 }
 
 /* ---------------- ESCURO ---------------- */
@@ -180,7 +182,7 @@
   --viz-1: #52A2FF;
   --viz-2: #F4B800;
   --viz-3: #2BC48A;
-  --sidebar: #0B1836;
+  --sidebar: #071029;
   --sidebar-foreground: #DCE5F5;
   --sidebar-primary: #3B82F0;
   --sidebar-primary-foreground: #FFFFFF;

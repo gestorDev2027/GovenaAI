@@ -5,7 +5,7 @@ import { Loader2, LogIn, Rocket } from "lucide-react";
 import { api, type Acesso } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/fields";
-import { CascaPublica } from "@/components/publico/casca";
+import { CampoSenha } from "@/components/publico/campo-senha";
 import { Campo, FormularioCentral } from "./entrar";
 
 const SENHA_MINIMA = 8;
@@ -46,7 +46,7 @@ export function Cadastro() {
   }
 
   return (
-    <CascaPublica>
+    <>
       <FormularioCentral
         titulo="Cadastrar prefeitura"
         descricao="Crie a conta do secretário de saúde. Em seguida, o Assistente de Implantação monta a secretaria com você."
@@ -58,34 +58,32 @@ export function Cadastro() {
         )}
         <form onSubmit={cadastrar} className="space-y-4" noValidate>
           <Campo id="nome" rotulo="Seu nome completo">
-            <Input id="nome" autoComplete="name" required autoFocus minLength={2} value={nome} onChange={(e) => setNome(e.target.value)} className="h-10" />
+            <Input id="nome" autoComplete="name" required autoFocus minLength={2} value={nome} onChange={(e) => setNome(e.target.value)} className="h-11" />
           </Campo>
           <Campo id="email" rotulo="E-mail institucional" ajuda="De preferência o e-mail da prefeitura (ex.: saude@municipio.rj.gov.br).">
-            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-10" />
+            <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
           </Campo>
           <Campo id="senha" rotulo="Senha" ajuda={`Pelo menos ${SENHA_MINIMA} caracteres.`}>
-            <Input
+            <CampoSenha
               id="senha"
-              type="password"
               autoComplete="new-password"
               required
               aria-invalid={senhaCurta || undefined}
               value={senha}
               onChange={(e) => setSenha(e.target.value)}
-              className="h-10"
+              className="h-11"
             />
           </Campo>
           <Campo id="confirmar" rotulo="Confirme a senha">
-            <Input
+            <CampoSenha
               id="confirmar"
-              type="password"
               autoComplete="new-password"
               required
               aria-invalid={naoConfere || undefined}
               aria-describedby={naoConfere ? "confirmar-erro" : undefined}
               value={confirmar}
               onChange={(e) => setConfirmar(e.target.value)}
-              className="h-10"
+              className="h-11"
             />
             {naoConfere && (
               <p id="confirmar-erro" className="text-xs text-destructive">
@@ -115,6 +113,6 @@ export function Cadastro() {
           </Link>
         </p>
       </FormularioCentral>
-    </CascaPublica>
+    </>
   );
 }

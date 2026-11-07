@@ -17,7 +17,7 @@ documentos) e, aos poucos, o GestorGov passa a ser o lugar onde o dado nasce.
 - **Cliente:** prefeituras (começando pela Secretaria de Saúde; o modelo de dados já prevê Educação, Assistência
   Social e Administração).
 - **Usuários:** servidores internos (secretário, coordenadores de setor, técnicos). **Não é atendimento ao
-  cidadão** — ainda (ver §10).
+  cidadão** — ainda (ver §11).
 - **Repositório:** github.com/gestorDev2027/GovenaAI.
 
 ### De onde veio
@@ -112,7 +112,7 @@ inventa unidades, nomes ou e-mails; preço/contrato vão para a equipe (`transfe
 ### Status
 
 - Backend pronto (ferramentas, rotas, banco).
-- **Tela de onboarding: a fazer** (é o próximo passo de frontend — ver §9).
+- Tela de implantação: chat e quadro em listas; o mapa e o prédio 3D entram nela (ver §10).
 
 ## 4. Agentes
 
@@ -160,6 +160,7 @@ painel_api.py                 painel: chat, conversas, Central, visão geral, ba
 fabrica_api.py                Fábrica de agentes e equipes
 calibracao_api.py             Calibração (👍/👎 + curadoria)
 qualidade_api.py              qualidade das conversas com a régua (agente/qualidade.py)
+prefeitura_api.py             a prefeitura de quem está logado: cargos, permissões, equipe e convites
 conhecimento_api.py           documentos vetorizados
 banco_api.py                  Observabilidade (leitura do banco)
 agente/gestao.py              cadastro da prefeitura (tabelas, leitura, gravação) + ViaCEP/IBGE/OSM/CNES
@@ -205,7 +206,11 @@ inteligente").
 | Destaque e alerta (com moderação) | amarelo `#F4B800` |
 | Texto secundário | cinza-azulado `#424E6B` |
 
-- Cantos quase retos (2–4 px; `rounded-full` só para pontos e avatares). Visual institucional.
+- Meio-termo entre o institucional e o moderno (referências enviadas em 07/11/2026): menu lateral azul-marinho
+  com o item ativo em pílula azul, barra do topo com a prefeitura e o usuário, cartões brancos com cantos médios
+  (6–16 px), indicadores com ícone em círculo, botões de destaque em pílula amarela. Sem degradês fortes.
+- Telas de acesso (entrar, cadastrar, convite): sem cabeçalho; formulário à esquerda, que rola, e painel fixo da
+  marca à direita.
 - Claro e escuro obrigatórios. Tokens em `painel/src/styles.css`; logo em
   `painel/src/components/layout/logo.tsx` (SVG, o texto acompanha o tema). O símbolo da Central 3D e dos avatares
   está em `painel/public/espaco/gestorgov-branco.png` e `gestorgov-cor.png`.
@@ -213,7 +218,23 @@ inteligente").
 - **3D nunca é obrigatório**: toda informação das visões Cidade e Secretaria precisa existir no Painel
   (computadores de prefeitura são fracos).
 
-## 7. Segurança, LGPD e regras dos agentes
+## 7. Acessos: plataforma e prefeituras
+
+Dois níveis, separados:
+
+- **Plataforma** (equipe GestorGov): `painel_usuarios` (agente/usuarios.py), com o dono em `PAINEL_DONO`. Vê as telas
+  de configuração (Fábrica, Conhecimento, Calibração, Observabilidade, Usuários) e o Painel de atendimento.
+- **Prefeitura** (agente/acessos.py, rotas em prefeitura_api.py): quem cadastra a prefeitura é o **dono** dela
+  (`membros.papel = 'dono'`), entra sem aprovação da plataforma e pode tudo nela. Ele monta o organograma
+  (cargos do catálogo ou criados à mão), define as **permissões de cada cargo** (`cargos.permissoes`: ver o painel,
+  aprovar e devolver entregas, gerenciar os fluxos dos agentes, criar agentes, definir metas, registrar dados,
+  gerenciar cargos, gerenciar a equipe, ver a auditoria) e convida a equipe por link (`convites`, 7 dias, a pessoa
+  cria a senha). O membro pode o que o cargo dele pode; o dono não pode ser bloqueado; ninguém altera o próprio acesso.
+- Toda rota da prefeitura usa o município de quem está logado: nunca um id vindo da tela.
+- Ainda falta: as telas herdadas (Conversas, Fábrica, Central) mostram dados de todas as prefeituras e por isso
+  ficam só para a plataforma. Separá-las por município é o próximo passo antes do primeiro piloto.
+
+## 8. Segurança, LGPD e regras dos agentes
 
 - Dados de saúde são **sensíveis** (LGPD). Agentes trabalham com números agregados e códigos; **nunca** pedem nem
   repetem nome completo, CPF ou Cartão SUS de paciente. Memória dos agentes nunca guarda dados de pacientes.
@@ -223,7 +244,7 @@ inteligente").
   `PAINEL_DONO` (sem ele e sem `PAINEL_DOMINIOS`/`PAINEL_EMAILS`, ninguém vira dono automaticamente).
 - Segredos só em variáveis de ambiente (Render) — nunca no repositório. Chaves da Fábrica ficam no Vault.
 
-## 8. Deploy e operação
+## 9. Deploy e operação
 
 ### Render
 
@@ -262,7 +283,7 @@ cd painel; npm run build               # confere os tipos (tsc) e gera o painel
 - Nunca commitar `.env`, `dados/`, `node_modules/`, `painel/dist/`, `Claude outputs/`, `*.zip` (estão no
   `.gitignore`).
 
-## 9. Roadmap
+## 10. Roadmap
 
 ### Fase 0 — Base (feito)
 
@@ -304,14 +325,14 @@ integração Unnichat. Começa pelo administrativo: lembretes de consulta/vacina
 disponível, exame pronto, ouvidoria. Exige identidade validada (CPF/Cartão SUS/gov.br), consentimento LGPD e,
 para qualquer orientação clínica, respaldo jurídico e médico; emergência → SAMU 192.
 
-## 10. Fora de escopo agora
+## 11. Fora de escopo agora
 
 - WhatsApp e qualquer atendimento ao cidadão (Fase 4).
 - Diagnóstico, triagem ou orientação clínica.
 - Escrever em sistemas oficiais do SUS.
 - Cobrança e contratos dentro do sistema.
 
-## 11. Pontos em aberto / riscos conhecidos
+## 12. Pontos em aberto / riscos conhecidos
 
 - **Ainda não houve deploy.** Em 06/11/2026 o código foi conferido localmente (Python 3.14, porque a 3.13 do
   projeto não estava instalada): o backend importa inteiro, os quatro agentes montam e o painel compila
