@@ -3,14 +3,14 @@ import { useCallback, useEffect, useState } from "react";
 export type Theme = "light" | "dark";
 
 function readInitial(): Theme {
-  if (typeof window === "undefined") return "dark";
+  if (typeof window === "undefined") return "light";
   try {
     const stored = localStorage.getItem("theme");
     if (stored === "light" || stored === "dark") return stored;
   } catch {
-    /* sem armazenamento: escuro, o padrão do painel */
+    /* sem armazenamento: claro, o padrão do painel */
   }
-  return "dark";
+  return "light";
 }
 
 export function useTheme() {

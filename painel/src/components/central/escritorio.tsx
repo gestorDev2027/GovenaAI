@@ -68,9 +68,9 @@ export const SEGUNDOS_CONVERSANDO = 120;
 // Na mesa só fica quem teve mensagem nos últimos 15 min; as paradas há mais tempo saem da planta (seguem na lista).
 export const SEGUNDOS_NA_MESA = 15 * 60;
 const AZUL = "#3b82f6";
-const LARANJA = "#f7931e";
+const AMARELO = "#F4B800";
 const VERDE = "#22c55e";
-const AMBAR = "#f59e0b";
+const AMBAR = "#52A2FF"; // esperando o servidor
 
 /* ───────── Planta ───────── */
 
@@ -445,7 +445,7 @@ function MoveisDaSala({ sala, p, transferidasAguardando }: { sala: Sala; p: Pale
             {LUGARES_EQUIPE.map((lugar, i) => (
               <group key={i}>
                 <group position={[lugar.x, 0, lugar.mesaZ]} rotation={[0, lugar.giro, 0]}>
-                  <Estacao p={p} ocupada cor={LARANJA} detalhe={i} />
+                  <Estacao p={p} ocupada cor={AMARELO} detalhe={i} />
                 </group>
                 <group position={[lugar.x, 0, lugar.cadeiraZ]} rotation={[0, lugar.giro, 0]}>
                   <Cadeira p={p} />
@@ -1217,14 +1217,14 @@ export default function Escritorio({
           scale={[1, 1, profundidade / Math.ceil(larguraPiso)]}
         />
 
-        {/* Paredes de fora: fundo (com o quadro do GestorGov) e a lateral de ripas de madeira */}
+        {/* Paredes de fora: fundo (com o quadro do GestorGov) e a lateral ripada azul-marinho */}
         <mesh position={[centro.x, 1.45, planta.zFundo0 - 0.12]} castShadow receiveShadow>
           <boxGeometry args={[larguraPiso, 2.9, 0.24]} />
           <meshStandardMaterial color={p.parede} roughness={0.9} />
         </mesh>
         <Suspense fallback={null}>
           <group position={[(planta.salas[1].ret.x0 + planta.salas[1].ret.x1) / 2, 1.9, planta.zFundo0 + 0.02]}>
-            <Banner cor={LARANJA} />
+            <Banner cor={AMARELO} />
           </group>
         </Suspense>
         <group position={[planta.xEsq0 + 0.03, 0, centro.z]}>

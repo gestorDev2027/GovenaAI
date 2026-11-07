@@ -11,13 +11,18 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Briefcase,
   ClipboardCheck,
+  Landmark,
+  Network,
+  Rocket,
+  UserCog,
   Factory,
   ExternalLink,
-  GraduationCap,
-  House,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
+  MapPinned,
   Menu,
   MessagesSquare,
   Moon,
@@ -26,8 +31,8 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api, sair, type Acesso, type Config, type Permissao } from "@/lib/api";
-import { usePode } from "@/hooks/use-permissoes";
+import { api, sair, type Acesso, type Config, type Permissao, type PermissaoPrefeitura } from "@/lib/api";
+import { useDaPlataforma, usePode, usePodeNaPrefeitura } from "@/hooks/use-permissoes";
 import { useUsuarios } from "@/pages/usuarios";
 import { useTheme } from "@/hooks/use-theme";
 import { Logo, LogoIcone } from "./logo";
@@ -36,49 +41,68 @@ import { Logo, LogoIcone } from "./logo";
  * Casco do painel: menu lateral, barra do topo e o conteúdo.
  *
  * Em tela larga o menu é uma coluna de altura total, separada do conteúdo por uma borda fina; títulos
- * de seção em laranja, caixa alta, e o item ativo com degradê e um marcador luminoso à esquerda. No
+ * de seção em azul, caixa alta, e o item ativo com degradê e um marcador luminoso à esquerda. No
  * tablet (768–1024) fica recolhido e o botão redondo abre a gaveta; no celular vira barra fina com
  * gaveta. A gaveta reusa a mesma lista (duas listas em paralelo divergem no primeiro item acrescentado
  * num lugar só).
  */
 
 /** novaAba: a tela abre em outra aba, fora do menu (ex.: Central ao vivo, em tela cheia). permissao: o item só
- * aparece para quem a tem. contagem: um número ao lado (ex.: pessoas esperando aprovação). */
+ * aparece para quem a tem (na plataforma); naPrefeitura: o item é da prefeitura e pede essa permissão lá.
+ * contagem: um número ao lado (ex.: pessoas esperando aprovação). */
 type Item = {
   to: string;
   rotulo: string;
   icone: ComponentType<{ className?: string }>;
   novaAba?: boolean;
   permissao?: Permissao;
+  naPrefeitura?: PermissaoPrefeitura;
   contagem?: number;
 };
 // O ícone da SEÇÃO só aparece no menu recolhido e nunca repete o de um item da própria seção.
-type Secao = { titulo: string; icone: ComponentType<{ className?: string }>; itens: Item[] };
+// daPlataforma: a seção é da equipe GestorGov (aprovada no painel); as outras são da prefeitura de quem entrou.
+type Secao = { titulo: string; icone: ComponentType<{ className?: string }>; itens: Item[]; daPlataforma?: boolean };
 
+// A prefeitura de quem entrou (dono e membros, pelo cargo) e, para a equipe GestorGov, as visões da plataforma,
+// o trabalho com os agentes e a configuração.
 const SECOES: Secao[] = [
   {
-    titulo: "Geral",
-    icone: House,
+    titulo: "Prefeitura",
+    icone: Landmark,
     itens: [
-      { to: "/", rotulo: "Visão geral", icone: LayoutDashboard },
-      { to: "/central", rotulo: "Central ao vivo", icone: Building2, novaAba: true },
-      { to: "/conversas", rotulo: "Conversas", icone: MessagesSquare },
-      { to: "/chat", rotulo: "Chat de teste", icone: Bot, permissao: "usar_chat" },
+      { to: "/cidade", rotulo: "Cidade", icone: MapPinned, naPrefeitura: "ver_painel" },
+      { to: "/cargos", rotulo: "Organograma e cargos", icone: Network, naPrefeitura: "ver_painel" },
+      { to: "/equipe", rotulo: "Equipe e acessos", icone: UserCog, naPrefeitura: "gerenciar_equipe" },
+      { to: "/implantacao", rotulo: "Implantação", icone: Rocket, naPrefeitura: "gerenciar_cargos" },
     ],
   },
   {
-    titulo: "Treinamento",
-    icone: GraduationCap,
+    titulo: "Visões",
+    icone: LayoutGrid,
+    daPlataforma: true,
+    itens: [
+      { to: "/cidade", rotulo: "Cidade", icone: MapPinned },
+      { to: "/central", rotulo: "Secretaria", icone: Building2, novaAba: true },
+      { to: "/", rotulo: "Painel", icone: LayoutDashboard },
+    ],
+  },
+  {
+    titulo: "Trabalho",
+    icone: Briefcase,
+    daPlataforma: true,
+    itens: [
+      { to: "/chat", rotulo: "Chat com os agentes", icone: Bot, permissao: "usar_chat" },
+      { to: "/conversas", rotulo: "Conversas", icone: MessagesSquare },
+    ],
+  },
+  {
+    titulo: "Configuração",
+    icone: SlidersHorizontal,
+    daPlataforma: true,
     itens: [
       { to: "/fabrica", rotulo: "Fábrica de agentes", icone: Factory, permissao: "editar_agentes" },
-      { to: "/calibracao", rotulo: "Calibração", icone: ClipboardCheck },
       { to: "/base", rotulo: "Conhecimento", icone: BookOpen },
-    ],
-  },
-  {
-    titulo: "Gestão",
-    icone: SlidersHorizontal,
-    itens: [
+      { to: "/calibracao", rotulo: "Calibração", icone: ClipboardCheck },
       { to: "/observabilidade", rotulo: "Observabilidade", icone: Activity, permissao: "ver_banco" },
       { to: "/usuarios", rotulo: "Usuários e permissões", icone: UsersRound, permissao: "gerenciar_usuarios" },
     ],
@@ -146,8 +170,8 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="bi-shell flex h-svh w-full overflow-hidden bg-background text-foreground">
       {/* Celular: barra fina */}
       <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-sidebar-border/70 bg-sidebar/95 px-3 text-sidebar-foreground backdrop-blur-xl md:hidden">
-        <Link to="/" aria-label="GestorGov — visão geral">
-          <Logo />
+        <Link to="/" aria-label="GestorGov — painel">
+          <Logo sobreEscuro />
         </Link>
         <button
           type="button"
@@ -182,10 +206,10 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Link
               to="/"
-              aria-label="GestorGov — visão geral"
+              aria-label="GestorGov — painel"
               className="inline-flex rounded-lg p-0.5 transition-transform duration-300 outline-none group-hover/logo:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
-              {recolhidoNaTela ? <LogoIcone /> : <Logo />}
+              {recolhidoNaTela ? <LogoIcone /> : <Logo sobreEscuro />}
             </Link>
           </div>
           <Conteudo recolhido={recolhidoNaTela} ativo={ativo} />
@@ -196,7 +220,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           onClick={largo ? alternar : () => setGaveta(true)}
           aria-label={!largo ? "Abrir menu" : recolhido ? "Expandir menu" : "Recolher menu"}
           aria-expanded={largo ? !recolhido : gaveta}
-          className="absolute top-[52px] -right-3 z-10 hidden size-6 place-items-center rounded-full bg-primary text-primary-foreground shadow-[0_6px_16px_-6px_color-mix(in_oklab,var(--color-primary)_80%,transparent)] ring-2 ring-sidebar transition-[filter] outline-none hover:brightness-110 focus-visible:ring-sidebar-ring md:grid"
+          className="absolute top-[52px] -right-3 z-10 hidden size-6 place-items-center rounded-full bg-warning text-warning-foreground shadow-md ring-2 ring-background transition-[filter] outline-none hover:brightness-105 focus-visible:ring-sidebar-ring md:grid"
         >
           {recolhidoNaTela ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
         </button>
@@ -204,8 +228,48 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden pt-14 md:pt-0">
         <div className="aurora-bg" aria-hidden="true" />
+        <BarraDoTopo />
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">{children}</div>
       </main>
+    </div>
+  );
+}
+
+/* ───────── Barra do topo: a prefeitura e quem está conectado ───────── */
+
+function BarraDoTopo() {
+  const acesso = useQuery({ queryKey: ["acesso"], queryFn: () => api<Acesso>("/acesso"), staleTime: Infinity });
+  const usuario = acesso.data?.usuario;
+  const prefeitura = acesso.data?.prefeitura;
+  const nome = usuario?.nome || usuario?.email || "Acesso local";
+  const iniciais = nome
+    .split(/[\s@.]+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("");
+  return (
+    <div className="hidden h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6 md:flex">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold">
+          {prefeitura?.municipio ? `Secretaria Municipal de Saúde · ${prefeitura.municipio}-${prefeitura.uf}` : "GestorGov"}
+        </p>
+        <p className="truncate text-xs text-muted-foreground">
+          {prefeitura ? (prefeitura.situacao_municipio === "ativo" ? "Implantação concluída" : "Implantação em andamento") : "Plataforma"}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 rounded-full border border-border bg-background py-1 pr-4 pl-1">
+        <span aria-hidden="true" className="relative grid size-9 place-items-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
+          {iniciais || "G"}
+          <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-success ring-2 ring-background" />
+        </span>
+        <span className="flex min-w-0 flex-col leading-tight">
+          <span className="truncate text-sm font-semibold">{nome}</span>
+          <span className="truncate text-[11px] text-muted-foreground">
+            {prefeitura ? (prefeitura.papel === "dono" ? "Dono da prefeitura" : prefeitura.cargo ?? "Membro") : usuario?.papel ?? "Plataforma"}
+          </span>
+        </span>
+      </div>
     </div>
   );
 }
@@ -216,16 +280,26 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
   const { theme, toggle } = useTheme();
   const acesso = useQuery({ queryKey: ["acesso"], queryFn: () => api<Acesso>("/acesso"), staleTime: Infinity });
   const usuario = acesso.data?.usuario;
-  const organizacao = "Secretaria Municipal de Saúde";
+  const prefeitura = acesso.data?.prefeitura;
+  const organizacao = prefeitura?.municipio ? `Saúde · ${prefeitura.municipio}-${prefeitura.uf}` : "Secretaria Municipal de Saúde";
   const quem = usuario?.email ?? (acesso.data?.requer_chave ? "acesso pela chave" : "acesso local, sem login");
   // O menu mostra só o que a pessoa pode usar; Usuários traz quantos esperam aprovação.
   const pode = usePode();
-  const usuarios = useUsuarios(pode("gerenciar_usuarios"));
+  const daPlataforma = useDaPlataforma();
+  const podeNaPrefeitura = usePodeNaPrefeitura();
+  const temPrefeitura = !!acesso.data?.prefeitura;
+  const usuarios = useUsuarios(daPlataforma && pode("gerenciar_usuarios"));
   const pendentes = usuarios.data?.usuarios.filter((u) => u.situacao === "pendente").length ?? 0;
-  const secoes = SECOES.map((s) => ({
-    ...s,
-    itens: s.itens.filter((i) => !i.permissao || pode(i.permissao)).map((i) => (i.to === "/usuarios" ? { ...i, contagem: pendentes } : i)),
-  })).filter((s) => s.itens.length);
+  const secoes = SECOES.filter((s) => (s.daPlataforma ? daPlataforma : temPrefeitura))
+    .map((s) => ({
+      ...s,
+      itens: s.itens
+        .filter((i) => (i.naPrefeitura ? podeNaPrefeitura(i.naPrefeitura) : !i.permissao || pode(i.permissao)))
+        // Quem tem a seção da prefeitura não precisa da Cidade repetida em Visões.
+        .filter((i) => !(s.daPlataforma && temPrefeitura && i.to === "/cidade"))
+        .map((i) => (i.to === "/usuarios" ? { ...i, contagem: pendentes } : i)),
+    }))
+    .filter((s) => s.itens.length);
 
   return (
     <>
@@ -248,11 +322,11 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
               rel="noreferrer"
               title={recolhido ? f.rotulo : undefined}
               className={cn(
-                "group/item flex h-10 items-center rounded-lg text-sm font-medium text-sidebar-foreground/75 transition-all outline-none hover:bg-sidebar-accent/60 hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                "group/item flex h-10 items-center rounded-xl text-sm font-medium text-sidebar-foreground/70 transition-all outline-none hover:bg-sidebar-accent hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                 recolhido ? "w-10 justify-center px-0" : "gap-3 px-3",
               )}
             >
-              <ExternalLink className="size-[18px] shrink-0 text-sidebar-foreground/60 transition-transform duration-200 group-hover/item:scale-110 group-hover/item:text-sidebar-foreground" />
+              <ExternalLink className="size-[18px] shrink-0 text-sidebar-foreground/55 transition-transform duration-200 group-hover/item:scale-110 group-hover/item:text-white" />
               {!recolhido && <span className="truncate">{f.rotulo}</span>}
             </a>
           ))}
@@ -263,8 +337,8 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
       <div className={cn("flex shrink-0 flex-col gap-2 border-t border-sidebar-border/70 p-2", recolhido && "items-center")}>
         <div
           className={cn(
-            "group/user flex min-w-0 items-center rounded-lg transition-colors",
-            recolhido ? "justify-center p-1" : "gap-2.5 p-2 hover:bg-sidebar-accent/60",
+            "group/user flex min-w-0 items-center rounded-xl transition-colors",
+            recolhido ? "justify-center p-1" : "gap-2.5 p-2 hover:bg-sidebar-accent",
           )}
           title={recolhido ? quem : undefined}
         >
@@ -276,8 +350,10 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
           </span>
           {!recolhido && (
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate text-xs font-semibold text-sidebar-foreground">{usuario?.nome || organizacao}</span>
-              <span className="truncate text-[10px] text-muted-foreground">{quem}</span>
+              <span className="truncate text-xs font-semibold text-white">{usuario?.nome || organizacao}</span>
+              <span className="truncate text-[10px] text-sidebar-foreground/60">
+                {prefeitura ? (prefeitura.papel === "dono" ? "Dono da prefeitura" : prefeitura.cargo ?? "Sem cargo") : quem}
+              </span>
             </span>
           )}
         </div>
@@ -289,7 +365,7 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
             aria-label={theme === "dark" ? "Usar tema claro" : "Usar tema escuro"}
             title={theme === "dark" ? "Tema claro" : "Tema escuro"}
             className={cn(
-              "inline-flex h-9 items-center gap-2 rounded-xl border border-sidebar-border/70 bg-card/40 text-xs font-medium text-muted-foreground transition-colors outline-none hover:border-primary/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+              "inline-flex h-9 items-center gap-2 rounded-xl border border-sidebar-border bg-sidebar-accent/50 text-xs font-medium text-sidebar-foreground/75 transition-colors outline-none hover:border-sidebar-ring/60 hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring",
               recolhido ? "size-9 justify-center" : "flex-1 justify-start px-3",
             )}
           >
@@ -304,7 +380,7 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
               onClick={sair}
               aria-label="Sair"
               title="Sair"
-              className="grid size-9 shrink-0 place-items-center rounded-xl border border-sidebar-border/70 bg-card/40 text-muted-foreground transition-colors outline-none hover:border-destructive/40 hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+              className="grid size-9 shrink-0 place-items-center rounded-xl border border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground/75 transition-colors outline-none hover:border-destructive/40 hover:bg-destructive/20 hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
               <LogOut className="size-4" />
             </button>
@@ -315,7 +391,7 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
   );
 }
 
-/* ───────── Seção aberta: título laranja em caixa alta, recolhível ───────── */
+/* ───────── Seção aberta: título azul em caixa alta, recolhível ───────── */
 
 function SecaoDoMenu({
   secao,
@@ -343,7 +419,7 @@ function SecaoDoMenu({
         onClick={() => setAberta((a) => !a)}
         aria-expanded={aberta}
         title={`${aberta ? "Recolher" : "Expandir"} ${secao.titulo}`}
-        className="flex w-full items-center justify-between rounded-md px-3 pt-1 pb-1.5 text-left text-[10px] font-bold tracking-[0.18em] text-primary-text/80 uppercase transition-colors outline-none hover:text-primary-text focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+        className="flex w-full items-center justify-between rounded-md px-3 pt-1 pb-1.5 text-left text-[10px] font-bold tracking-[0.18em] text-sidebar-foreground/45 uppercase transition-colors outline-none hover:text-sidebar-foreground/80 focus-visible:ring-2 focus-visible:ring-sidebar-ring"
       >
         <span className="flex-1 text-left">{secao.titulo}</span>
         <ChevronDown
@@ -364,19 +440,18 @@ function SecaoDoMenu({
   );
 }
 
-// Item do menu: h-10, ícone de 18px que cresce no hover, item ativo com degradê
-// laranja e um marcador de 3px que brilha na borda esquerda.
+// Item do menu: h-10, ícone de 18px que cresce no hover; o ativo é uma pílula azul (como nas referências).
 const ITEM_BASE =
-  "group/item relative flex h-10 items-center justify-start gap-3 overflow-hidden rounded-lg px-3 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
-const ITEM_INATIVO = "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
-const ITEM_ATIVO = "bg-linear-to-r from-primary/15 via-primary/[0.08] to-transparent font-semibold text-primary-text";
+  "group/item relative flex h-10 items-center justify-start gap-3 overflow-hidden rounded-xl px-3 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
+const ITEM_INATIVO = "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-white";
+const ITEM_ATIVO = "bg-primary font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,99,216,0.9)]";
 
 function IconeDoItem({ icone: Icone, ativo }: { icone: Item["icone"]; ativo: boolean }) {
   return (
     <Icone
       className={cn(
         "size-[18px] shrink-0 transition-transform duration-200 group-hover/item:scale-110",
-        ativo ? "text-primary-text" : "text-sidebar-foreground/60 group-hover/item:text-sidebar-foreground",
+        ativo ? "text-white" : "text-sidebar-foreground/55 group-hover/item:text-white",
       )}
     />
   );
@@ -400,13 +475,6 @@ function ItemMenu({ item, ativo }: { item: Item; ativo: boolean }) {
   }
   return (
     <Link to={item.to} aria-current={ativo ? "page" : undefined} className={cn(ITEM_BASE, ativo ? ITEM_ATIVO : ITEM_INATIVO)}>
-      <span
-        aria-hidden="true"
-        className={cn(
-          "absolute top-1/2 left-0 h-6 w-[3px] -translate-y-1/2 rounded-r-full bg-primary transition-all duration-300",
-          ativo ? "opacity-100 shadow-[0_0_12px_2px_color-mix(in_oklab,var(--color-primary)_55%,transparent)]" : "opacity-0",
-        )}
-      />
       <IconeDoItem icone={item.icone} ativo={ativo} />
       <span className="truncate">{item.rotulo}</span>
       {!!item.contagem && (
@@ -437,9 +505,9 @@ function SecaoRecolhida({ secao, ativo, temAtivo }: { secao: Secao; ativo: (i: I
         className={cn(
           "grid size-10 shrink-0 place-items-center rounded-lg transition-all outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
           temAtivo
-            ? "bg-primary/20 text-primary-text shadow-[inset_0_0_0_1.5px_color-mix(in_oklab,var(--color-primary)_50%,transparent)]"
-            : "text-sidebar-foreground/60 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground",
-          aberto && !temAtivo && "bg-sidebar-accent/60 text-sidebar-foreground",
+            ? "bg-primary text-white"
+            : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-white",
+          aberto && !temAtivo && "bg-sidebar-accent text-white",
         )}
       >
         <Icone className="size-5 shrink-0" />
@@ -595,8 +663,8 @@ function BotaoAjuda() {
         aria-label="Ajuda sobre o menu"
         title="Ajuda sobre o menu"
         className={cn(
-          "grid size-9 shrink-0 place-items-center rounded-lg border border-sidebar-border/60 bg-sidebar-accent/20 transition-colors outline-none hover:border-primary/40 hover:bg-primary/5 hover:text-primary-text focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-          aberto && "border-primary/40 text-primary-text",
+          "grid size-9 shrink-0 place-items-center rounded-xl border border-sidebar-border bg-sidebar-accent/50 text-sidebar-foreground/75 transition-colors outline-none hover:border-sidebar-ring/60 hover:text-white focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+          aberto && "border-sidebar-ring/60 text-white",
         )}
       >
         <CircleHelp className="size-4" />
@@ -604,7 +672,7 @@ function BotaoAjuda() {
       <MenuFlutuante aberto={aberto} aoFechar={() => setAberto(false)} ancora={botao} rotulo="Ajuda sobre o menu" papel="dialog">
         <p className="px-2 py-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase">Como usar o menu</p>
         <ul className="space-y-1.5 px-2 pt-1 pb-2 text-xs leading-relaxed">
-          <li>O botão laranja na borda recolhe o menu e deixa só os ícones; a escolha fica gravada neste navegador.</li>
+          <li>O botão amarelo na borda recolhe o menu e deixa só os ícones; a escolha fica gravada neste navegador.</li>
           <li>Recolhido, cada ícone é uma seção: clique para ver as telas dela.</li>
           <li>Aberto, clique no título de uma seção para recolhê-la.</li>
           <li>O botão de tema diz para qual tema ele leva.</li>
@@ -635,7 +703,7 @@ function Gaveta({ aberta, aoFechar, children }: { aberta: boolean; aoFechar: () 
       <div className="absolute inset-0 bg-foreground/40 backdrop-blur-[2px] animate-in fade-in-0" onClick={aoFechar} />
       <div className="absolute inset-y-0 left-0 flex w-full flex-col border-r border-border bg-sidebar text-sidebar-foreground shadow-xl animate-in slide-in-from-left sm:max-w-sm">
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-sidebar-border px-3">
-          <Logo />
+          <Logo sobreEscuro />
           <button
             type="button"
             onClick={aoFechar}

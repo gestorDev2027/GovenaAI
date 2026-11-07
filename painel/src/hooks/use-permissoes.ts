@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { api, type Acesso, type Permissao } from "@/lib/api";
+import { api, type Acesso, type Permissao, type PermissaoPrefeitura } from "@/lib/api";
 
 export const useAcesso = () => useQuery({ queryKey: ["acesso"], queryFn: () => api<Acesso>("/acesso"), staleTime: Infinity });
 
@@ -11,4 +11,16 @@ export const useAcesso = () => useQuery({ queryKey: ["acesso"], queryFn: () => a
 export function usePode(): (permissao: Permissao) => boolean {
   const usuario = useAcesso().data?.usuario;
   return (permissao) => !usuario || usuario.papel === "dono" || (usuario.permissoes ?? []).includes(permissao);
+}
+
+/** É da equipe da plataforma (GestorGov), aprovada? Sem login (servidor local aberto ou chave), também. */
+export function useDaPlataforma(): boolean {
+  const usuario = useAcesso().data?.usuario;
+  return !usuario || usuario.situacao === "ativo";
+}
+
+/** O que a pessoa pode fazer na prefeitura dela (o dono pode tudo; o membro, o que o cargo dá). */
+export function usePodeNaPrefeitura(): (permissao: PermissaoPrefeitura) => boolean {
+  const prefeitura = useAcesso().data?.prefeitura;
+  return (permissao) => !!prefeitura && prefeitura.permissoes.includes(permissao);
 }

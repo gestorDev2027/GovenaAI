@@ -12,7 +12,11 @@ A chave de acesso (OS_SECURITY_KEY) continua valendo para as rotinas internas e 
 permissões; para pessoas, o caminho é o Google.
 """
 
+import base64
+import hashlib
+import hmac
 import os
+import secrets
 import threading
 from datetime import datetime, timezone
 
@@ -78,8 +82,63 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         Column("atualizado_em", DateTime(timezone=True), nullable=True),
         Column("atualizado_por", String(200), nullable=True),
     )
-    tabela.metadata.create_all(engine, tables=[tabela])
-    _estado.update(engine=engine, tabela=tabela)
+    # Contas com e-mail e senha (cadastro pela landing page). O Google continua entrando sem conta aqui.
+    contas = Table(
+        "painel_contas", tabela.metadata,
+        Column("email", String(200), primary_key=True),
+        Column("nome", String(200), nullable=False),
+        Column("senha_hash", String(300), nullable=False),
+        Column("criado_em", DateTime(timezone=True), nullable=False),
+        Column("atualizado_em", DateTime(timezone=True), nullable=True),
+    )
+    tabela.metadata.create_all(engine, tables=[tabela, contas])
+    _estado.update(engine=engine, tabela=tabela, contas=contas)
+
+
+# ───────── Senhas (scrypt, da biblioteca padrão) ─────────
+SENHA_MINIMA = 8
+_SCRYPT = {"n": 2**14, "r": 8, "p": 1}
+
+
+def _hash_senha(senha: str) -> str:
+    sal = secrets.token_bytes(16)
+    feito = hashlib.scrypt(senha.encode(), salt=sal, dklen=32, **_SCRYPT)
+    return "scrypt${n}${r}${p}${sal}${hash}".format(
+        **_SCRYPT, sal=base64.b64encode(sal).decode(), hash=base64.b64encode(feito).decode())
+
+
+def _senha_confere(senha: str, guardado: str) -> bool:
+    try:
+        nome, n, r, p, sal, esperado = guardado.split("$")
+        feito = hashlib.scrypt(senha.encode(), salt=base64.b64decode(sal), dklen=32, n=int(n), r=int(r), p=int(p))
+    except (ValueError, TypeError):
+        return False
+    return nome == "scrypt" and hmac.compare_digest(feito, base64.b64decode(esperado))
+
+
+def criar_conta(email: str, nome: str, senha: str) -> dict:
+    """Cria a conta de e-mail e senha e registra o acesso (pendente, ou dono se for o caso)."""
+    email = email.strip().lower()
+    if len(senha) < SENHA_MINIMA:
+        raise ErroUsuario(422, f"A senha precisa ter pelo menos {SENHA_MINIMA} caracteres.")
+    contas = _estado["contas"]
+    with _trava, _estado["engine"].begin() as conexao:
+        if conexao.execute(select(contas.c.email).where(contas.c.email == email)).first():
+            raise ErroUsuario(409, "Já existe uma conta com este e-mail. Entre com a sua senha.")
+        conexao.execute(insert(contas).values(email=email, nome=nome.strip() or email, senha_hash=_hash_senha(senha),
+                                              criado_em=_agora()))
+    return registrar_acesso(email, nome)
+
+
+def entrar_com_senha(email: str, senha: str) -> dict | None:
+    """O usuário, se o e-mail e a senha conferem; None se não."""
+    email = email.strip().lower()
+    contas = _estado["contas"]
+    with _estado["engine"].connect() as conexao:
+        conta = conexao.execute(select(contas).where(contas.c.email == email)).mappings().first()
+    if not conta or not _senha_confere(senha, conta["senha_hash"]):
+        return None
+    return registrar_acesso(email, conta["nome"])
 
 
 def disponivel() -> bool:

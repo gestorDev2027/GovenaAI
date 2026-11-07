@@ -24,6 +24,16 @@ import { Usuarios } from "@/pages/usuarios";
 import { Observabilidade } from "@/pages/observabilidade";
 import { Central } from "@/pages/central";
 import { PainelGestao } from "@/pages/gestao";
+import { Cidade } from "@/pages/cidade";
+import { Inicio } from "@/pages/inicio";
+import { Entrar } from "@/pages/entrar";
+import { Cadastro } from "@/pages/cadastro";
+import { PaginaImplantacao } from "@/pages/implantacao";
+import { Cargos } from "@/pages/cargos";
+import { Equipe } from "@/pages/equipe";
+import { AceitarConvite } from "@/pages/convite";
+import { Navigate } from "@tanstack/react-router";
+import { useAcesso } from "@/hooks/use-permissoes";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -58,8 +68,18 @@ const painel = createRoute({
   ),
 });
 
+/** A tela inicial: o Painel para a equipe GestorGov; a Cidade para quem é só da prefeitura. */
+function Inicial() {
+  const acesso = useAcesso().data;
+  if (acesso?.usuario && acesso.usuario.situacao !== "ativo" && acesso.prefeitura) return <Navigate to="/cidade" />;
+  return <VisaoGeral />;
+}
+
 const rotas = [
-  createRoute({ getParentRoute: () => painel, path: "/", component: VisaoGeral }),
+  createRoute({ getParentRoute: () => painel, path: "/", component: Inicial }),
+  createRoute({ getParentRoute: () => painel, path: "/cidade", component: Cidade }),
+  createRoute({ getParentRoute: () => painel, path: "/cargos", component: Cargos }),
+  createRoute({ getParentRoute: () => painel, path: "/equipe", component: Equipe }),
   createRoute({
     getParentRoute: () => painel,
     path: "/conversas",
@@ -133,6 +153,12 @@ const router = createRouter({
       createRoute({ getParentRoute: () => protegido, path: "/central", component: Central }),
     ]),
     createRoute({ getParentRoute: () => raiz, path: "/gestao/$codigo", component: PainelGestao }),
+    // Páginas públicas: a landing page, entrar e cadastrar. A implantação exige conta (a própria página confere).
+    createRoute({ getParentRoute: () => raiz, path: "/inicio", component: Inicio }),
+    createRoute({ getParentRoute: () => raiz, path: "/entrar", component: Entrar }),
+    createRoute({ getParentRoute: () => raiz, path: "/cadastro", component: Cadastro }),
+    createRoute({ getParentRoute: () => raiz, path: "/implantacao", component: PaginaImplantacao }),
+    createRoute({ getParentRoute: () => raiz, path: "/convite/$token", component: AceitarConvite }),
   ]),
   basepath: "/painel",
   defaultNotFoundComponent: () => <div className="p-6 text-sm text-muted-foreground">Página não encontrada.</div>,

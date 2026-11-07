@@ -159,7 +159,7 @@ export function descreverEvento(e: EventoCentral) {
     case "ferramenta":
       return { icone: e.ferramenta === "buscar_municipio" ? <Search /> : <Wrench />, texto: ROTULO_FERRAMENTA[e.ferramenta ?? ""] ?? `usou ${e.ferramenta}`, cor: "#0ea5e9" };
     case "transferiu":
-      return { icone: <Users />, texto: "transferiu para a equipe", cor: "#f7931e" };
+      return { icone: <Users />, texto: "transferiu para a equipe", cor: "#F4B800" };
     case "encerrou":
       return { icone: <CheckCircle2 />, texto: "encerrou", cor: "#10b981" };
     case "guardrail":

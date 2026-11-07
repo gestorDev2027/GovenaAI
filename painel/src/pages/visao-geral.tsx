@@ -145,7 +145,7 @@ export function VisaoGeral() {
   return (
     <div className="space-y-5 px-4 pb-8 sm:px-8">
       <PageHeader
-        title="Visão geral"
+        title="Painel"
         icon={LayoutDashboard}
         description={`Retenção, qualidade e custo do atendimento pelos agentes, com a mesma régua da Central ao vivo${
           q.dataUpdatedAt ? ` · números de ${new Date(q.dataUpdatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}, atualizados a cada minuto` : ""
@@ -342,7 +342,7 @@ function Conteudo({ dados, periodo }: { dados: Indicadores; periodo: string }) {
         <EmptyState icon={<MessagesSquare className="size-5" />} title="Nenhum atendimento no período">
           Quando servidores (ou a equipe, pelo Chat de teste) conversarem com o agente, os números aparecem aqui.{" "}
           <Link to="/chat" className="font-semibold text-primary-text hover:underline">
-            Abrir o Chat de teste
+            Abrir o chat com os agentes
           </Link>
         </EmptyState>
       </div>

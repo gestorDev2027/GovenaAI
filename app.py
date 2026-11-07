@@ -14,7 +14,14 @@ compartilhado, que alimenta Sessions, Memory e Evaluation.
 
 import os
 import secrets
+import sys
 from pathlib import Path
+
+# Console do Windows (cp1252): o AgentOS imprime emojis (ex.: o cadeado da OS_SECURITY_KEY) e o print derrubaria
+# o servidor. Com errors="replace", o caractere que o console não tem vira "?".
+for _saida in (sys.stdout, sys.stderr):
+    if hasattr(_saida, "reconfigure"):
+        _saida.reconfigure(errors="replace")
 
 from agno.os import AgentOS
 from agno.os.config import AuthorizationConfig
@@ -31,6 +38,7 @@ from calibracao_api import criar_rotas_calibracao
 from conhecimento_api import criar_rotas_conhecimento
 from fabrica_api import criar_rotas_fabrica
 from gestao_api import criar_rotas_gestao
+from prefeitura_api import criar_rotas_prefeitura
 from painel_api import criar_rotas
 from qualidade_api import criar_rotas_qualidade
 
@@ -55,6 +63,7 @@ base_app = FastAPI(
 )
 base_app.include_router(criar_rotas(agente, agentes))
 base_app.include_router(criar_rotas_gestao())
+base_app.include_router(criar_rotas_prefeitura())
 base_app.include_router(criar_rotas_calibracao(agentes))
 base_app.include_router(criar_rotas_conhecimento(agentes))
 base_app.include_router(criar_rotas_banco(agentes))

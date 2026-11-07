@@ -42,16 +42,16 @@ const ENTRADA = 2.8;
 const CORES = {
   escuro: {
     base: "#141922", grama: "#1d3a2b", gramaFaixa: "#203f2f", gramaClara: "#24452f", calcada: "#4a515c", piso: "#5a616d",
-    asfalto: "#16191f", faixa: "#c9ced6", pedra: "#2a303b", laje: "#3b4350", led: "#f7931e", poste: "#1e2430",
+    asfalto: "#16191f", faixa: "#c9ced6", pedra: "#2a303b", laje: "#3b4350", led: "#F4B800", poste: "#1e2430",
     lampada: "#ffd9a0", tronco: "#5b4130", folha: "#2f8f5f", folhaEscura: "#23704a", cipreste: "#1f6b46", florida: "#d9779f",
     sebe: "#256b45", terra: "#3a2a20", agua: "#38bdf8", flor: ["#f472b6", "#facc15", "#a78bfa", "#fb923c"], banco: "#7c5a3c",
     vidroFachada: "#1c3552", cobertura: "#2b313c", solar: "#1d3b78", luzPoca: 0.55, farol: 1, janela: 0.9,
   },
   claro: {
     base: "#c3cad4", grama: "#8cc28a", gramaFaixa: "#93c891", gramaClara: "#9fd09b", calcada: "#e3e5e8", piso: "#f1f2f4",
-    asfalto: "#4b515b", faixa: "#ffffff", pedra: "#b9c0ca", laje: "#eef0f3", led: "#f7931e", poste: "#3b4250",
+    asfalto: "#4b515b", faixa: "#ffffff", pedra: "#b9c0ca", laje: "#eef0f3", led: "#F4B800", poste: "#3b4250",
     lampada: "#fff4d6", tronco: "#7a5638", folha: "#3fa56e", folhaEscura: "#2f8a59", cipreste: "#2a7a50", florida: "#f0a3c2",
-    sebe: "#3a9a62", terra: "#6b4a33", agua: "#7dd3fc", flor: ["#ec4899", "#eab308", "#8b5cf6", "#f97316"], banco: "#9a7350",
+    sebe: "#3a9a62", terra: "#6b4a33", agua: "#7dd3fc", flor: ["#ec4899", "#eab308", "#8b5cf6", "#1A63D8"], banco: "#9a7350",
     vidroFachada: "#5f86ad", cobertura: "#d5d9df", solar: "#27477f", luzPoca: 0, farol: 0.35, janela: 0.35,
   },
 };
@@ -272,7 +272,7 @@ function Banco({ c, posicao, giro }: { c: Cores; posicao: [number, number, numbe
 
 /* ───────── Ruas ───────── */
 
-const CORES_CARRO = ["#ef4444", "#f8fafc", "#3b82f6", "#111827", "#f59e0b", "#10b981"];
+const CORES_CARRO = ["#ef4444", "#f8fafc", "#3b82f6", "#111827", "#F4B800", "#10b981"];
 
 function Carro({ c, cor, farol = true }: { c: Cores; cor: string; farol?: boolean }) {
   // De frente para +x.
@@ -409,7 +409,7 @@ function Terreo({ c, p, predio, entradaX }: { c: Cores; p: Paleta; predio: Retan
         <DivisoriaVidro p={p} comprimento={profundidade} altura={alturaVidro} />
       </group>
 
-      {/* Recepção: balcão com o filete laranja, a parede de madeira com o GestorGov, sofás, plantas e tapete */}
+      {/* Recepção: balcão com o filete amarelo, a parede ripada com o GestorGov, sofás, plantas e tapete */}
       <group position={[entradaX, 0, z1 - 5.2]}>
         <mesh position={[0, 0.006, 1.6]} rotation={[-Math.PI / 2, 0, 0]}>
           <planeGeometry args={[5, 3]} />
@@ -621,7 +621,7 @@ export function Quarteirao({ p, predio, escuro, entradaX }: { p: Paleta; predio:
 
       <Terreo c={c} p={p} predio={predio} entradaX={entradaX} />
 
-      {/* Entrada: degraus, marquise com o filete laranja e o totem */}
+      {/* Entrada: degraus, marquise com o filete amarelo e o totem */}
       {[0, 1].map((k) => (
         <mesh key={k} position={[entradaX, y + 0.08 + (k + 0.5) * ((-y - 0.08) / 2), z1 + 0.55 - k * 0.22]} receiveShadow>
           <boxGeometry args={[ENTRADA + 0.6, (-y - 0.08) / 2, 1.1 - k * 0.45]} />
@@ -789,7 +789,7 @@ export function CascaDoAndar({ predio, escuro, aberto, aoAbrir }: { predio: Reta
       })}
 
       <group ref={cobertura} position={[0, PE_DIREITO, 0]}>
-        {/* Laje da cobertura, platibanda com o filete laranja e o letreiro */}
+        {/* Laje da cobertura, platibanda com o filete amarelo e o letreiro */}
         <mesh position={[cx, 0.15, cz]} material={m.laje} castShadow>
           <boxGeometry args={[largura + 0.12, 0.3, profundidade + 0.12]} />
         </mesh>

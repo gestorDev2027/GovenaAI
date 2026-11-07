@@ -69,7 +69,7 @@ const SEGUNDOS_NA_MESA = 15 * 60;
 const naMesa = (c: ConversaCentral) => c.status === "em_atendimento" && c.parada_ha_s != null && c.parada_ha_s <= SEGUNDOS_NA_MESA;
 const conversandoAgora = (c: ConversaCentral) => c.parada_ha_s != null && c.parada_ha_s <= SEGUNDOS_CONVERSANDO;
 const corDaConversa = (c: ConversaCentral) =>
-  c.status === "transferido" ? "#f7931e" : c.status === "encerrado" ? "#94a3b8" : conversandoAgora(c) ? "#22c55e" : "#f59e0b";
+  c.status === "transferido" ? "#F4B800" : c.status === "encerrado" ? "#94a3b8" : conversandoAgora(c) ? "#22c55e" : "#52A2FF";
 
 const CHAVE_ABA = "central-aba";
 
@@ -346,7 +346,7 @@ export function Central() {
   });
 
   useEffect(() => {
-    document.title = "Central ao vivo · GestorGov";
+    document.title = "Secretaria · GestorGov";
   }, []);
 
   const agentes = useMemo(() => dados.data?.agentes ?? [], [dados.data]);
@@ -419,7 +419,7 @@ export function Central() {
         <LogoIcone className="size-8 sm:hidden" />
         <span aria-hidden="true" className="hidden h-6 w-px bg-border sm:block" />
         <div className="min-w-0 shrink-0 leading-tight">
-          <div className="text-sm font-semibold">Central ao vivo</div>
+          <div className="text-sm font-semibold">Secretaria</div>
           <div className="flex items-center gap-1 text-[10px] font-semibold text-success">
             <span className="relative flex size-1.5">
               <span className="absolute inline-flex size-full animate-ping rounded-full bg-success opacity-60" />
@@ -446,7 +446,7 @@ export function Central() {
             detalhe={`${fmtInt(boasVindasAguardando)} boas-vindas sem resposta · ${fmtInt(aguardando.length - boasVindasAguardando)} conversas paradas`}
             cor="#3b82f6"
           />
-          <Numero icone={<Users />} rotulo="Transferidas" detalhe={`no período de ${periodo}`} valor={fmtInt(transferidas.length)} cor="#f7931e" />
+          <Numero icone={<Users />} rotulo="Transferidas" detalhe={`no período de ${periodo}`} valor={fmtInt(transferidas.length)} cor="#F4B800" />
           <span className="contents">
             <Numero icone={<CheckCircle2 />} rotulo="Encerradas" detalhe={`no período de ${periodo}`} valor={fmtInt(encerradas.length)} cor="#10b981" />
             <Numero icone={<Timer />} rotulo="Resposta" detalhe="tempo médio de resposta" valor={tempoMedio != null ? fmtSegundos(tempoMedio) : "—"} cor="#8b5cf6" />
@@ -625,10 +625,10 @@ export function Central() {
           <span className="size-2 rounded-full bg-[#22c55e]" /> Conversando agora
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-[#f59e0b]" /> Esperando o servidor (até 15 min)
+          <span className="size-2 rounded-full bg-[#52A2FF]" /> Esperando o servidor (até 15 min)
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-2 rounded-full bg-[#f7931e]" /> Transferida
+          <span className="size-2 rounded-full bg-[#F4B800]" /> Transferida
         </span>
         <span className="flex items-center gap-1.5 border-l border-border pl-4">
           <MousePointerClick className="size-3.5" /> Clique num agente, num balão ou num setor · arraste para mover · botão direito gira

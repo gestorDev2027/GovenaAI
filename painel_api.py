@@ -32,7 +32,7 @@ from sqlalchemy import MetaData, Table, func, select, true
 from starlette.concurrency import run_in_threadpool
 
 from agente import alertas as alertas_mod
-from agente import ao_vivo, base, conhecimento, datasets, equipes, ficha, guardrails, lacunas, listas, perfis, usuarios
+from agente import acessos, ao_vivo, base, conhecimento, datasets, equipes, ficha, gestao, guardrails, lacunas, listas, perfis, usuarios
 from agente.atendimento import encerrar_inativas, encerrar_por_inatividade, responder, responder_em_etapas
 from agente.ferramentas import STATUS_EM_ATENDIMENTO, STATUS_ENCERRADO, STATUS_TRANSFERIDO
 
@@ -140,6 +140,52 @@ class PedidoUsuario(BaseModel):
 
 class PedidoLoginGoogle(BaseModel):
     credencial: str = Field(min_length=20, max_length=5000)
+
+
+class PedidoCadastro(BaseModel):
+    nome: str = Field(min_length=2, max_length=120)
+    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    senha: str = Field(min_length=8, max_length=200)
+
+
+class PedidoLoginSenha(BaseModel):
+    email: str = Field(min_length=5, max_length=200)
+    senha: str = Field(min_length=1, max_length=200)
+
+
+class PedidoImplantacao(BaseModel):
+    mensagem: str = Field(min_length=1, max_length=2000)
+
+
+# Tentativas erradas de senha por e-mail: depois de 5 em 10 minutos, espera.
+_FALHAS_LOGIN: dict[str, list[float]] = {}
+LIMITE_FALHAS, JANELA_FALHAS_S = 5, 600
+
+
+def _bloqueado_por_falhas(email: str) -> bool:
+    agora = time.time()
+    recentes = [t for t in _FALHAS_LOGIN.get(email, []) if agora - t < JANELA_FALHAS_S]
+    _FALHAS_LOGIN[email] = recentes
+    return len(recentes) >= LIMITE_FALHAS
+
+
+def _gravar_sessao(resposta: Response, email: str, nome: str) -> None:
+    resposta.set_cookie(
+        COOKIE_SESSAO, _criar_sessao(email, nome), max_age=_horas_sessao() * 3600,
+        path="/painel", httponly=True, secure=True, samesite="lax",
+    )
+
+
+def exigir_sessao(painel_sessao: str | None = Cookie(default=None)) -> dict:
+    """Pessoa logada (aprovada ou ainda pendente; bloqueada não): a implantação da própria prefeitura não
+    depende da aprovação do dono do painel."""
+    sessao = _ler_sessao(painel_sessao)
+    if not sessao:
+        raise HTTPException(status_code=401, detail="Entre com a sua conta para continuar.")
+    dele = usuarios.usuario(sessao["email"]) if usuarios.disponivel() else None
+    if dele and dele["situacao"] == "bloqueado":
+        raise HTTPException(status_code=403, detail="Seu acesso foi bloqueado.")
+    return sessao
 
 
 def exigir_chave(
@@ -456,9 +502,13 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         google = bool(_google_client_id())
         return {
             "requer_chave": bool(_chave()),
+            # Cadastro e login com e-mail e senha: precisam da chave (é ela que assina a sessão).
+            "aceita_senha": bool(_chave()) and usuarios.disponivel(),
             "google_client_id": _google_client_id() or None,
             # Com o Google ligado, pessoas entram por ele; a chave fica para rotinas (PAINEL_LOGIN_CHAVE=sim reabre).
             "aceita_chave": not google or os.getenv("PAINEL_LOGIN_CHAVE", "").strip().lower() in ("1", "sim", "true"),
+            # A prefeitura da pessoa (dono ou membro) e as permissões dela lá (agente/acessos.py).
+            "prefeitura": acessos.contexto(sessao["email"]) if sessao else None,
             "usuario": {
                 "email": sessao["email"], "nome": sessao.get("nome") or "",
                 "papel": (dele or {}).get("papel"), "situacao": (dele or {}).get("situacao", "pendente"),
@@ -492,6 +542,85 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             samesite="lax",
         )
         return {"email": email, "nome": nome, "situacao": (dele or {}).get("situacao"), "papel": (dele or {}).get("papel")}
+
+    @rotas.post("/cadastro")
+    async def cadastro(pedido: PedidoCadastro, resposta: Response) -> dict:
+        """Cadastro pela landing page: cria a conta e já entra. A pessoa vai para a implantação da prefeitura."""
+        if not _chave() or not usuarios.disponivel():
+            raise HTTPException(status_code=503, detail="O cadastro não está ligado neste servidor (falta OS_SECURITY_KEY).")
+        email = pedido.email.strip().lower()
+        if not _email_permitido(email):
+            raise HTTPException(status_code=403, detail=f"O e-mail {email} não pode se cadastrar neste servidor.")
+        try:
+            dele = await run_in_threadpool(usuarios.criar_conta, email, pedido.nome, pedido.senha)
+        except usuarios.ErroUsuario as erro:
+            raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
+        _gravar_sessao(resposta, email, pedido.nome.strip())
+        return {"email": email, "nome": pedido.nome.strip(), "situacao": dele["situacao"], "papel": dele["papel"]}
+
+    @rotas.post("/login/senha")
+    async def login_senha(pedido: PedidoLoginSenha, resposta: Response) -> dict:
+        if not _chave() or not usuarios.disponivel():
+            raise HTTPException(status_code=503, detail="O login com senha não está ligado neste servidor.")
+        email = pedido.email.strip().lower()
+        if _bloqueado_por_falhas(email):
+            raise HTTPException(status_code=429, detail="Muitas tentativas. Espere alguns minutos e tente de novo.")
+        dele = await run_in_threadpool(usuarios.entrar_com_senha, email, pedido.senha)
+        if not dele:
+            _FALHAS_LOGIN.setdefault(email, []).append(time.time())
+            raise HTTPException(status_code=401, detail="E-mail ou senha não conferem.")
+        if dele["situacao"] == "bloqueado":
+            raise HTTPException(status_code=403, detail="Seu acesso foi bloqueado.")
+        _FALHAS_LOGIN.pop(email, None)
+        _gravar_sessao(resposta, email, dele["nome"])
+        return {"email": email, "nome": dele["nome"], "situacao": dele["situacao"], "papel": dele["papel"]}
+
+    # ───────── Implantação da prefeitura (quem se cadastrou, mesmo antes da aprovação) ─────────
+
+    def _implantacao_da(email: str) -> tuple[str, str | None]:
+        """A conversa de implantação da conta (uma por pessoa) e o município dela, se já registrado."""
+        sessao = "implantacao-" + hashlib.sha256(email.encode()).hexdigest()[:16]
+        dela = gestao.municipios_de(email) if gestao.disponivel() else []
+        return sessao, (str(dela[0]["id"]) if dela else None)
+
+    @rotas.get("/implantacao")
+    def implantacao(sessao: dict = Depends(exigir_sessao)) -> dict:
+        email = sessao["email"]
+        session_id, municipio_id = _implantacao_da(email)
+        historico = []
+        conversa = _sessao(agente.db, session_id)
+        for run in (getattr(conversa, "runs", None) or []):
+            if getattr(run, "parent_run_id", None):
+                continue
+            historico.append({"papel": "contato", "texto": _texto_entrada(run)})
+            if isinstance(run.content, str) and run.content.strip():
+                historico.append({"papel": "agente", "texto": run.content})
+        return {
+            "conta": {"email": email, "nome": sessao.get("nome") or ""},
+            "boas_vindas": perfis.obter(perfis.PADRAO).boas_vindas((sessao.get("nome") or "").split(" ")[0]),
+            "historico": historico,
+            "municipio_id": municipio_id,
+            "panorama": gestao.panorama(municipio_id) if municipio_id else None,
+        }
+
+    @rotas.get("/implantacao/catalogo")
+    def implantacao_catalogo(sessao: dict = Depends(exigir_sessao)) -> dict:
+        """Os tipos de unidade (nome e cor), para o quadro da implantação."""
+        return gestao._json({"tipos_unidade": gestao.tipos_unidade()}) if gestao.disponivel() else {"tipos_unidade": []}
+
+    @rotas.post("/implantacao/mensagem")
+    async def implantacao_mensagem(pedido: PedidoImplantacao, sessao: dict = Depends(exigir_sessao)) -> dict:
+        email = sessao["email"]
+        session_id, municipio_id = _implantacao_da(email)
+        assistente = agentes.get(perfis.PADRAO) or agente
+        nome = (sessao.get("nome") or "").split(" ")[0]
+        resultado = await run_in_threadpool(
+            responder, assistente, session_id, pedido.mensagem.strip(), nome, email, "", None,
+            {"conta_email": email, "conta_nome": sessao.get("nome") or "", "municipio_id": municipio_id},
+        )
+        _, municipio_id = _implantacao_da(email)
+        return {**resultado, "municipio_id": municipio_id,
+                "panorama": gestao.panorama(municipio_id) if municipio_id else None}
 
     # ───────── Usuários e permissões (agente/usuarios.py) ─────────
 

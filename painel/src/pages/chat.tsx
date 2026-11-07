@@ -956,9 +956,9 @@ export function Chat() {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-8">
       <PageHeader
-        title="Chat de teste"
+        title="Chat com os agentes"
         icon={Bot}
-        description="Converse com o agente como um servidor no WhatsApp (texto, prints, PDFs e áudios) e avalie cada resposta."
+        description="Converse com o agente de cada setor (texto, documentos, planilhas e prints) e avalie cada resposta."
       />
     <div className="-mx-4 flex min-h-[520px] flex-1 gap-1.5 p-1.5 sm:-mx-8">
       {paineis.sessoes && <aside className="hidden w-64 shrink-0 px-2 py-3 lg:block">{colunaSessoes}</aside>}

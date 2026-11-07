@@ -5,18 +5,19 @@
 
 /* =========================================================
    Painel do GestorGov. Cores da marca: azul-marinho #0D1B38, azul #1A63D8, azul-claro #52A2FF,
-   amarelo #F4B800 (só destaque e alerta) e cinza-azulado #424E6B. Cantos quase retos: visual institucional.
+   amarelo #F4B800 (só destaque e alerta) e cinza-azulado #424E6B. Meio-termo entre o institucional e o moderno:
+   menu azul-marinho com o item ativo em pílula azul, cartões brancos com cantos médios, sem degradês fortes.
    Claro + escuro obrigatórios. Toda animação nova entra no bloco `prefers-reduced-motion` do fim.
    ========================================================= */
 
-/* Raios das classes rounded-*: quase retos (rounded-full continua redondo, para pontos e avatares). */
+/* Raios das classes rounded-*: médios (rounded-full continua redondo, para pontos, avatares e selos). */
 @theme {
-  --radius-sm: 2px;
-  --radius-md: 3px;
-  --radius-lg: 4px;
-  --radius-xl: 4px;
-  --radius-2xl: 6px;
-  --radius-3xl: 6px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
 }
 
 @theme inline {
@@ -99,8 +100,8 @@
 
 /* ---------------- CLARO ---------------- */
 :root {
-  --radius: 4px;
-  --background: #F6F8FB;
+  --radius: 10px;
+  --background: #F3F6FB;
   --foreground: #0D1B38;
   --card: #FFFFFF;
   --card-foreground: #0D1B38;
@@ -134,14 +135,15 @@
   --viz-1: #1A63D8;
   --viz-2: #E0A500;
   --viz-3: #1BAF7A;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #2A3654;
+  /* O menu é azul-marinho nos dois temas (como nas referências). */
+  --sidebar: #0D1B38;
+  --sidebar-foreground: #E3EAF6;
   --sidebar-primary: #1A63D8;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #EDF1F7;
-  --sidebar-accent-foreground: #0D1B38;
-  --sidebar-border: #DCE3EE;
-  --sidebar-ring: #1A63D8;
+  --sidebar-accent: #1A2B52;
+  --sidebar-accent-foreground: #FFFFFF;
+  --sidebar-border: #22365F;
+  --sidebar-ring: #52A2FF;
 }
 
 /* ---------------- ESCURO ---------------- */
@@ -180,7 +182,7 @@
   --viz-1: #52A2FF;
   --viz-2: #F4B800;
   --viz-3: #2BC48A;
-  --sidebar: #0B1836;
+  --sidebar: #071029;
   --sidebar-foreground: #DCE5F5;
   --sidebar-primary: #3B82F0;
   --sidebar-primary-foreground: #FFFFFF;
@@ -228,92 +230,30 @@
       0 12px 32px -16px oklch(0 0 0 / 0.6);
   }
 
-  /* ── Vidro: só dentro do casco (`.bi-shell`) e nos painéis laterais (`.vidro`).
-     🪤 `:where()` zera o peso do escopo e a regra fica com a MESMA especificidade de `.surface-card`:
-     um `.bi-shell .surface-card` comum passaria por cima das classes de canto, borda e fundo que os
-     cards põem em si mesmos. `.vidro` é o mesmo acabamento para quem não é surface-card (KPI e painel lateral). */
-  :where(.bi-shell) .surface-card,
+  /* ── Cartões: sólidos, borda fina e sombra discreta (visual institucional, sem vidro).
+     `.vidro` continua existindo para os painéis laterais e os KPIs: é o mesmo cartão sólido. */
   .vidro {
-    background-color: color-mix(in oklab, var(--color-card) 84%, transparent);
-    background-image:
-      linear-gradient(132deg, oklch(1 0 0 / 0.12) 0%, oklch(1 0 0 / 0.035) 18%, transparent 42%),
-      radial-gradient(80% 54% at 100% 0%, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 72%);
-    border: 1px solid color-mix(in oklab, var(--color-border) 72%, oklch(1 0 0 / 0.22));
-    -webkit-backdrop-filter: blur(15px) saturate(1.12);
-    backdrop-filter: blur(15px) saturate(1.12);
+    background-color: var(--color-card);
+    border: 1px solid var(--color-border);
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.14),
-      inset 1px 0 0 oklch(1 0 0 / 0.035),
-      0 18px 38px -26px oklch(0 0 0 / 0.42);
+      0 1px 2px 0 oklch(0 0 0 / 0.04),
+      0 8px 24px -16px oklch(0 0 0 / 0.1);
   }
-  .dark :where(.bi-shell) .surface-card,
   .dark .vidro {
-    background-color: color-mix(in oklab, var(--color-card) 56%, transparent);
-    background-image:
-      linear-gradient(132deg, oklch(1 0 0 / 0.105) 0%, oklch(1 0 0 / 0.025) 20%, transparent 44%),
-      radial-gradient(88% 62% at 102% -8%, color-mix(in oklab, var(--color-primary) 10%, transparent), transparent 70%);
-    border-color: color-mix(in oklab, var(--color-border) 68%, oklch(1 0 0 / 0.14));
     box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.13),
-      inset 1px 0 0 oklch(1 0 0 / 0.035),
-      0 22px 48px -28px oklch(0 0 0 / 0.78);
+      0 1px 0 0 oklch(1 0 0 / 0.04) inset,
+      0 12px 32px -16px oklch(0 0 0 / 0.6);
   }
-  /* 🪤 `.vidro` NÃO define `position`: o painel lateral é `fixed` e uma regra daqui venceria a classe
-     do Tailwind (mesma camada, declarada depois), prendendo o painel no fluxo da página. */
-  /* 🪤 `backdrop-filter` vira o "chão" de todo filho `position: fixed`: enquanto houver um balão ou
-     overlay aberto dentro do card, ele larga o desfoque (a troca dura o hover e não se nota). */
-  :where(.bi-shell) .surface-card:has(.fixed, [data-radix-popper-content-wrapper]) {
-    -webkit-backdrop-filter: none;
-    backdrop-filter: none;
-  }
-  /* Painel lateral: fica por cima da página, então o vidro é mais denso para o texto não brigar com o fundo. */
   .vidro-denso {
-    background-color: color-mix(in oklab, var(--color-card) 94%, transparent);
+    background-color: var(--color-card);
   }
-  .dark .vidro-denso {
-    background-color: color-mix(in oklab, var(--color-card) 90%, transparent);
-  }
-  /* Mantida por compatibilidade: o brilho do canto já vem do vidro. */
   .vidro-aura > * {
     position: relative;
     z-index: 1;
   }
-
-  /* Ondas lentas: SÓ no card principal de cada página — no máximo um por página. */
-  :where(.bi-shell) .surface-card.has-waves {
-    position: relative;
-    isolation: isolate;
-    overflow: hidden;
-    background-image:
-      linear-gradient(132deg, oklch(1 0 0 / 0.12) 0%, oklch(1 0 0 / 0.03) 22%, transparent 45%),
-      radial-gradient(96% 82% at 102% 108%, color-mix(in oklab, var(--color-chart-2) 14%, transparent), transparent 68%);
-    border-color: color-mix(in oklab, var(--color-border) 62%, oklch(1 0 0 / 0.22));
-    box-shadow:
-      inset 0 1px 0 oklch(1 0 0 / 0.16),
-      inset 1px 0 0 oklch(1 0 0 / 0.045),
-      0 28px 62px -34px color-mix(in oklab, var(--color-chart-2) 24%, oklch(0 0 0 / 0.72));
-  }
-  :where(.bi-shell) .surface-card.has-waves::before {
-    content: "";
-    pointer-events: none;
-    position: absolute;
-    z-index: -1;
-    right: -16%;
-    bottom: -45%;
-    width: 78%;
-    height: 74%;
-    border-radius: 50%;
-    background: repeating-radial-gradient(
-      ellipse at center,
-      transparent 0 18px,
-      color-mix(in oklab, var(--color-chart-2) 18%, transparent) 19px 20px,
-      transparent 21px 38px,
-      color-mix(in oklab, var(--color-primary) 20%, transparent) 39px 40px,
-      transparent 41px 62px
-    );
-    opacity: 0.72;
-    transform: rotate(-7deg) scale(0.98);
-    animation: card-wave-drift 18s ease-in-out infinite alternate;
+  /* O card principal de cada página: um filete azul no topo, sem animação. */
+  .surface-card.has-waves {
+    border-top: 3px solid var(--color-primary);
   }
 
   .scrollbar-none {
@@ -324,22 +264,22 @@
   }
 
   .text-gradient-brand {
-    background: linear-gradient(120deg, oklch(0.72 0.2 50), oklch(0.55 0.22 255));
+    background: linear-gradient(120deg, #0D1B38, #1A63D8);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   .dark .text-gradient-brand {
-    background: linear-gradient(120deg, oklch(0.82 0.16 60), oklch(0.7 0.18 250));
+    background: linear-gradient(120deg, #EEF3FB, #52A2FF);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
   }
   .bg-gradient-brand {
-    background-image: linear-gradient(135deg, oklch(0.7 0.2 50), oklch(0.55 0.22 255));
+    background-image: linear-gradient(135deg, #0D1B38, #1A63D8);
   }
   .dark .bg-gradient-brand {
-    background-image: linear-gradient(135deg, oklch(0.78 0.18 55), oklch(0.66 0.18 250));
+    background-image: linear-gradient(135deg, #1A63D8, #52A2FF);
   }
 
   .num {
@@ -529,9 +469,7 @@
   }
 }
 
-/* ── Casco do app: fundo ambiente (.bi-canvas::before), uma camada parada atrás de tudo:
-   brilho laranja no alto à direita, azul à esquerda e um pontilhado quase invisível — é o que dá ao
-   vidro alguma coisa para desfocar. Sem animação: dezenas de cards desfocam este fundo. ── */
+/* ── Casco do app: fundo liso na cor do tema, atrás de tudo. ── */
 .bi-shell,
 .bi-canvas {
   background-color: transparent;
@@ -540,30 +478,12 @@
   position: absolute;
   inset: 0;
   z-index: -1;
-  overflow: hidden;
-  contain: paint;
   pointer-events: none;
   background-color: var(--color-background);
-  background-image:
-    radial-gradient(900px 620px at 92% 6%, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 66%),
-    radial-gradient(760px 560px at 6% 42%, color-mix(in oklab, var(--color-chart-2) 7%, transparent), transparent 68%),
-    radial-gradient(circle, oklch(0 0 0 / 0.03) 0.5px, transparent 0.85px);
-  background-size: auto, auto, 7px 7px;
-}
-.dark .aurora-bg {
-  background-image:
-    radial-gradient(980px 680px at 92% 4%, color-mix(in oklab, var(--color-primary) 9%, transparent), transparent 66%),
-    radial-gradient(820px 620px at 4% 48%, color-mix(in oklab, var(--color-chart-2) 8%, transparent), transparent 70%),
-    radial-gradient(circle, oklch(1 0 0 / 0.012) 0.5px, transparent 0.9px);
 }
 /* Tela de entrada (fora do casco): o mesmo fundo, preso à janela. */
 .bi-canvas.aurora-bg {
   position: fixed;
-}
-@keyframes card-wave-drift {
-  0% { transform: translate3d(-3%, 3%, 0) rotate(-8deg) scale(0.96); opacity: 0.56; }
-  50% { transform: translate3d(4%, -4%, 0) rotate(-1deg) scale(1.04); opacity: 0.76; }
-  100% { transform: translate3d(-1%, -2%, 0) rotate(6deg) scale(1); opacity: 0.64; }
 }
 
 /* Gráficos: entram uma vez (`backwards`, não `both`); no hover o resto recua a 72%. */

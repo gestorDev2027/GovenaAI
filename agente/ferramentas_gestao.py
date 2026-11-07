@@ -48,6 +48,9 @@ def _estado(run_context: RunContext) -> dict:
 
 def _municipio(run_context: RunContext | None) -> str | None:
     estado = (run_context.session_state or {}) if run_context else {}
+    # Implantação de uma conta (tela de implantação): só o município dela, nunca o padrão do servidor.
+    if estado.get("conta_email"):
+        return estado.get("municipio_id")
     return estado.get("municipio_id") or gestao.municipio_padrao()
 
 
@@ -107,11 +110,23 @@ def registrar_municipio(run_context: RunContext, codigo_ibge: str, nome: str, uf
         return erro
     if not (codigo_ibge or "").isdigit() or len(codigo_ibge) != 7:
         return "O código IBGE precisa ter 7 dígitos. Use o que veio de buscar_municipio."
+    conta = (_estado(run_context).get("conta_email") or "").strip().lower()
+    if conta:  # na tela de implantação, quem conversa é o secretário: nome e e-mail vêm da conta
+        secretario_email = secretario_email or conta
+        secretario_nome = secretario_nome or _estado(run_context).get("conta_nome") or ""
+        existente = next((m for m in gestao.municipios() if m.get("codigo_ibge") == codigo_ibge), None)
+        if existente:
+            donos = {m["email"] for m in gestao.membros(str(existente["id"]))}
+            if donos and conta not in donos:
+                return ("Este município já foi cadastrado por outra conta no GestorGov. Diga ao secretário que peça "
+                        "acesso ao responsável pela implantação, e não registre de novo.")
     mun = gestao.registrar_municipio(codigo_ibge=codigo_ibge, nome=nome, uf=uf, cep=cep, endereco_sede=endereco_sede,
                                      latitude=latitude, longitude=longitude, secretario_nome=secretario_nome,
                                      secretario_email=secretario_email, quem=_quem(run_context),
                                      session_id=_sessao(run_context))
     _estado(run_context)["municipio_id"] = str(mun["id"])
+    if conta:  # quem cadastrou a prefeitura é o dono dela: convida a equipe e define os cargos e as permissões
+        gestao.adicionar_membro(str(mun["id"]), conta, "dono", conta, nome=_estado(run_context).get("conta_nome") or "")
     return _json({"registrado": True, "municipio": mun, "proxima_etapa": "unidades"})
 
 

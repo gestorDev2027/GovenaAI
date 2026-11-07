@@ -125,7 +125,9 @@ def montar_agente(perfil: Perfil, banco: PostgresDb | SqliteDb) -> Agent:
         skills=fabrica_recursos.skills_do_agente(perfil.skills_ids),
         db=banco,
         # nome_contato: o nome de quem conversa (o servidor, no GestorGov); municipio_id: a prefeitura da conversa.
-        session_state={"status": STATUS_EM_ATENDIMENTO, "acoes": [], "nome_contato": "", "telefone": "", "municipio_id": None},
+        # conta_email: na tela de implantação, o e-mail da conta de quem conversa (vazio no chat do painel).
+        session_state={"status": STATUS_EM_ATENDIMENTO, "acoes": [], "nome_contato": "", "telefone": "", "municipio_id": None,
+                       "conta_email": ""},
         **_aprendizado(perfil),
         add_history_to_context=True,
         num_history_runs=20,

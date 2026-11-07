@@ -77,7 +77,7 @@ export function AgenteIA({
       luz: new THREE.MeshStandardMaterial({ color: cor, emissive: cor, emissiveIntensity: 1.4 }),
       painel: new THREE.MeshStandardMaterial({ color: "#14295a", roughness: 0.4, metalness: 0.4 }),
       logo: new THREE.MeshBasicMaterial({ map: logo, transparent: true, toneMapped: false }),
-      pasta: new THREE.MeshStandardMaterial({ color: "#f7931e", roughness: 0.6 }),
+      pasta: new THREE.MeshStandardMaterial({ color: "#F4B800", roughness: 0.6 }),
       papel: new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.8 }),
     }),
     [cor, logo],
