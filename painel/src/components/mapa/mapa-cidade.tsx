@@ -31,6 +31,8 @@ export function MapaCidade({
   selecionada,
   aoSelecionar,
   className,
+  imersivo = false,
+  luz = "day",
 }: {
   token: string;
   unidades: UnidadeNoMapa[];
@@ -38,6 +40,10 @@ export function MapaCidade({
   selecionada?: string | null;
   aoSelecionar?: (id: string) => void;
   className?: string;
+  /** Central de comando: estilo 3D do Mapbox (prédios em volume), inclinado, a rolagem livre e sem borda. */
+  imersivo?: boolean;
+  /** Luz do estilo 3D: dia, entardecer ou noite. */
+  luz?: "day" | "dusk" | "night";
 }) {
   const caixa = useRef<HTMLDivElement>(null);
   const mapa = useRef<mapboxgl.Map | null>(null);
@@ -47,7 +53,7 @@ export function MapaCidade({
   const aoSelecionarRef = useRef(aoSelecionar);
   aoSelecionarRef.current = aoSelecionar;
 
-  // O mapa: criado uma vez por token e tema.
+  // O mapa: criado uma vez por token, tema e modo.
   useEffect(() => {
     if (!caixa.current) return;
     mapboxgl.accessToken = token;
@@ -55,17 +61,20 @@ export function MapaCidade({
     try {
       m = new mapboxgl.Map({
         container: caixa.current,
-        style: ESTILOS[theme],
+        style: imersivo ? "mapbox://styles/mapbox/standard" : ESTILOS[theme],
         center: centro ? [centro[1], centro[0]] : [-47.9, -15.8],
         zoom: centro ? 12 : 3.5,
+        pitch: imersivo ? 55 : 0,
+        bearing: imersivo ? -18 : 0,
         attributionControl: true,
-        cooperativeGestures: true,
+        cooperativeGestures: !imersivo,
+        ...(imersivo ? { config: { basemap: { lightPreset: luz, showPointOfInterestLabels: false, showTransitLabels: false } } } : {}),
       });
     } catch (e) {
       setErro(e instanceof Error ? e.message : "O mapa não pôde ser aberto neste navegador.");
       return;
     }
-    m.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
+    m.addControl(new mapboxgl.NavigationControl({ showCompass: imersivo, visualizePitch: imersivo }), imersivo ? "bottom-right" : "top-right");
     m.on("error", (ev) => {
       const texto = (ev.error as Error | undefined)?.message ?? "";
       if (/token|401|403/i.test(texto)) setErro("O token do Mapbox foi recusado. Confira o MAPBOX_TOKEN e o domínio liberado na conta.");
@@ -79,7 +88,8 @@ export function MapaCidade({
         type: "circle",
         source: "unidades",
         filter: ["==", ["get", "selecionada"], true],
-        paint: { "circle-radius": 14, "circle-color": ["get", "cor"], "circle-opacity": 0.25 },
+        paint: { "circle-radius": 16, "circle-color": ["get", "cor"], "circle-opacity": 0.3, "circle-pitch-alignment": "map" },
+        ...(imersivo ? { slot: "top" } : {}),
       });
       m.addLayer({
         id: "unidades",
@@ -88,9 +98,11 @@ export function MapaCidade({
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 4, 13, 7, 16, 10],
           "circle-color": ["get", "cor"],
-          "circle-stroke-color": theme === "dark" ? "#0A1530" : "#FFFFFF",
+          "circle-stroke-color": theme === "dark" || luz === "night" ? "#0A1530" : "#FFFFFF",
           "circle-stroke-width": 2,
+          "circle-emissive-strength": 1,
         },
+        ...(imersivo ? { slot: "top" } : {}),
       });
       m.addLayer({
         id: "unidades-nome",
@@ -99,10 +111,12 @@ export function MapaCidade({
         minzoom: 13.5,
         layout: { "text-field": ["get", "nome"], "text-size": 11, "text-offset": [0, 1.3], "text-anchor": "top", "text-max-width": 12 },
         paint: {
-          "text-color": theme === "dark" ? "#EEF3FB" : "#0D1B38",
-          "text-halo-color": theme === "dark" ? "#0A1530" : "#FFFFFF",
+          "text-color": theme === "dark" || luz === "night" ? "#EEF3FB" : "#0D1B38",
+          "text-halo-color": theme === "dark" || luz === "night" ? "#0A1530" : "#FFFFFF",
           "text-halo-width": 1.5,
+          "text-emissive-strength": 1,
         },
+        ...(imersivo ? { slot: "top" } : {}),
       });
       const dica = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 10 });
       m.on("mouseenter", "unidades", (ev) => {
@@ -125,12 +139,25 @@ export function MapaCidade({
     mapa.current = m;
     return () => {
       setPronto(false);
+      enquadrado.current = false; // o mapa novo (outro tema ou modo) enquadra de novo
       m.remove();
       mapa.current = null;
     };
     // O centro inicial vale só na criação; depois o enquadramento vem das unidades.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, theme]);
+  }, [token, theme, imersivo]);
+
+  // A luz do estilo 3D muda sem recriar o mapa.
+  useEffect(() => {
+    const m = mapa.current;
+    if (m && pronto && imersivo) {
+      try {
+        m.setConfigProperty("basemap", "lightPreset", luz);
+      } catch {
+        /* estilo sem configuração de luz */
+      }
+    }
+  }, [luz, pronto, imersivo]);
 
   // Os pinos (e o enquadramento) a cada mudança das unidades ou da seleção.
   useEffect(() => {
@@ -153,7 +180,7 @@ export function MapaCidade({
     if (!m || !pronto || !unidades.length || enquadrado.current) return;
     const limites = new mapboxgl.LngLatBounds();
     unidades.forEach((u) => limites.extend([u.longitude, u.latitude]));
-    m.fitBounds(limites, { padding: 48, maxZoom: 14, duration: 0 });
+    m.fitBounds(limites, { padding: imersivo ? 120 : 48, maxZoom: 14, duration: 0, pitch: imersivo ? 55 : 0, bearing: imersivo ? -18 : 0 });
     enquadrado.current = true;
   }, [unidades, pronto]);
 
@@ -161,7 +188,7 @@ export function MapaCidade({
   useEffect(() => {
     const m = mapa.current;
     const alvo = unidades.find((u) => u.id === selecionada);
-    if (m && pronto && alvo) m.easeTo({ center: [alvo.longitude, alvo.latitude], zoom: Math.max(m.getZoom(), 14), duration: 600 });
+    if (m && pronto && alvo) m.flyTo({ center: [alvo.longitude, alvo.latitude], zoom: Math.max(m.getZoom(), imersivo ? 16 : 14), duration: 1200 });
   }, [selecionada, pronto, unidades]);
 
   if (erro) {
@@ -174,5 +201,12 @@ export function MapaCidade({
       </div>
     );
   }
-  return <div ref={caixa} className={`overflow-hidden rounded-xl border border-border ${className ?? ""}`} aria-label="Mapa das unidades de saúde" role="region" />;
+  return (
+    <div
+      ref={caixa}
+      className={`overflow-hidden ${imersivo ? "" : "rounded-xl border border-border"} ${className ?? ""}`}
+      aria-label="Mapa das unidades de saúde"
+      role="region"
+    />
+  );
 }

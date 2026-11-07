@@ -5,8 +5,7 @@
   porque a consulta ao cadastro usa o e-mail que o contato informa.
 - Manipulação: pedido para ignorar as instruções, mostrar o prompt ou trocar de papel. As frases ficam
   no banco (guardrail_frases, editável no painel; agente/datasets.py). O Agno interrompe a resposta;
-  atendimento.rodar troca o aviso pela seção "## Pedido fora do atendimento" do roteiro e registra o
-  caso na fila da Calibração, para o curador confirmar ou apontar falso positivo.
+  atendimento.rodar troca o aviso pela seção "## Pedido fora do atendimento" do roteiro.
 
 Ofensa, política e assuntos fora do atendimento ficam com as instruções (<fora_do_atendimento>): o
 agente responde com calma e volta ao atendimento, sem bloquear nem transferir.
@@ -32,7 +31,7 @@ PADRAO_CARTAO = re.compile(r"(?<!\d)\d{4}[\s.-]?\d{4}[\s.-]?\d{4}[\s.-]?\d{4}(?!
 
 
 def mascarar_texto(texto: str) -> str:
-    """O mesmo mascaramento do guardrail, para o que vai a outros lugares (ex.: fila da Calibração)."""
+    """O mesmo mascaramento do guardrail, para o que vai a outros lugares (ex.: logs)."""
     for padrao in (PADRAO_CPF, PADRAO_CARTAO):
         texto = padrao.sub(lambda m: "*" * len(m.group(0)), texto or "")
     return texto

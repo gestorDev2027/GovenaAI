@@ -288,7 +288,7 @@ function FormEquipe({
 
   const atualizar = () => {
     qc.invalidateQueries({ queryKey: ["fabrica-equipes"] });
-    qc.invalidateQueries({ queryKey: ["calibracao-opcoes"] });
+    qc.invalidateQueries({ queryKey: ["agentes-visiveis"] });
     qc.invalidateQueries({ queryKey: ["central"] });
   };
 
@@ -406,7 +406,7 @@ function FormEquipe({
                   </Campo>
                   <Campo
                     rotulo="Identificador"
-                    ajuda={nova ? "Vai na automação do canal (?agente=). Não muda depois." : "Vai na automação do canal (?agente=)."}
+                    ajuda={nova ? "Identifica a equipe (?agente=). Não muda depois." : "Identifica a equipe (?agente=)."}
                   >
                     <Input
                       className="num"
@@ -626,13 +626,12 @@ function Publicacao({
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Para pôr a equipe no WhatsApp, escolha-a em Fábrica → Canais. As boas-vindas são as do agente padrão.
-          {equipe.no_canal && ` ${equipe.nome} está no Canal WhatsApp e não pode ser desativada por aqui.`}
+          As boas-vindas são as do agente padrão.
         </p>
       </SecaoPainel>
       <SecaoPainel titulo="3. Excluir">
         <p className="text-xs text-muted-foreground">
-          Só equipe inativa e fora do Canal WhatsApp pode ser excluída. As conversas antigas continuam no histórico; o identificador fica
+          Só equipe inativa pode ser excluída. As conversas antigas continuam no histórico; o identificador fica
           reservado.
         </p>
         <div>

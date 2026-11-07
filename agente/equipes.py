@@ -51,7 +51,7 @@ a cada mensagem, escolha o agente da equipe que deve responder e passe a mensage
 
 _estado: dict = {"config": {}}
 _trava = threading.Lock()
-EQUIPES: dict[str, Team] = {}  # id -> Team; o mesmo dicionário no painel, na Unnichat e no AgentOS
+EQUIPES: dict[str, Team] = {}  # id -> Team; o mesmo dicionário no painel e no AgentOS
 
 
 class ErroEquipe(Exception):
@@ -107,13 +107,6 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
 def _vivas() -> dict[str, dict]:
     """As equipes que não foram excluídas (as excluídas ficam em _estado["config"] para as conversas antigas)."""
     return {i: c for i, c in _estado["config"].items() if not c.get("excluida_em")}
-
-
-def no_canal(equipe_id: str) -> bool:
-    """A equipe atende o Canal WhatsApp (como atendente ou como agente dos leads): não sai do ar."""
-    from agente import canal  # aqui: canal importa este módulo
-
-    return equipe_id in (canal.atendente(), canal.leads())
 
 
 def membros_ativos(config: dict) -> list[str]:
@@ -215,8 +208,7 @@ def _como_dict(config: dict) -> dict:
     return {"id": config["id"], "nome": config["nome"], "descricao": config["descricao"], "membros": list(config["membros"]),
             "padrao": config["padrao"], "orientacoes": config["orientacoes"], "publicada": bool(config["publicada"]),
             "criado_em": _iso(config.get("criado_em")), "criado_por": config.get("criado_por"),
-            "atualizado_em": _iso(config.get("atualizado_em")), "atualizado_por": config.get("atualizado_por"),
-            "no_canal": no_canal(config["id"])}
+            "atualizado_em": _iso(config.get("atualizado_em")), "atualizado_por": config.get("atualizado_por")}
 
 
 def listar() -> list[dict]:
@@ -284,9 +276,7 @@ def alterar(equipe_id: str, dados: dict, autor: str) -> dict:
 
 
 def publicar(equipe_id: str, publicada_: bool, autor: str) -> dict:
-    equipe = obter(equipe_id)
-    if not publicada_ and no_canal(equipe_id):
-        raise ErroEquipe(409, f"{equipe['nome']} está no Canal WhatsApp: troque quem atende ou quem recebe os leads antes de desativar.")
+    obter(equipe_id)  # 404 se não existe
     with _trava:
         agora = _agora()
         with _estado["engine"].begin() as conexao:
@@ -297,12 +287,10 @@ def publicar(equipe_id: str, publicada_: bool, autor: str) -> dict:
 
 
 def excluir(equipe_id: str, autor: str) -> None:
-    """Exclusão lógica de uma equipe inativa e fora do Canal WhatsApp: sai de EQUIPES e das listas."""
+    """Exclusão lógica de uma equipe inativa: sai de EQUIPES e das listas."""
     equipe = obter(equipe_id)
     if equipe["publicada"]:
         raise ErroEquipe(409, f"Desative {equipe['nome']} antes de excluir.")
-    if no_canal(equipe_id):
-        raise ErroEquipe(409, f"{equipe['nome']} está no Canal WhatsApp: troque quem atende ou quem recebe os leads antes de excluir.")
     with _trava:
         agora = _agora()
         with _estado["engine"].begin() as conexao:

@@ -68,8 +68,7 @@ const SECOES_VALIDAS: SecaoEditor[] = [
   "publicacao",
 ];
 
-type AbaFabrica = "agentes" | "equipes" | "canal" | "skills" | "ferramentas" | "chaves" | "hosts";
-// "canal" (WhatsApp) fica fora até o agente do cidadão: o GestorGov atende os servidores pelo painel.
+type AbaFabrica = "agentes" | "equipes" | "skills" | "ferramentas" | "chaves" | "hosts";
 const ABAS_FABRICA: AbaFabrica[] = ["agentes", "equipes", "skills", "ferramentas", "chaves", "hosts"];
 
 /** O valor de cada coluna para ordenar. */

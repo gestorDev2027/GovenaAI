@@ -7,20 +7,19 @@ import { Button } from "@/components/ui/button";
 import { usePode } from "@/hooks/use-permissoes";
 
 /**
- * Ativar, desativar e excluir agentes e equipes. Inativo para de atender em todo lugar (WhatsApp
+ * Ativar, desativar e excluir agentes e equipes. Inativo para de atender em todo lugar (chat
  * inclusive); o agente inativo sai da distribuição das equipes, e o servidor remonta o coordenador na
  * hora. A exclusão é lógica e só vale para quem já está inativo (agente: só o criado no painel; ele sai
- * de todas as equipes). Quem está no Canal WhatsApp não pode ser desativado nem excluído.
+ * de todas as equipes).
  */
 
 /** O que muda quando um agente liga, desliga ou some: listas, equipes, Central e chat de teste. */
 function atualizarListas(qc: QueryClient, id: string) {
   qc.invalidateQueries({ queryKey: ["fabrica-agentes"] });
   qc.invalidateQueries({ queryKey: ["fabrica-equipes"] });
-  qc.invalidateQueries({ queryKey: ["calibracao-opcoes"] });
+  qc.invalidateQueries({ queryKey: ["agentes-visiveis"] });
   qc.invalidateQueries({ queryKey: ["config", id] });
   qc.invalidateQueries({ queryKey: ["central"] });
-  qc.invalidateQueries({ queryKey: ["fabrica-canal"] }); // as opções do canal são os ativos
 }
 
 export function useAtivarAgente(aoGravar?: (a: AgenteFabrica) => void) {
@@ -37,7 +36,7 @@ export function useAtivarAgente(aoGravar?: (a: AgenteFabrica) => void) {
       toast.success(a.publicado ? `${a.nome} ativado` : `${a.nome} desativado`, {
         description: a.publicado
           ? "Já atende, aparece na Central e entra na distribuição das equipes."
-          : "Parou de atender, inclusive no WhatsApp, e saiu da distribuição das equipes. Dá para ativar de novo quando quiser.",
+          : "Parou de atender e saiu da distribuição das equipes. Dá para ativar de novo quando quiser.",
       });
     },
     onError: (e: Error) => toast.error("Não foi possível mudar a situação", { description: e.message }),
@@ -60,10 +59,8 @@ export function useExcluirAgente(aoExcluir?: () => void) {
 }
 
 /** Por que o interruptor está travado, ou undefined se não está. */
-export function travaDoInterruptor(a: AgenteFabrica, podePublicar: boolean): string | undefined {
+export function travaDoInterruptor(_a: AgenteFabrica, podePublicar: boolean): string | undefined {
   if (!podePublicar) return "Sem a permissão Publicar";
-  if (a.no_canal && a.publicado)
-    return `${a.nome} está no Canal WhatsApp: troque lá quem atende ou quem recebe os leads antes de desativar.`;
   return undefined;
 }
 
@@ -142,7 +139,7 @@ export function InterruptorAtivo({
       ocupado={ativar.isPending}
       rotulo={rotulo}
       aoMudar={() => {
-        if (ligado && !window.confirm(`Desativar ${agente.nome}? Ele para de atender, inclusive no WhatsApp, e sai das equipes.`)) return;
+        if (ligado && !window.confirm(`Desativar ${agente.nome}? Ele para de atender e sai das equipes.`)) return;
         ativar.mutate({ id: agente.id, ativo: !ligado });
       }}
     />
@@ -161,7 +158,7 @@ export function useAtivarEquipe(aoMudar?: () => void) {
       atualizarListas(qc, e.id);
       toast.success(e.publicada ? `${e.nome} ativada` : `${e.nome} desativada`, {
         description: e.publicada
-          ? "Já pode ser escolhida no Canal WhatsApp e aparece no chat de teste e na Central."
+          ? "Já aparece no chat e na Central de comando."
           : "Parou de atender. Dá para ativar de novo quando quiser.",
       });
     },
@@ -182,17 +179,14 @@ export function useExcluirEquipe(aoExcluir?: () => void) {
   });
 }
 
-export function travaDaEquipe(e: Equipe, podePublicar: boolean): string | undefined {
+export function travaDaEquipe(_e: Equipe, podePublicar: boolean): string | undefined {
   if (!podePublicar) return "Sem a permissão Publicar";
-  if (e.no_canal && e.publicada)
-    return `${e.nome} está no Canal WhatsApp: troque lá quem atende ou quem recebe os leads antes de desativar.`;
   return undefined;
 }
 
 export function travaDaExclusaoDaEquipe(e: Equipe, podeExcluir: boolean): string | undefined {
   if (!podeExcluir) return "Sem a permissão Excluir";
   if (e.publicada) return `Desative ${e.nome} antes de excluir.`;
-  if (e.no_canal) return `${e.nome} está no Canal WhatsApp: troque lá antes de excluir.`;
   return undefined;
 }
 

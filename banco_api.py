@@ -19,7 +19,7 @@ from fastapi import APIRouter, Cookie, Depends, HTTPException, Query
 from sqlalchemy import inspect, text
 
 from agente.agente import schema_banco
-from calibracao_api import _negado, _pode, _quem
+from painel_api import _negado, _pode, _quem
 from painel_api import exigir_chave
 
 LIMITE_CELULA = 300  # caracteres por célula na listagem
@@ -46,14 +46,10 @@ DESCRICOES: dict[str, tuple[str, str]] = {
     "agno_service_accounts": ("Agno", "Contas de serviço do AgentOS"),
     "agno_tool_results": ("Agno", "Resultados grandes de ferramentas, guardados à parte"),
     "agno_schema_versions": ("Agno", "Versão do esquema de cada tabela do Agno"),
-    "unnichat_eventos": ("Unnichat", "Toda chamada recebida das automações da Unnichat"),
-    "unnichat_conversas": ("Unnichat", "Conversa vigente de cada contato e o agente que a atende"),
-    "unnichat_mensagens": ("Unnichat", "Mensagens já recebidas (a mesma nunca é respondida duas vezes)"),
     "conhecimento_documentos": ("Conhecimento", "Documentos enviados e cada versão (arquivo no bucket)"),
     "conhecimento_trechos": ("Conhecimento", "Trechos dos documentos, com o vetor usado na busca"),
     "painel_base_conhecimento": ("Conhecimento", "Versões do roteiro salvas no painel"),
-    "calibracao_exemplos": ("Calibração", "Exemplos aprovados que o agente recebe, com o vetor"),
-    "avaliacoes_humanas": ("Calibração", "Avaliações da equipe nas respostas do agente"),
+    "calibracao_exemplos": ("Conhecimento", "Exemplos aprovados que o agente recebe, com o vetor"),
 }
 
 

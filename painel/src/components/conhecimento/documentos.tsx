@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Calendar, ChevronDown, ChevronRight, Cloud, Database, Download, FileText, GitBranch, Hash, Loader2, Pencil, Sparkles, Trash2, Upload, Wand2 } from "lucide-react";
+import { Calendar, ChevronDown, ChevronRight, Cloud, Database, Download, FileText, GitBranch, Hash, Loader2, Pencil, Sparkles, Trash2, Upload } from "lucide-react";
 import { AGENTE_PADRAO, api, baixarArquivo, type Config, type DocumentoConhecimento, type TrechoDocumento } from "@/lib/api";
 import { fmtDataHora, fmtInt } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -11,7 +11,6 @@ import { Paginacao, usePaginacao } from "@/components/ui/paginacao";
 import { PainelLateral, SecaoPainel } from "@/components/ui/painel-lateral";
 import { Chip, Table, TableCell, TableHead, TableHeader, TableRow, TableWrapper } from "@/components/ui/tabela";
 import { usePode } from "@/hooks/use-permissoes";
-import { PainelSugestoes } from "./sugestoes";
 
 // Os mesmos tipos do servidor (agente/conhecimento.py e agente/leitura_arquivos.py).
 const ACEITOS = [
@@ -46,14 +45,12 @@ const noBucket = (v: DocumentoConhecimento) => !v.caminho?.startsWith("(sem buck
  * divididos em trechos com embedding. Uma linha por documento; ao abrir, um painel lateral com as
  * versões, os trechos e a exclusão.
  * Enviar de novo um arquivo com o mesmo nome cria uma versão nova (só uma fica ativa).
- * "Sugerir atualizações do roteiro" abre as sugestões da IA do que o documento muda no roteiro (./sugestoes.tsx).
  */
 export function Documentos({ agente = AGENTE_PADRAO }: { agente?: string }) {
   const qc = useQueryClient();
   const pode = usePode();
   const entrada = useRef<HTMLInputElement>(null);
   const [aberto, setAberto] = useState<string | null>(null);
-  const [sugerir, setSugerir] = useState<{ id: number; nome: string; versao: number } | null>(null);
   const config = useQuery({
     queryKey: ["config", agente],
     queryFn: () => api<Config>(`/config?agente=${encodeURIComponent(agente)}`),
@@ -102,10 +99,6 @@ export function Documentos({ agente = AGENTE_PADRAO }: { agente?: string }) {
   const trechosEmUso = linhas.reduce((s, [, vs]) => s + (vs.find((v) => v.ativo)?.trechos ?? 0), 0);
   const paginacao = usePaginacao(linhas);
   const abertas = aberto ? grupos.get(aberto) : undefined;
-  // A versão que as sugestões comparam: a ativa ou, sem ela, a última pronta.
-  const paraSugerir = (nome: string, versoes: DocumentoConhecimento[]) =>
-    nome === ROTEIRO ? undefined : (versoes.find((v) => v.ativo && v.status === "pronto") ?? versoes.find((v) => v.status === "pronto"));
-  const abrirSugestoes = (v: DocumentoConhecimento) => setSugerir({ id: v.id, nome: v.nome, versao: v.versao });
 
   return (
     <section className="space-y-3">
@@ -201,18 +194,6 @@ export function Documentos({ agente = AGENTE_PADRAO }: { agente?: string }) {
                       </TableCell>
                       <TableCell className="sticky right-0 bg-card transition-colors group-hover:bg-muted" onClick={(e) => e.stopPropagation()}>
                         <div className="flex justify-end gap-0.5">
-                          {paraSugerir(nome, versoes) && (
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              title="Sugerir atualizações do roteiro"
-                              aria-label={`Sugerir atualizações do roteiro a partir de ${nome}`}
-                              disabled={!pode("editar_conhecimento")}
-                              onClick={() => abrirSugestoes(paraSugerir(nome, versoes)!)}
-                            >
-                              <Wand2 />
-                            </Button>
-                          )}
                           <Button size="icon" variant="ghost" title="Versões e trechos" aria-label={`Abrir ${nome}`} onClick={() => setAberto(nome)}>
                             <Pencil />
                           </Button>
@@ -242,16 +223,6 @@ export function Documentos({ agente = AGENTE_PADRAO }: { agente?: string }) {
       >
         {abertas && aberto && (
           <div className="space-y-6">
-            {paraSugerir(aberto, abertas) && (
-              <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card/60 px-4 py-3">
-                <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-                  O documento não muda o roteiro sozinho. A IA compara os dois e sugere as mudanças; você revisa e decide o que aplicar.
-                </p>
-                <Button size="sm" disabled={!pode("editar_conhecimento")} onClick={() => abrirSugestoes(paraSugerir(aberto, abertas)!)}>
-                  <Wand2 /> Sugerir atualizações do roteiro
-                </Button>
-              </div>
-            )}
             <SecaoPainel titulo="Versões" contagem={abertas.length}>
               <Versoes versoes={abertas} alternar={(id, ativo) => alternar.mutate({ id, ativo })} />
             </SecaoPainel>
@@ -259,7 +230,6 @@ export function Documentos({ agente = AGENTE_PADRAO }: { agente?: string }) {
           </div>
         )}
       </PainelLateral>
-      <PainelSugestoes documento={sugerir} dono={agente} aoFechar={() => setSugerir(null)} />
     </section>
   );
 }

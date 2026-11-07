@@ -181,7 +181,7 @@ function Corpo({
       ["fabrica-agentes"],
       (d) => d && { agentes: d.agentes.map((x) => (x.id === a.id ? a : x)) },
     );
-    qc.invalidateQueries({ queryKey: ["calibracao-opcoes"] });
+    qc.invalidateQueries({ queryKey: ["agentes-visiveis"] });
     qc.invalidateQueries({ queryKey: ["config", a.id] });
     qc.invalidateQueries({ queryKey: ["central"] });
   };
@@ -327,7 +327,7 @@ function Corpo({
               <SecaoPainel titulo="Inatividade">
                 <Campo
                   rotulo="Encerrar a conversa depois de"
-                  ajuda={`Entre ${minimo} min e ${fmtMinutos(maximo)}, dentro da janela de 24 h do WhatsApp. A despedida é a seção "## Encerramento por inatividade" da base.`}
+                  ajuda={`Entre ${minimo} min e ${fmtMinutos(maximo)}. A despedida é a seção "## Encerramento por inatividade" da base.`}
                 >
                   <div className="flex items-center gap-3">
                     <Input
@@ -596,7 +596,7 @@ function Publicacao({
                 disabled={!!trava || ativar.isPending}
                 title={trava}
                 onClick={() => {
-                  if (window.confirm(`Desativar ${agente.nome}? Ele para de atender, inclusive no WhatsApp, e sai das equipes.`))
+                  if (window.confirm(`Desativar ${agente.nome}? Ele para de atender e sai das equipes.`))
                     ativar.mutate({ id: agente.id, ativo: false });
                 }}
               >
@@ -618,8 +618,8 @@ function Publicacao({
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Inativo não atende em lugar nenhum, nem no WhatsApp, e sai da distribuição das equipes na hora; o chat de teste continua
-          funcionando. {agente.no_canal && `${agente.nome} atende o WhatsApp e não pode ser desativado por aqui.`}
+          Inativo não atende em lugar nenhum e sai da distribuição das equipes na hora; o chat de teste continua
+          funcionando.
         </p>
       </SecaoPainel>
 

@@ -24,11 +24,8 @@ from sqlalchemy import JSON, Column, DateTime, MetaData, String, Table, delete, 
 from sqlalchemy.engine import Engine
 
 PERMISSOES: dict[str, tuple[str, str]] = {
-    "ver_painel": ("Ver o painel", "Visão geral, Conversas e Central ao vivo."),
-    "tratar_alertas": ("Tratar alertas", "Dar baixa nos alertas da Central (equipe assumiu, resolvido)."),
-    "usar_chat": ("Usar o chat de teste", "Conversar com agentes e equipes pelo painel."),
-    "avaliar": ("Avaliar respostas", "Dar 👍 ou 👎 nas respostas, na Calibração."),
-    "aprovar_calibracao": ("Aprovar na Calibração", "Aprovar ou recusar avaliações, exemplos e frases do guardrail."),
+    "ver_painel": ("Ver o painel", "Cidade, Central de comando e conversas com os agentes."),
+    "usar_chat": ("Usar o chat", "Conversar com agentes e equipes pelo painel."),
     "editar_conhecimento": ("Editar conhecimento", "Roteiros, documentos e bases compartilhadas."),
     "editar_agentes": ("Editar agentes", "Criar e alterar agentes, instruções, skills, casos de teste e equipes; usar o assistente de IA."),
     "publicar": ("Publicar", "Colocar no ar ou tirar do ar agentes e equipes."),
@@ -43,9 +40,8 @@ PAPEIS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "dono": ("Dono", "Tudo, inclusive administradores. Um só.", TODAS),
     "administrador": ("Administrador", "Tudo, menos mexer no dono e em outros administradores.", TODAS),
     "editor": ("Editor", "Cria e ajusta agentes e conhecimento; não publica nem exclui.",
-               ("ver_painel", "tratar_alertas", "usar_chat", "avaliar", "editar_conhecimento", "editar_agentes")),
-    "curador": ("Curador", "Avalia e aprova na Calibração e cuida do conhecimento.",
-                ("ver_painel", "tratar_alertas", "usar_chat", "avaliar", "aprovar_calibracao", "editar_conhecimento")),
+               ("ver_painel", "usar_chat", "editar_conhecimento", "editar_agentes")),
+    "curador": ("Curador", "Cuida do conhecimento dos agentes.", ("ver_painel", "usar_chat", "editar_conhecimento")),
     "leitor": ("Leitor", "Só acompanha: painel e conversas.", ("ver_painel",)),
 }
 SITUACOES = ("pendente", "ativo", "bloqueado")

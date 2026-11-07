@@ -84,7 +84,7 @@ export function NovoAgente({
       }),
     onSuccess: (a) => {
       qc.invalidateQueries({ queryKey: ["fabrica-agentes"] });
-      qc.invalidateQueries({ queryKey: ["calibracao-opcoes"] });
+      qc.invalidateQueries({ queryKey: ["agentes-visiveis"] });
       toast.success(`${a.nome} criado como rascunho`, { description: "Ajuste as instruções e a base, teste no chat e publique." });
       setF(vazio());
       setSugerido(null);

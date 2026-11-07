@@ -21,9 +21,7 @@ modelo só preenche os parâmetros declarados. Servidores MCP ficam para quando 
 
 Casos de teste (fabrica_casos, fabrica_execucoes): uma mensagem e o que se espera do agente (a ação, o
 motivo da transferência, o que a resposta precisa mencionar e o que não pode dizer), conferidos sem
-juiz. A execução roda também o dataset do agente na Calibração (avaliações aprovadas), com o mesmo
-juiz e a mesma nota mínima da madrugada (agente/datasets.py): uma avaliação só, a mesma antes de
-publicar e todo dia (a rotina diária chama avaliar_em_fila com os agentes publicados).
+juiz; a régua do juiz e a nota mínima ficam em agente/datasets.py.
 """
 
 import ipaddress
@@ -715,24 +713,9 @@ def conferir(caso: dict, resposta: str, acao: str, categoria: str | None, agente
     return motivos
 
 
-def casos_da_calibracao(agente_id: str) -> list[dict]:
-    """O gold e o bad dataset do agente (avaliações aprovadas na Calibração, agente/datasets.py), no formato
-    que a execução roda. Só leitura aqui: quem cria e aprova é a tela Calibração."""
-    from agente import datasets
-
-    saida = []
-    for c in datasets.casos(_estado["engine"], _estado.get("schema"), agente=agente_id):
-        tipo = "gold+bad" if c["resposta_ruim"] else "gold"
-        saida.append({"id": f"calibracao-{c['id']}", "origem": "calibracao", "avaliacao": c["id"],
-                      "titulo": f"Calibração #{c['id']} ({tipo}): {c['mensagens'][-1][:60]}", "mensagens": c["mensagens"],
-                      "esperado_texto": datasets.esperado_do_caso(c), "ferramentas_exigidas": c["ferramentas_exigidas"],
-                      "ferramentas_proibidas": c["ferramentas_proibidas"], "telefone": c.get("telefone") or ""})
-    return saida
-
-
 def _preparar_execucao(agente, autor: str) -> tuple[list[dict], int] | None:
-    """Os casos do agente (os da fábrica e os da Calibração) e a linha da execução; None sem casos."""
-    casos = ([{**c, "origem": "fabrica"} for c in listar_casos(agente.id) if c["ativo"]] + casos_da_calibracao(agente.id))
+    """Os casos ativos do agente e a linha da execução; None sem casos."""
+    casos = [{**c, "origem": "fabrica"} for c in listar_casos(agente.id) if c["ativo"]]
     casos = casos[:MAX_CASOS_POR_EXECUCAO]
     if not casos:
         return None
@@ -746,11 +729,11 @@ def _preparar_execucao(agente, autor: str) -> tuple[list[dict], int] | None:
 
 
 def iniciar_execucao(agente, autor: str) -> dict:
-    """Roda em segundo plano os casos de teste do agente e o dataset dele na Calibração (um caso por vez,
+    """Roda em segundo plano os casos de teste do agente (um caso por vez,
     para não estourar a cota do modelo). Cada caso usa uma conversa nova, que é apagada no fim."""
     preparada = _preparar_execucao(agente, autor)
     if preparada is None:
-        _erro("O agente não tem casos de teste ativos nem avaliações aprovadas na Calibração.")
+        _erro("O agente não tem casos de teste ativos.")
     threading.Thread(target=_executar, args=(agente, *preparada), daemon=True).start()
     return obter_execucao(preparada[1])
 
@@ -774,8 +757,7 @@ def avaliar_em_fila(agentes: list, autor: str) -> dict:
 
 
 def _rodar_caso(agente, caso: dict, avaliador) -> dict:
-    """Um caso, numa conversa nova. Os da fábrica são conferidos pelas regras do caso; os da Calibração,
-    pelas ferramentas exigidas ou proibidas e pela nota do juiz (a mesma régua da madrugada)."""
+    """Um caso, numa conversa nova, conferido pelas regras do caso."""
     from agente import datasets
     from agente.atendimento import responder
 

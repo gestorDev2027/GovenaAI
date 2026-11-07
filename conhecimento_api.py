@@ -2,11 +2,8 @@
 
 Documentos: o painel envia o arquivo, o servidor guarda no bucket privado do Supabase e processa em
 segundo plano (texto, trechos, embeddings); a versão nova passa a valer quando fica pronta.
-Exemplos: nascem da aprovação na Calibração (calibracao_api.py); aqui só se ativam ou desativam.
 Bases compartilhadas (/bases): conjuntos de documentos para vários agentes. Os documentos de uma base usam
 as mesmas rotas de documentos, com agente=base_<id da base>.
-Sugestões do roteiro (/documentos/{id}/sugestoes-roteiro): o que um documento muda no roteiro do agente, pela IA,
-para a pessoa revisar e aplicar no painel (agente/sugestoes_roteiro.py).
 Lógica em agente/conhecimento.py.
 """
 
@@ -19,26 +16,13 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from agente import armazenamento, conhecimento, leitura_arquivos, perfis
-from agente import sugestoes_roteiro as sugestoes_roteiro_mod
-from calibracao_api import _negado, _pode, _quem
-from painel_api import exigir_chave
+from painel_api import _negado, _pode, _quem, exigir_chave
 
 MAX_BYTES = 25 * 1024 * 1024  # o mesmo limite do bucket
 
 
 class PedidoAtivo(BaseModel):
     ativo: bool
-
-
-class PedidoSugestoes(BaseModel):
-    """O agente cujo roteiro é comparado: obrigatório no documento de uma base compartilhada."""
-    agente: str | None = Field(default=None, max_length=60)
-
-
-class PedidoAjuste(BaseModel):
-    """Atualizar com IA: a informação nova escrita no painel e o agente do roteiro."""
-    agente: str = Field(max_length=60)
-    texto: str = Field(max_length=4000)
 
 
 class BaseCampos(BaseModel):
@@ -206,55 +190,6 @@ def criar_rotas_conhecimento(agentes: dict[str, Agent]) -> APIRouter:
             raise HTTPException(status_code=422, detail=str(erro))
         return {"id": documento_id, "ativo": pedido.ativo}
 
-    @rotas.post("/sugestoes-roteiro")
-    async def sugestoes_de_ajuste(pedido: PedidoAjuste, painel_sessao: str | None = Cookie(default=None)) -> dict:
-        """Atualizar com IA: onde a informação escrita entra no roteiro do agente, sugerido pela IA, para a pessoa
-        revisar e aplicar como nas sugestões de um documento. Não grava nada."""
-        _curador(painel_sessao)
-        if pedido.agente not in agentes:
-            raise HTTPException(status_code=404, detail=f"Agente desconhecido: {pedido.agente}.")
-        try:
-            return await run_in_threadpool(sugestoes_roteiro_mod.sugerir_de_texto, pedido.texto, pedido.agente,
-                                           perfis.identidade(pedido.agente).get("nome") or pedido.agente)
-        except ValueError as erro:
-            raise HTTPException(status_code=422, detail=str(erro))
-        except Exception as erro:  # o modelo fora do ar ou uma resposta fora do formato
-            raise HTTPException(status_code=502, detail=f"A IA não conseguiu sugerir: {type(erro).__name__}: {str(erro)[:200]}") from erro
-
-    @rotas.post("/documentos/{documento_id}/sugestoes-roteiro")
-    async def sugestoes_roteiro(
-        documento_id: int,
-        pedido: PedidoSugestoes,
-        painel_sessao: str | None = Cookie(default=None),
-    ) -> dict:
-        """O que o documento muda no roteiro do agente, sugerido pela IA. Não grava nada: o painel mostra as sugestões
-        e a pessoa aplica as que quiser (agente/sugestoes_roteiro.py). O documento de um agente sugere para o roteiro
-        dele; o de uma base compartilhada, para um dos agentes em que a base vale."""
-        _curador(painel_sessao)
-        doc = conhecimento.documento(documento_id)
-        if not doc:
-            raise HTTPException(status_code=404, detail="Documento não encontrado.")
-        if conhecimento.eh_base(doc["agente"]):
-            dados = conhecimento.base(doc["agente"][len(conhecimento.PREFIXO_BASE):]) or {}
-            alvo = pedido.agente
-            if not alvo:
-                raise HTTPException(status_code=422, detail="Escolha o agente cujo roteiro vai ser comparado.")
-            if alvo not in agentes or not (dados.get("geral") or alvo in (dados.get("agentes") or [])):
-                raise HTTPException(status_code=422, detail=f"A base deste documento não vale para {alvo}.")
-        else:
-            alvo = doc["agente"]
-            if pedido.agente and pedido.agente != alvo:
-                raise HTTPException(status_code=422, detail="O documento de um agente só sugere para o roteiro dele.")
-        try:
-            return await run_in_threadpool(
-                sugestoes_roteiro_mod.sugerir, documento_id, alvo, perfis.identidade(alvo).get("nome") or alvo)
-        except LookupError as erro:
-            raise HTTPException(status_code=404, detail=str(erro))
-        except ValueError as erro:
-            raise HTTPException(status_code=422, detail=str(erro))
-        except Exception as erro:  # o modelo fora do ar ou uma resposta fora do formato
-            raise HTTPException(status_code=502, detail=f"A IA não conseguiu sugerir: {type(erro).__name__}: {str(erro)[:200]}") from erro
-
     @rotas.get("/uso")
     def uso(
         exemplos: str = Query(default="", max_length=400, description="ids separados por vírgula"),
@@ -271,15 +206,5 @@ def criar_rotas_conhecimento(agentes: dict[str, Agent]) -> APIRouter:
             raise HTTPException(status_code=503, detail="A base de conhecimento não está disponível.")
         detalhes = conhecimento.detalhes_usados(ids(exemplos), ids(trechos))
         return {"trechos": [_iso(t) for t in detalhes["trechos"]], "exemplos": [_iso(e) for e in detalhes["exemplos"]]}
-
-    @rotas.get("/exemplos")
-    def exemplos(agente: str = Query(default=perfis.PADRAO, max_length=60)) -> dict:
-        return {"exemplos": [_iso(e) for e in conhecimento.listar_exemplos(_agente(agente))]}
-
-    @rotas.post("/exemplos/{exemplo_id}/ativo")
-    def exemplo_ativo(exemplo_id: int, pedido: PedidoAtivo, painel_sessao: str | None = Cookie(default=None)) -> dict:
-        _curador(painel_sessao, "aprovar_calibracao")
-        conhecimento.definir_exemplo_ativo(exemplo_id, pedido.ativo)
-        return {"id": exemplo_id, "ativo": pedido.ativo}
 
     return rotas

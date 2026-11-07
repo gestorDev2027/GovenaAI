@@ -14,7 +14,7 @@ type Resultado = AgenteFabrica & { documentos_copiados: { copiados: string[]; fa
 /**
  * Duplica um agente em rascunho: a configuração, as instruções vigentes e o roteiro da base vêm do original e,
  * marcado, também os documentos em uso. A cópia é um agente do painel: edita, testa, publica e exclui como
- * qualquer outro, e o original não muda. Os exemplos da Calibração não vêm: cada agente forma os seus.
+ * qualquer outro, e o original não muda.
  */
 export function DuplicarAgente({
   original,
@@ -58,7 +58,7 @@ export function DuplicarAgente({
       }),
     onSuccess: (a) => {
       qc.invalidateQueries({ queryKey: ["fabrica-agentes"] });
-      qc.invalidateQueries({ queryKey: ["calibracao-opcoes"] });
+      qc.invalidateQueries({ queryKey: ["agentes-visiveis"] });
       const docs = a.documentos_copiados;
       const partes = [
         docs ? `${docs.copiados.length} documento(s) copiado(s)` : "sem documentos",
@@ -99,7 +99,7 @@ export function DuplicarAgente({
             do painel.
           </p>
           <p className="text-muted-foreground">
-            Não vêm os exemplos da Calibração (cada agente forma os seus) nem o lugar nas equipes e no Canal WhatsApp. Para as
+            Não vem o lugar nas equipes. Para as
             boas-vindas com a janela de 24 h fechada, a cópia precisa do próprio template (UNNICHAT_TEMPLATE_BOAS_VINDAS_
             <span className="num">{(id || "ID").toUpperCase()}</span>).
           </p>

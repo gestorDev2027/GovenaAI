@@ -6,10 +6,7 @@ import { EmptyState } from "@/components/widgets/widgets";
 
 const NOME: Record<Permissao, string> = {
   ver_painel: "Ver o painel",
-  tratar_alertas: "Tratar alertas",
-  usar_chat: "Usar o chat de teste",
-  avaliar: "Avaliar respostas",
-  aprovar_calibracao: "Aprovar na Calibração",
+  usar_chat: "Usar o chat",
   editar_conhecimento: "Editar conhecimento",
   editar_agentes: "Editar agentes",
   publicar: "Publicar",

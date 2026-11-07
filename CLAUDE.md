@@ -23,13 +23,19 @@ documentos) e, aos poucos, o GestorGov passa a ser o lugar onde o dado nasce.
 ### De onde veio
 
 O código nasceu do **NexaAgents**, plataforma de agentes de atendimento por WhatsApp feita para o Contabilidade
-Facilitada. O GestorGov reaproveita o motor (Agno, Fábrica de agentes, Conhecimento vetorizado, Calibração,
-Central ao vivo 3D, usuários e permissões, observabilidade) e troca a camada de cima (marca, canal, agentes,
-telas, onboarding).
+Facilitada. O GestorGov reaproveita o motor (Agno, Fábrica de agentes, Conhecimento vetorizado, usuários e
+permissões, observabilidade) e troca a camada de cima (marca, agentes, telas, onboarding).
+
+A reestruturação de 07/11/2026 tirou o que era de atendimento por WhatsApp: Unnichat, canal, ficha do contato,
+alertas e indicadores de atendimento, Visão geral, Conversas, Calibração (👍/👎, lacunas, curadoria), régua de
+qualidade, sugestões de roteiro e as rotinas de inatividade e de avaliação diária. O agente do cidadão (Fase 4)
+será escrito do zero quando chegar a vez dele; o código antigo está no histórico do Git (antes do commit da
+reestruturação). Ficaram das primitivas 3D da Central antiga (`painel/src/components/central/`: móveis, robô,
+exterior) para a visão Secretaria.
 
 A limpeza de 06/11/2026 tirou as integrações da Nexa (compras, área do aluno, busca de aulas, apostilas, Data
 Gateway) e o vocabulário de aluno: na tela, quem conversa é o **servidor**; no código, o **contato**
-(`nome_contato`, `mensagem_contato`); no código reservado ao WhatsApp, o **cidadão**. Ainda há nomes herdados em
+(`nome_contato`, `mensagem_contato`). Ainda há nomes herdados em
 comentários (ex.: "Luna", "Vera", "SDR"): renomeie quando passar por eles.
 
 ## 2. O conceito
@@ -64,12 +70,14 @@ O catálogo padrão (27 atividades em 10 setores) está em `supabase/gestorgov/2
 
 1. **Cidade** — mapa real do município com todas as unidades de saúde (UBS, UPA, CAPS, hospital, farmácia,
    SAMU...) e o estado de cada uma (alertas, estoque, fila).
-2. **Secretaria** — o prédio em 3D (a "Central ao vivo" herdada): setores nos andares, agentes trabalhando nas
-   mesas.
+2. **Secretaria** — o prédio em 3D pelo organograma, com o CCO no centro: setores nas salas, agentes
+   trabalhando nas mesas (a refazer; ver §10).
 3. **Painel** — tabelas, aprovações, relatórios: onde o servidor trabalha no dia a dia.
 
 Mais o **conversacional** presente em todas as visões: o chat com o agente do setor (ou com a recepção, numa
-equipe).
+equipe). E a **Central de comando** (`/painel/comando`): o mapa da cidade em tela inteira, com janelas flutuantes
+arrastáveis (unidades, setores, agentes, alertas), painéis laterais de detalhe, paleta de comandos (Ctrl+K) e
+modo foco (F).
 
 ## 3. O onboarding conversacional (a primeira experiência do cliente)
 
@@ -137,8 +145,8 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
   `## Pedido fora do atendimento`.
 - Documentos (PDF, Word, planilhas) vão no **Conhecimento** do painel e chegam ao agente como trechos
   vetorizados.
-- Qualidade: `agente/qualidade.py` avalia as conversas concluídas com a régua de cinco critérios de
-  `agente/regua_qualidade.json` (mudou a régua, troque a versão). Ainda não há lado humano para comparar.
+- Casos de teste de cada agente na Fábrica (`fabrica_casos`), com juiz e nota mínima em `agente/datasets.py`
+  (que guarda também as frases do guardrail de manipulação).
 
 ## 5. Arquitetura
 
@@ -156,10 +164,8 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
 ```
 app.py                        AgentOS + rotas + rotinas de manutenção + CompanyOS
 gestao_api.py                 /painel/api/gestao/* (panorama, municípios, catálogo)
-painel_api.py                 painel: chat, conversas, Central, visão geral, base, manutenção
-fabrica_api.py                Fábrica de agentes e equipes
-calibracao_api.py             Calibração (👍/👎 + curadoria)
-qualidade_api.py              qualidade das conversas com a régua (agente/qualidade.py)
+painel_api.py                 painel: acesso, login, implantação, chat, conversas, base, limpeza
+fabrica_api.py                Fábrica de agentes e equipes (skills, ferramentas HTTP, chaves, casos de teste)
 prefeitura_api.py             a prefeitura de quem está logado: cargos, permissões, equipe e convites
 conhecimento_api.py           documentos vetorizados
 banco_api.py                  Observabilidade (leitura do banco)
@@ -171,9 +177,6 @@ agente/agente.py              monta cada Agent a partir do perfil (modelo, memó
 supabase/gestorgov/           migrations (rodar à mão no SQL Editor)
 painel/src/                   frontend
 ```
-
-Reservados para o futuro agente do cidadão (hoje desligados, sem variáveis): `agente/unnichat.py`,
-`agente/canal.py`, `agente/ficha.py` e `agente/alertas.py`.
 
 ### Banco
 
@@ -189,7 +192,9 @@ Reservados para o futuro agente do cidadão (hoje desligados, sem variáveis): `
   `indicadores_cargo`, `medicoes`, `entregas`, `pendencias`, `status_cargo`, `alertas_cargo`. Tudo separado por
   `municipio_id` (multi-prefeitura).
 - Tabelas que o servidor cria ao subir: as do Agno (`agno_*`, CompanyOS) e as do painel (`fabrica_*`,
-  `conhecimento_*`, `avaliacoes_humanas`, `qualidade_supervisor`, `painel_usuarios`, `painel_contas`...). Não crie essas à mão.
+  `conhecimento_*`, `guardrail_frases`, `painel_usuarios`, `painel_contas`...). Não crie essas à mão. Num banco que
+  já rodou o NexaAgents podem sobrar `unnichat_*`, `avaliacoes_humanas`, `qualidade_supervisor` e `alertas_baixas`:
+  não são mais usadas.
   `create_all` não altera tabela que já existe: coluna renomeada no código precisa de `alter table` à mão.
 - Sem `DATABASE_URL`: SQLite local em `dados/`, com o cadastro e os catálogos carregados das migrations.
 
@@ -223,7 +228,7 @@ inteligente").
 Dois níveis, separados:
 
 - **Plataforma** (equipe GestorGov): `painel_usuarios` (agente/usuarios.py), com o dono em `PAINEL_DONO`. Vê as telas
-  de configuração (Fábrica, Conhecimento, Calibração, Observabilidade, Usuários) e o Painel de atendimento.
+  de configuração (Fábrica, Conhecimento, Observabilidade, Usuários), a Cidade, a Central de comando e o chat.
 - **Prefeitura** (agente/acessos.py, rotas em prefeitura_api.py): quem cadastra a prefeitura é o **dono** dela
   (`membros.papel = 'dono'`), entra sem aprovação da plataforma e pode tudo nela. Ele monta o organograma
   (cargos do catálogo ou criados à mão), define as **permissões de cada cargo** (`cargos.permissoes`: ver o painel,
@@ -232,9 +237,9 @@ Dois níveis, separados:
   cria a senha). O membro pode o que o cargo dele pode; o dono não pode ser bloqueado; ninguém altera o próprio acesso.
 - Toda rota da prefeitura usa o município de quem está logado: nunca um id vindo da tela.
 - Separação por agente: cada agente da Fábrica guarda o município dono (`fabrica_agentes.municipio_id`); quem é de
-  uma prefeitura vê só os agentes dela (`escopo_painel` em painel_api.py): lista de agentes (`/agentes`), Chat,
-  Conversas, Central (Secretaria 3D) e indicadores. As conversas de servidor começam com `servidor-` e levam o
-  e-mail de quem conversou. Fábrica, Conhecimento, Calibração, Observabilidade e Usuários continuam só da
+  uma prefeitura vê só os agentes dela (`escopo_painel` em painel_api.py): lista de agentes (`/agentes`), chat e
+  conversas. As conversas de servidor começam com `servidor-` e levam o e-mail de quem conversou. Fábrica,
+  Conhecimento, Observabilidade e Usuários continuam só da
   plataforma (a prefeitura ainda não cria nem edita os próprios agentes).
 
 ## 8. Segurança, LGPD e regras dos agentes
@@ -301,12 +306,23 @@ cd painel; npm run build               # confere os tipos (tsc) e gera o painel
 
 - [x] Cópia do NexaAgents sem WhatsApp, com a marca GestorGov
 - [x] Limpeza dos restos da Nexa (integrações, régua de qualidade, vocabulário de aluno)
+- [x] Reestruturação, etapa 1: fora o atendimento por WhatsApp (backend, telas, rotas e rotinas)
 - [x] Banco: schema, papel, cadastro da prefeitura, catálogo de atividades, auditoria
 - [x] Assistente de Implantação e 3 agentes de setor
 - [x] CompanyOS (setores → Products, rotinas → Routines), atrás de `GESTORGOV_COMPANYOS`
 - [x] Render (Docker + Blueprint) e Supabase
 
 ### Fase 1 — MVP demonstrável (agora)
+
+Reestruturação aprovada em 07/11/2026 (uma etapa por vez, cada uma com commit e teste no navegador):
+
+- [x] 1. Limpeza: fora o NexaAgents (backend, telas, rotas e rotinas de atendimento)
+- [ ] 2. Banco novo: CompanyOS como fonte única das tarefas; rotinas dos setores pelo Scheduler do Agno (as
+      Routines do CompanyOS declaradas no código recebem 403 com a OS_SECURITY_KEY ligada); tabelas da operação da
+      unidade (estoque, movimentos, produção, ocorrências); migrations consolidadas num esquema limpo
+- [ ] 3. Central de comando completa: Fluxos, Aprovações e Execuções ligados ao Agno; alertas dos cargos
+- [ ] 4. Unidades: equipe, estoque, produção e o agente da unidade reportando à superintendência
+- [ ] 5. Secretaria 3D pelo organograma, com o CCO no centro, montada durante a implantação
 
 - [ ] Primeiro deploy validado no Render (build do painel, CompanyOS agendando de verdade)
 - [ ] **Tela de onboarding**: chat à esquerda; à direita, mapa (MapLibre + OpenStreetMap, sem custo por uso) e
@@ -332,8 +348,8 @@ cd painel; npm run build               # confere os tipos (tsc) e gera o painel
 
 ### Fase 4 — Agente do cidadão (futuro)
 
-Um agente de saúde por cidadão no WhatsApp (um Agent, uma sessão e memória por pessoa), reaproveitando a
-integração Unnichat. Começa pelo administrativo: lembretes de consulta/vacina, situação na fila, medicamento
+Um agente de saúde por cidadão no WhatsApp (um Agent, uma sessão e memória por pessoa), com uma integração nova
+(a da Unnichat herdada saiu na reestruturação; está no histórico do Git). Começa pelo administrativo: lembretes de consulta/vacina, situação na fila, medicamento
 disponível, exame pronto, ouvidoria. Exige identidade validada (CPF/Cartão SUS/gov.br), consentimento LGPD e,
 para qualquer orientação clínica, respaldo jurídico e médico; emergência → SAMU 192.
 

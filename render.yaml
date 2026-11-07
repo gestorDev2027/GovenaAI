@@ -61,5 +61,3 @@ services:
         value: itatiaia
       - key: INATIVIDADE_MINUTOS
         value: "480"
-      - key: AVALIACOES_DIARIAS
-        value: sim

@@ -18,7 +18,6 @@ import {
   Bot,
   Check,
   ChevronDown,
-  Clock,
   FileText,
   Hammer,
   Loader2,
@@ -54,8 +53,7 @@ import { fmtDataHora, fmtInt, fmtRelativo, fmtSegundos } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { PageHeader, StatusBadge } from "@/components/widgets/widgets";
 import { IconeAgente, IconeUsuario } from "@/components/chat/icones";
-import { Anexos, ROTULO_FERRAMENTA, type AnexoExibido } from "./conversas";
-import { AvaliarResposta } from "@/components/calibracao/avaliar-resposta";
+import { Anexos, ROTULO_FERRAMENTA, type AnexoExibido } from "@/components/chat/anexos";
 import { porArea, useAgentes, useEquipesPublicadas } from "@/hooks/use-agentes";
 import { UsoNaResposta } from "@/components/conhecimento/uso";
 
@@ -125,14 +123,6 @@ const ACEITOS = "image/png,image/jpeg,image/webp,image/gif,application/pdf,audio
 const MAX_ANEXOS = 4;
 const MAX_BYTES = 10 * 1024 * 1024;
 const SEM_TEXTO = "(o servidor enviou o anexo sem texto)";
-
-/** "23 h", "1 h 30 min", "10 min": o prazo de inatividade do agente, para o botão que o simula. */
-function tempoSemResposta(minutos: number) {
-  const horas = Math.floor(minutos / 60);
-  const resto = minutos % 60;
-  if (!horas) return `${resto} min`;
-  return resto ? `${horas} h ${resto} min` : `${horas} h`;
-}
 
 const agora = () => new Date().toISOString();
 
@@ -326,7 +316,7 @@ export function Etapas({ etapas, emAndamento }: { etapas: EtapaExibida[]; emAnda
   );
 }
 
-function MensagemAgente({ m, sessao }: { m: Mensagem; sessao?: string }) {
+function MensagemAgente({ m }: { m: Mensagem }) {
   const comEtapas = !!m.etapas?.length;
   return (
     <div className="flex flex-col gap-y-6">
@@ -356,9 +346,6 @@ function MensagemAgente({ m, sessao }: { m: Mensagem; sessao?: string }) {
             <span className="font-mono text-[11px] tracking-tight text-muted-foreground uppercase">Mensagem automática</span>
           )}
           {!m.escrevendo && <UsoNaResposta uso={m.calibracao} />}
-          {!m.automatica && !m.escrevendo && m.run_id && sessao && (
-            <AvaliarResposta sessionId={sessao} runId={m.run_id} origem="chat_teste" />
-          )}
         </div>
       </div>
     </div>
@@ -465,7 +452,6 @@ export function Chat() {
   const config = useQuery({ queryKey: ["config", idConfig], queryFn: () => buscarConfig(idConfig), staleTime: 5 * 60_000 });
   const [sessao, setSessao] = useState<string | null>(null);
   const [nome, setNome] = useState("");
-  const [telefone, setTelefone] = useState("");
   const [texto, setTexto] = useState("");
   const [mensagens, setMensagens] = useState<Mensagem[]>([]);
   const [status, setStatus] = useState<Status>("em_atendimento");
@@ -554,7 +540,6 @@ export function Chat() {
       corpo.append("mensagem", mensagem);
       if (sessao) corpo.append("session_id", sessao);
       corpo.append("nome_contato", nome);
-      corpo.append("telefone", telefone);
       corpo.append("agente", agente);
       arquivos.forEach((f) => corpo.append("arquivos", f, f.name));
       const saida: { final?: RespostaChat; erro?: string } = {};
@@ -620,22 +605,6 @@ export function Chat() {
     fimRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [mensagens.length, ultimaMensagem?.texto.length, ultimaMensagem?.etapas?.length]);
 
-  const inatividade = useMutation({
-    mutationFn: () =>
-      sessao
-        ? api<{ encerrou: boolean; status: Status; mensagem: string | null }>(`/chat/${sessao}/inatividade`, { method: "POST" })
-        : Promise.resolve({ encerrou: true, status: "encerrado" as Status, mensagem: null }),
-    onSuccess: (r) => {
-      if (!r.encerrou) {
-        toast.info("Conversa já transferida ou encerrada: não se encerra por inatividade.");
-        return;
-      }
-      setStatus("encerrado");
-      if (r.mensagem) setMensagens((m) => [...m, { papel: "agente", texto: r.mensagem!, quando: agora(), automatica: true }]);
-      qc.invalidateQueries({ queryKey: ["conversas"] });
-    },
-  });
-
   const abrir = useMutation({
     mutationFn: async (id: string) => {
       const c = await api<Conversa>(`/conversas/${encodeURIComponent(id)}`);
@@ -649,7 +618,6 @@ export function Chat() {
       setAgente(c.equipe ?? c.agente ?? AGENTE_PADRAO);
       setSessao(c.id);
       setNome(c.nome);
-      setTelefone(c.telefone);
       setStatus(c.status);
       setAcoes(c.acoes);
       setUltima(undefined);
@@ -877,28 +845,11 @@ export function Chat() {
   const colunaContato = (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
-        <Rotulo>{agente === AGENTE_PADRAO ? "Servidor simulado" : "Contato simulado"}</Rotulo>
-        <input className={campo} placeholder="Nome no CRM (ex.: Maria)" value={nome} disabled={!!sessao} onChange={(e) => setNome(e.target.value)} />
-        <input
-          className={campo}
-          placeholder="Telefone do WhatsApp"
-          inputMode="tel"
-          value={telefone}
-          disabled={!!sessao}
-          onChange={(e) => setTelefone(e.target.value)}
-        />
+        <Rotulo>Quem conversa</Rotulo>
+        <input className={campo} placeholder="Seu nome (ex.: Maria)" value={nome} disabled={!!sessao} onChange={(e) => setNome(e.target.value)} />
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Com o telefone, o agente consulta o cadastro real, como faz com o número que chega pelo WhatsApp. O mesmo nome numa conversa
-          nova simula o servidor voltando (memória). Os dois ficam fixos depois da primeira mensagem.
+          O agente chama você pelo primeiro nome. O nome fica fixo depois da primeira mensagem.
         </p>
-        <button
-          type="button"
-          disabled={bloqueada || inatividade.isPending}
-          onClick={() => inatividade.mutate()}
-          className="flex h-9 items-center justify-center gap-2 rounded-xl border font-mono text-xs uppercase transition-colors hover:bg-muted disabled:opacity-50"
-        >
-          <Clock className="size-3.5" /> {tempoSemResposta(config.data?.minutos_inatividade ?? 1380)} sem resposta
-        </button>
       </div>
 
       <div className="flex flex-col gap-2">
@@ -958,7 +909,7 @@ export function Chat() {
       <PageHeader
         title="Chat com os agentes"
         icon={Bot}
-        description="Converse com o agente de cada setor (texto, documentos, planilhas e prints) e avalie cada resposta."
+        description="Converse com o agente de cada setor (texto, documentos, planilhas e prints)."
       />
     <div className="-mx-4 flex min-h-[520px] flex-1 gap-1.5 p-1.5 sm:-mx-8">
       {paineis.sessoes && <aside className="hidden w-64 shrink-0 px-2 py-3 lg:block">{colunaSessoes}</aside>}
@@ -1040,7 +991,7 @@ export function Chat() {
               <p className="text-center font-mono text-[11px] text-muted-foreground uppercase">Abrindo sessão…</p>
             )}
             {mensagens.map((m, i) =>
-              m.papel === "agente" ? <MensagemAgente key={i} m={m} sessao={sessao ?? undefined} /> : <MensagemContato key={i} m={m} />,
+              m.papel === "agente" ? <MensagemAgente key={i} m={m} /> : <MensagemContato key={i} m={m} />,
             )}
             {soBoasVindas && !enviar.isPending && (
               <div className="flex flex-wrap gap-2 pl-10">

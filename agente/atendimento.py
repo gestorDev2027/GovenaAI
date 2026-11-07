@@ -1,7 +1,7 @@
 """Uma troca de mensagens com o contato, com as regras de estado do atendimento.
 
-Usado pelo chat de teste do painel e pela Unnichat (WhatsApp): o agente só responde
-enquanto a conversa está "em_atendimento"; transferida ou encerrada, a mensagem é ignorada.
+Usado pelo chat do painel, pela implantação e pelo terminal: o agente só responde enquanto a conversa está
+"em_atendimento"; transferida ou encerrada, a mensagem é ignorada.
 
 Quem atende pode ser um agente ou uma equipe (agente/equipes.py: o Team do Agno, em que a recepção
 escolhe o agente). Na equipe, a resposta é vista como a do agente que respondeu (`agent_id`), e é com
@@ -20,7 +20,7 @@ from agno.run.agent import RunEvent, RunOutput
 from agno.utils.log import log_warning
 
 from agente.ferramentas import STATUS_EM_ATENDIMENTO, STATUS_ENCERRADO, STATUS_TRANSFERIDO
-from agente import ao_vivo, base, conhecimento, datasets, equipes, guardrails, perfis
+from agente import ao_vivo, base, conhecimento, equipes, guardrails, perfis
 
 
 def _estado(agente: Agent, session_id: str) -> dict:
@@ -126,16 +126,12 @@ def rodar(
 
 def _aplicar_guardrail(agente: Agent, session_id: str, mensagem: str, saida: RunOutput, session_state: dict) -> bool:
     """Pedido de manipulação barrado (agente/guardrails.py): o contato recebe a seção do roteiro, não o aviso
-    técnico, e o caso vai para a fila da Calibração (o curador confirma ou aponta falso positivo)."""
+    técnico."""
     if saida.content != guardrails.BLOQUEIO_MANIPULACAO:
         return False
     quem = getattr(saida, "agent_id", None) or agente.id  # na equipe, o agente da resposta (ou o padrão)
     saida.content = base.secao(base.obter(quem).texto(), guardrails.SECAO_FORA_DO_ATENDIMENTO) or ""
     log_warning(f"Guardrail: pedido de manipulação barrado na sessão {session_id}.")
-    datasets.registrar_guardrail(
-        agente.db.db_engine, getattr(agente.db, "db_schema", None), quem, session_id, saida.run_id or "",
-        guardrails.mascarar_texto(mensagem), saida.content, session_state.get("telefone") or None,
-    )
     ao_vivo.publicar("guardrail", quem, session_id, session_state.get("nome_contato", ""), texto=mensagem)
     return True
 

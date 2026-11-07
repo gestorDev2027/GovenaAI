@@ -5,11 +5,8 @@ Grupos:
 - fluidez:  conversas de várias mensagens, avaliadas inteiras (saudação só no começo, sem repetir
             orientação, mensagens curtas, uso do contexto).
 - limites e intencao: fora do escopo, guardrails e transferência só quando o servidor quer.
-- humanas:  o gold e o bad dataset do agente (agente/datasets.py): avaliações da equipe APROVADAS na
-            Calibração do painel. A conversa é refeita até a resposta avaliada; o gabarito é a resposta
-            aprovada e, num 👎, a resposta original é o erro que não pode voltar. Os problemas marcados
-            viram regra de ferramenta (deveria / não deveria transferir). Vale para qualquer agente
-            (--agente <id>); os casos escritos neste arquivo valem só para o onboarding.
+Os casos escritos neste arquivo valem só para o onboarding; os demais agentes têm os casos de teste da
+fábrica (agente/fabrica_recursos.py).
 
 Os resultados vão para o banco do AgentOS (tela Evaluation). As conversas geradas aqui ficam num
 banco à parte (dados/avaliacoes_sessoes.db), fora dos indicadores do painel. A base de conhecimento
@@ -18,11 +15,6 @@ usada é a vigente (a mesma editada no painel).
 Uso (na pasta do projeto):
   .venv\\Scripts\\python -m testes.avaliacoes                 (todos os grupos)
   .venv\\Scripts\\python -m testes.avaliacoes fluidez limites
-  .venv\\Scripts\\python -m testes.avaliacoes humanas --agente onboarding
-  .venv\\Scripts\\python -m testes.avaliacoes --sem-humanas   (o que a rotina diária roda)
-
-Na rotina diária, o dataset da Calibração de cada agente publicado roda pela fábrica de agentes
-(agente/fabrica_recursos.py), junto dos casos de teste do agente: uma avaliação só.
 """
 
 import sys
@@ -55,25 +47,8 @@ class Caso:
 
 # ───────── Casos ─────────
 
-# Casos escritos à mão para o agente padrão (o assistente de implantação); os do GestorGov entram aqui
-# conforme forem escritos. As avaliações
-# aprovadas na Calibração (grupo "humanas") continuam valendo para qualquer agente.
+# Casos escritos à mão para o agente padrão (o assistente de implantação), conforme forem escritos.
 CASOS: list[Caso] = []
-
-def _casos_humanos(banco, agente_id: str) -> list[Caso]:
-    """Gold e bad dataset do agente (avaliações aprovadas na Calibração; agente/datasets.py) como casos do
-    grupo "humanas". O gabarito é a resposta aprovada; num 👎, a resposta original é o erro que não pode voltar."""
-    casos = []
-    for c in datasets.casos(banco.db_engine, schema_banco(), agente=agente_id):
-        esperado = datasets.esperado_do_caso(c)
-        tipo = "gold+bad" if c["resposta_ruim"] else "gold"
-        casos.append(Caso(
-            "humanas", f"Calibração #{c['id']} ({tipo}): {c['mensagens'][-1][:50]}", c["mensagens"], esperado,
-            ferramentas=c["ferramentas_exigidas"], sem_ferramentas=c["ferramentas_proibidas"],
-            telefone=c.get("telefone") or "",
-        ))
-    return casos
-
 
 DIRETRIZES = datasets.DIRETRIZES
 
@@ -94,11 +69,8 @@ def main(grupos: list[str], agente_id: str = perfis.PADRAO) -> int:
         conhecimento.indexar_roteiro(agente_id, base.obter(agente_id).texto(), "avaliações")
     avaliador = Gemini(id=agente.model.id, thinking_level="medium")
 
-    # Os casos escritos aqui valem só para o onboarding. Os demais agentes são medidos pelo gold e bad
-    # dataset da Calibração.
+    # Os casos escritos aqui valem só para o onboarding.
     selecionados = [c for c in CASOS if (not grupos or c.grupo in grupos) and agente_id == perfis.PADRAO]
-    if not grupos or "humanas" in grupos:
-        selecionados += _casos_humanos(banco, agente_id)
     print(f"Modelo: {agente.model.id} · raciocínio: {agente.model.thinking_level or 'livre'} · roteiro: {conhecimento.modo_roteiro()}")
     falhas, grupo_atual = 0, None
     tempo_total, tokens_total = 0.0, 0
@@ -165,10 +137,6 @@ if __name__ == "__main__":
         posicao = argumentos.index("--agente")
         agente_escolhido = argumentos[posicao + 1]
         del argumentos[posicao:posicao + 2]
-    if "--sem-humanas" in argumentos:
-        # A madrugada: só os casos escritos aqui; o dataset da Calibração roda pela fábrica, para todos os agentes.
-        argumentos.remove("--sem-humanas")
-        argumentos = argumentos or sorted({c.grupo for c in CASOS})
     if agente_escolhido not in perfis.PERFIS:
         sys.exit(f"Agente desconhecido: {agente_escolhido}. Existem: {', '.join(perfis.PERFIS)}.")
     sys.exit(main(argumentos, agente_escolhido))

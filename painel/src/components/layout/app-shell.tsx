@@ -6,25 +6,21 @@ import {
   Activity,
   Bot,
   BookOpen,
-  Building2,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
-  Briefcase,
-  ClipboardCheck,
   Landmark,
   Network,
   Rocket,
   UserCog,
   Factory,
   ExternalLink,
-  LayoutDashboard,
   LayoutGrid,
   LogOut,
   MapPinned,
   Menu,
-  MessagesSquare,
+  Radar,
   Moon,
   SlidersHorizontal,
   Sun,
@@ -47,7 +43,7 @@ import { Logo, LogoIcone } from "./logo";
  * num lugar só).
  */
 
-/** novaAba: a tela abre em outra aba, fora do menu (ex.: Central ao vivo, em tela cheia). permissao: o item só
+/** novaAba: a tela abre em outra aba, fora do menu (ex.: Central de comando, em tela cheia). permissao: o item só
  * aparece para quem a tem (na plataforma); naPrefeitura: o item é da prefeitura e pede essa permissão lá.
  * contagem: um número ao lado (ex.: pessoas esperando aprovação). */
 type Item = {
@@ -70,10 +66,9 @@ const SECOES: Secao[] = [
     titulo: "Prefeitura",
     icone: Landmark,
     itens: [
+      { to: "/comando", rotulo: "Central de comando", icone: Radar, novaAba: true, naPrefeitura: "ver_painel" },
       { to: "/cidade", rotulo: "Cidade", icone: MapPinned, naPrefeitura: "ver_painel" },
-      { to: "/central", rotulo: "Secretaria", icone: Building2, novaAba: true, naPrefeitura: "ver_painel" },
       { to: "/chat", rotulo: "Chat com os agentes", icone: Bot, naPrefeitura: "ver_painel" },
-      { to: "/conversas", rotulo: "Conversas", icone: MessagesSquare, naPrefeitura: "ver_painel" },
       { to: "/cargos", rotulo: "Organograma e cargos", icone: Network, naPrefeitura: "ver_painel" },
       { to: "/equipe", rotulo: "Equipe e acessos", icone: UserCog, naPrefeitura: "gerenciar_equipe" },
       { to: "/implantacao", rotulo: "Implantação", icone: Rocket, naPrefeitura: "gerenciar_cargos" },
@@ -84,18 +79,9 @@ const SECOES: Secao[] = [
     icone: LayoutGrid,
     daPlataforma: true,
     itens: [
+      { to: "/comando", rotulo: "Central de comando", icone: Radar, novaAba: true },
       { to: "/cidade", rotulo: "Cidade", icone: MapPinned },
-      { to: "/central", rotulo: "Secretaria", icone: Building2, novaAba: true },
-      { to: "/", rotulo: "Painel", icone: LayoutDashboard },
-    ],
-  },
-  {
-    titulo: "Trabalho",
-    icone: Briefcase,
-    daPlataforma: true,
-    itens: [
       { to: "/chat", rotulo: "Chat com os agentes", icone: Bot, permissao: "usar_chat" },
-      { to: "/conversas", rotulo: "Conversas", icone: MessagesSquare },
     ],
   },
   {
@@ -105,7 +91,6 @@ const SECOES: Secao[] = [
     itens: [
       { to: "/fabrica", rotulo: "Fábrica de agentes", icone: Factory, permissao: "editar_agentes" },
       { to: "/base", rotulo: "Conhecimento", icone: BookOpen },
-      { to: "/calibracao", rotulo: "Calibração", icone: ClipboardCheck },
       { to: "/observabilidade", rotulo: "Observabilidade", icone: Activity, permissao: "ver_banco" },
       { to: "/usuarios", rotulo: "Usuários e permissões", icone: UsersRound, permissao: "gerenciar_usuarios" },
     ],

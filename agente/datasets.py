@@ -1,18 +1,5 @@
-"""Gold e bad datasets de todos os agentes, a partir da Calibração (tabela avaliacoes_humanas).
-
-Uma avaliação só entra no dataset depois de APROVADA por um curador do painel:
-- gold: o gabarito. 👍 aprovado (a resposta do agente estava certa) ou 👎 aprovado com a resposta ideal
-  escrita pelo curador.
-- bad: a resposta original de um 👎 aprovado, o que o agente não pode repetir.
-
-Um 👎 aprovado entra nos dois: o gabarito é a resposta ideal e o erro é a resposta original. Os
-problemas marcados na avaliação viram regra de ferramenta: "deveria_transferir" exige a transferência e
-"nao_deveria_transferir" a proíbe. Vale para qualquer agente (coluna `agente`): o executor é
-testes/avaliacoes.py --agente <id>.
-
-Guardrail: cada pedido de manipulação barrado vira uma avaliação pendente com origem "guardrail". O
-curador aprova (era manipulação: o bloqueio vira caso gold) ou recusa (falso positivo: a frase que
-barrou precisa ser revista). As frases ficam na tabela guardrail_frases, editável pelo painel.
+"""Regras compartilhadas da avaliação dos agentes: as frases do guardrail de manipulação (guardrail_frases,
+editável pelo painel), a régua do juiz (DIRETRIZES, NOTA_MINIMA) e o texto esperado de um caso de teste.
 """
 
 import time
@@ -21,7 +8,7 @@ import re
 from datetime import datetime, timezone
 
 from agno.utils.log import log_warning
-from sqlalchemy import Boolean, Column, DateTime, Integer, MetaData, String, Table, insert, inspect, select, update
+from sqlalchemy import Boolean, Column, DateTime, Integer, MetaData, String, Table, insert, select, update
 
 TABELA_AVALIACOES = "avaliacoes_humanas"
 ORIGEM_GUARDRAIL = "guardrail"
@@ -49,9 +36,9 @@ CACHE_FRASES_S = 60  # uma frase editada no painel vale em até 1 minuto
 # agentes (agente/fabrica_recursos.py).
 NOTA_MINIMA = 7
 DIRETRIZES = (
-    "A resposta é de uma assistente virtual de atendimento por WhatsApp, em português. "
-    "Dê nota alta quando ela contém as informações e links esperados, respeita as proibições (os 'NÃO') e soa natural "
-    "e breve, como uma pessoa atenciosa no WhatsApp. Links errados, inventados ou ausentes, dado inventado ou "
+    "A resposta é de um agente de IA que trabalha com os servidores de uma Secretaria Municipal de Saúde, em português. "
+    "Dê nota alta quando ela contém as informações e links esperados, respeita as proibições (os 'NÃO') e soa clara "
+    "e objetiva, como um colega de trabalho atencioso. Links errados, inventados ou ausentes, dado inventado ou "
     "desrespeitar uma proibição derrubam a nota para 4 ou menos. Diferenças de redação e emojis não tiram pontos. "
     "O primeiro nome do contato e os dados do cadastro da secretaria que o agente consultou podem ser usados: não é dado inventado."
 )
@@ -111,65 +98,6 @@ def caso_da_avaliacao(a: dict) -> dict:
         "aprovado_por": a.get("revisada_por"),
         "aprovado_em": a.get("revisada_em"),
     }
-
-
-def casos(engine, schema: str | None, agente: str | None = None, tipo: str | None = None) -> list[dict]:
-    """Casos do dataset (avaliações aprovadas). `tipo`: "gold", "bad" ou None para todos."""
-    if not inspect(engine).has_table(TABELA_AVALIACOES, schema=schema):
-        return []
-    tabela = Table(TABELA_AVALIACOES, MetaData(schema=schema), autoload_with=engine)
-    consulta = select(tabela).where(tabela.c.situacao == "aprovada").order_by(tabela.c.id)
-    if agente:
-        consulta = consulta.where(tabela.c.agente == agente)
-    with engine.connect() as conexao:
-        linhas = [dict(l) for l in conexao.execute(consulta).mappings().all()]
-    todos = [caso_da_avaliacao(l) for l in linhas]
-    return [c for c in todos if not tipo or tipo in c["tipos"]]
-
-
-def resumo_por_agente(engine, schema: str | None) -> dict[str, dict]:
-    """Por agente: avaliações da equipe (sem as do guardrail) e a parcela aprovada com 👍, mais os
-    bloqueios do guardrail pendentes de curadoria. Para os indicadores e alertas da Central ao vivo."""
-    if not inspect(engine).has_table(TABELA_AVALIACOES, schema=schema):
-        return {}
-    tabela = Table(TABELA_AVALIACOES, MetaData(schema=schema), autoload_with=engine)
-    saida: dict[str, dict] = {}
-    with engine.connect() as conexao:
-        linhas = conexao.execute(select(tabela.c.agente, tabela.c.origem, tabela.c.nota, tabela.c.situacao)).all()
-    for agente, origem, nota, situacao in linhas:
-        dele = saida.setdefault(agente, {"avaliadas": 0, "positivas": 0, "guardrail_pendentes": 0})
-        if origem == ORIGEM_GUARDRAIL:
-            dele["guardrail_pendentes"] += situacao == "pendente"
-            continue
-        dele["avaliadas"] += 1
-        dele["positivas"] += nota == 1
-    for dele in saida.values():
-        dele["aprovacao"] = round(dele["positivas"] / dele["avaliadas"], 3) if dele["avaliadas"] else None
-    return saida
-
-
-def registrar_guardrail(engine, schema: str | None, agente: str, session_id: str, run_id: str,
-                        mensagem: str, resposta: str, telefone: str | None) -> int | None:
-    """Pedido barrado pelo guardrail, na fila do curador (avaliação pendente, origem "guardrail").
-    `mensagem` já mascarada. Sem a tabela (banco local de testes), não registra."""
-    try:
-        if not inspect(engine).has_table(TABELA_AVALIACOES, schema=schema):
-            return None
-        tabela = Table(TABELA_AVALIACOES, MetaData(schema=schema), autoload_with=engine)
-        agora = datetime.now(timezone.utc)
-        with engine.begin() as conexao:
-            return conexao.execute(insert(tabela).values(
-                criada_em=agora, agente=agente, origem=ORIGEM_GUARDRAIL, session_id=session_id, run_id=run_id,
-                historico=[{"papel": "contato", "texto": mensagem, "quando": agora.isoformat()},
-                           {"papel": "agente", "texto": resposta, "quando": agora.isoformat()}],
-                mensagem_contato=mensagem, resposta_agente=resposta, telefone=telefone,
-                nota=1,  # o bloqueio foi certo até o curador dizer o contrário (recusar = falso positivo)
-                problemas=[], comentario="Barrado pelo guardrail de manipulação.",
-                resposta_ideal=None, avaliador=ORIGEM_GUARDRAIL, situacao="pendente",
-            )).inserted_primary_key[0]
-    except Exception as erro:  # registrar nunca derruba o atendimento
-        log_warning(f"Guardrail: bloqueio não registrado na calibração: {type(erro).__name__}: {erro}")
-        return None
 
 
 # ───────── Frases do guardrail ─────────

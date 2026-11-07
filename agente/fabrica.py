@@ -32,7 +32,7 @@ from sqlalchemy import (JSON, Boolean, Column, DateTime, Integer, MetaData, Stri
                         select, text, update)
 from sqlalchemy.engine import Engine
 
-from agente import base, canal, fabrica_recursos, perfis
+from agente import base, fabrica_recursos, perfis
 from agente.ferramentas import criar_transferir, encerrar_atendimento
 from agente.instrucoes_agente import MARCADOR_BASE, InstrucoesDoAgente
 from agente.perfil import Perfil
@@ -47,16 +47,6 @@ OBRIGATORIA = "transferir_para_humano"  # todo agente precisa de saída para uma
 CATEGORIA_FIXA = ("outro", "Outro assunto")
 CORES = ("#3ccf5a", "#f2b51e", "#ef3b3b", "#e83e8c", "#2f80ff", "#8b5cf6", "#14c4d4", "#f28a1e")
 
-
-def no_canal(agente_id: str) -> bool:
-    """Atende o WhatsApp (Canal WhatsApp, agente/canal.py): é o atendente ou o agente dos leads do canal,
-    ou o padrão da equipe que é o atendente. Não sai do ar pela fábrica: o canal ficaria sem ninguém."""
-    from agente import equipes
-
-    atendente = canal.atendente()
-    if agente_id in (atendente, canal.leads()):
-        return True
-    return atendente in equipes.EQUIPES and equipes.obter(atendente)["padrao"] == agente_id
 
 FERRAMENTAS = {
     "consultar_secretaria": ("Consultar a secretaria",
@@ -340,8 +330,6 @@ def _como_dict(perfil: Perfil) -> dict:
         "minutos_inatividade": perfil.minutos_inatividade,
         "origem": perfil.origem,
         "publicado": perfil.publicado,
-        # Atende o WhatsApp: não pode ser desativado pela fábrica (no_canal).
-        "no_canal": no_canal(perfil.id),
         "versao_instrucoes": vigente["versao"] if vigente else 0,
         "atualizado_em": _iso(linha["atualizado_em"]) if linha else None,
         "atualizado_por": linha["atualizado_por"] if linha else None,
@@ -616,8 +604,6 @@ def alterar(agente_id: str, dados: dict, autor: str) -> Perfil:
 def publicar(agente_id: str, publicado: bool, autor: str) -> Perfil:
     if not perfis.existe(agente_id):
         raise ErroFabrica(404, f"Agente desconhecido: {agente_id}.")
-    if not publicado and no_canal(agente_id):
-        raise ErroFabrica(409, f"{perfis.identidade(agente_id)['nome']} está no Canal WhatsApp: troque quem atende ou quem recebe os leads antes de desativar.")
     with _trava:
         linha = _linha(agente_id)
         agora = _agora()
@@ -646,8 +632,6 @@ def excluir(agente_id: str, autor: str) -> tuple[Perfil, list[str]]:
         raise ErroFabrica(409, f"{nome} vem do código: dá para desativar, não para excluir.")
     if perfil.publicado:
         raise ErroFabrica(409, f"Desative {nome} antes de excluir.")
-    if agente_id in (canal.atendente(), canal.leads()):
-        raise ErroFabrica(409, f"{nome} está no Canal WhatsApp: troque quem atende ou quem recebe os leads antes de excluir.")
     padrao_de = equipes.com_padrao(agente_id)
     if padrao_de:
         raise ErroFabrica(409, f"{nome} é o padrão da equipe {', '.join(padrao_de)}: troque o padrão antes de excluir.")

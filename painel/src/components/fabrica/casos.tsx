@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { CheckCircle2, ChevronDown, ExternalLink, FlaskConical, Loader2, Pencil, Play, Plus, Save, Trash2, XCircle } from "lucide-react";
-import { Link } from "@tanstack/react-router";
-import { api, type AcaoEsperada, type AgenteFabrica, type CasoCalibracao, type CasoTeste, type ExecucaoCasos, type ResultadoCaso } from "@/lib/api";
+import { CheckCircle2, ChevronDown, FlaskConical, Loader2, Pencil, Play, Plus, Save, Trash2, XCircle } from "lucide-react";
+import { api, type AcaoEsperada, type AgenteFabrica, type CasoTeste, type ExecucaoCasos, type ResultadoCaso } from "@/lib/api";
 import { fmtDataHora } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -28,8 +27,7 @@ type CasoNovo = Omit<CasoTeste, "id">;
 
 /** De quem são os casos: um agente ou uma equipe (com os membros, para escolher quem deve responder). */
 export type AlvoCasos = Pick<AgenteFabrica, "id" | "nome" | "categorias"> & { membros?: { id: string; nome: string }[] };
-/** Os casos da fábrica e, só leitura, os do dataset aprovado na Calibração; rodam juntos. */
-type Resposta = { casos: CasoTeste[]; calibracao?: CasoCalibracao[]; execucoes: ExecucaoCasos[] };
+type Resposta = { casos: CasoTeste[]; execucoes: ExecucaoCasos[] };
 
 const chaveCasos = (agente: string) => ["fabrica-casos", agente];
 
@@ -44,13 +42,8 @@ export function CasosDoAgente({ agente }: { agente: AlvoCasos }) {
 
   const casos = dados.data?.casos ?? [];
   const execucoes = dados.data?.execucoes ?? [];
-  const calibracao = dados.data?.calibracao ?? [];
-  // A tabela mostra os dois tipos; os da Calibração depois dos da fábrica.
-  const linhas: ({ origem: "fabrica"; caso: CasoTeste } | { origem: "calibracao"; caso: CasoCalibracao })[] = [
-    ...casos.map((caso) => ({ origem: "fabrica" as const, caso })),
-    ...calibracao.map((caso) => ({ origem: "calibracao" as const, caso })),
-  ];
-  const ativos = casos.filter((c) => c.ativo).length + calibracao.length;
+  const linhas = casos;
+  const ativos = casos.filter((c) => c.ativo).length;
   const paginacao = usePaginacao(linhas);
 
   // Retoma o acompanhamento de uma execução que já estava rodando.
@@ -147,9 +140,7 @@ export function CasosDoAgente({ agente }: { agente: AlvoCasos }) {
             </TableHeader>
             <tbody>
               {linhas.length === 0 && <TableEmpty colSpan={5}>Nenhum caso ainda. Crie um ou peça sugestões à IA.</TableEmpty>}
-              {paginacao.itens.map((linha) => {
-                if (linha.origem === "calibracao") return <LinhaCalibracao key={linha.caso.id} caso={linha.caso} resultado={resultadoDe(linha.caso.id)} />;
-                const c = linha.caso;
+              {paginacao.itens.map((c) => {
                 const r = resultadoDe(c.id);
                 return (
                   <TableRow key={c.id} className={cn("group", !c.ativo && "opacity-60")}>
@@ -216,12 +207,6 @@ export function CasosDoAgente({ agente }: { agente: AlvoCasos }) {
           </Table>
         </TableWrapper>
         {linhas.length > 10 && <Paginacao {...paginacao} />}
-        {calibracao.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            Os casos com o selo Calibração vêm das avaliações aprovadas na tela Calibração: só leitura aqui. Passam com nota 7 ou mais, dada
-            por um avaliador automático contra a resposta esperada.
-          </p>
-        )}
       </SecaoPainel>
 
       {ultima && <Resultado execucao={ultima} membros={agente.membros} />}
@@ -266,7 +251,7 @@ const semId = ({ titulo, mensagem, contexto, esperado, ativo }: CasoTeste | Caso
 
 const fmtNota = (nota: number) => nota.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
 
-/** Passou ou falhou na última execução; nos casos da Calibração, com a nota (passa com 7). */
+/** Passou ou falhou na última execução (com a nota, quando houve juiz). */
 function SeloResultado({ resultado }: { resultado?: ResultadoCaso }) {
   if (!resultado) return <span className="text-xs text-muted-foreground">—</span>;
   return (
@@ -276,46 +261,6 @@ function SeloResultado({ resultado }: { resultado?: ResultadoCaso }) {
         {resultado.nota != null && ` · nota ${fmtNota(resultado.nota)}`}
       </Chip>
     </span>
-  );
-}
-
-/** Um caso da Calibração: só leitura, com o link para a avaliação de origem. */
-function LinhaCalibracao({ caso, resultado }: { caso: CasoCalibracao; resultado?: ResultadoCaso }) {
-  return (
-    <TableRow className="group">
-      <TableCell>
-        <Chip tom="primario">Calibração</Chip>
-      </TableCell>
-      <TableCell>
-        <div className="max-w-md font-semibold">{caso.titulo}</div>
-        <div className="line-clamp-1 max-w-md text-xs text-muted-foreground">“{caso.mensagens[caso.mensagens.length - 1]}”</div>
-        {caso.mensagens.length > 1 && <div className="text-[11px] text-muted-foreground">{caso.mensagens.length} mensagens na conversa</div>}
-      </TableCell>
-      <TableCell>
-        <p className="line-clamp-2 max-w-sm text-xs text-muted-foreground" title={caso.esperado_texto}>
-          {caso.esperado_texto}
-        </p>
-        {(caso.ferramentas_exigidas.length > 0 || caso.ferramentas_proibidas.length > 0) && (
-          <div className="mt-0.5 text-[11px] text-muted-foreground">
-            {caso.ferramentas_exigidas.length > 0 && `chama: ${caso.ferramentas_exigidas.join(", ")}`}
-            {caso.ferramentas_exigidas.length > 0 && caso.ferramentas_proibidas.length > 0 && " · "}
-            {caso.ferramentas_proibidas.length > 0 && `nunca chama: ${caso.ferramentas_proibidas.join(", ")}`}
-          </div>
-        )}
-      </TableCell>
-      <TableCell>
-        <SeloResultado resultado={resultado} />
-      </TableCell>
-      <TableCell className="sticky right-0 bg-card transition-colors group-hover:bg-muted">
-        <div className="flex justify-end">
-          <Button size="icon" variant="ghost" asChild title="Abrir a avaliação na Calibração">
-            <Link to="/calibracao" search={{ avaliacao: caso.avaliacao }} aria-label={`Abrir a avaliação ${caso.avaliacao}`}>
-              <ExternalLink />
-            </Link>
-          </Button>
-        </div>
-      </TableCell>
-    </TableRow>
   );
 }
 
@@ -352,7 +297,6 @@ function Resultado({ execucao, membros }: { execucao: ExecucaoCasos; membros?: A
                     <XCircle className="size-4 shrink-0 text-destructive" />
                   )}
                   <span className="flex-1 font-medium">{c.titulo}</span>
-                  {c.origem === "calibracao" && <Chip tom="primario">Calibração</Chip>}
                   {c.nota != null && <span className="num text-xs text-muted-foreground">nota {fmtNota(c.nota)}</span>}
                   {c.acao && <span className="text-xs text-muted-foreground">{ACAO[c.acao]}</span>}
                   {c.agente && membros && (
@@ -591,7 +535,7 @@ function FormCaso({
             onChange={(e) => setF({ ...f, titulo: e.target.value })}
           />
         </Campo>
-        <Campo rotulo="Mensagem do contato" ajuda="Como ele escreveria no WhatsApp.">
+        <Campo rotulo="Mensagem do contato" ajuda="Como o servidor escreveria no chat.">
           <Textarea rows={4} value={f.mensagem} maxLength={2000} onChange={(e) => setF({ ...f, mensagem: e.target.value })} />
         </Campo>
         <div className="grid gap-4 sm:grid-cols-2">

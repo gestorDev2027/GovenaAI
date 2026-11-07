@@ -16,7 +16,7 @@ from agno.models.google import Gemini
 from agno.utils.log import log_warning
 from dotenv import load_dotenv
 
-from agente import (alertas, ao_vivo, aprendizado, base, canal, conhecimento, equipes, fabrica, fabrica_recursos, gestao,
+from agente import (ao_vivo, aprendizado, base, conhecimento, equipes, fabrica, fabrica_recursos, gestao,
                     guardrails, perfis, usuarios)
 from agente.ferramentas import STATUS_EM_ATENDIMENTO
 from agente.listas import PostgresDbAgente
@@ -178,8 +178,6 @@ def criar_agentes(arquivo_banco: str | None = None) -> dict[str, Agent]:
     fabrica.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # o que foi salvo no painel
     equipes.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)
     usuarios.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # quem pode o quê no painel
-    canal.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # quem atende pela Unnichat
-    alertas.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # baixas dos alertas da Central
     gestao.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # o cadastro da prefeitura
     _indexar_roteiros(em_segundo_plano=True)  # o servidor sobe sem esperar os embeddings
     agentes = {perfil_id: montar_agente(perfil, banco) for perfil_id, perfil in perfis.PERFIS.items()}

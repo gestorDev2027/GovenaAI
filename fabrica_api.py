@@ -1,12 +1,10 @@
 """Rotas da fábrica de agentes (/painel/api/fabrica): criar agentes e ajustar os atuais pelo painel.
 
 As regras e o banco ficam em agente/fabrica.py; aqui, a autenticação do painel, a permissão de escrita
-(só curadores, PAINEL_CURADORES, como na Calibração) e a remontagem do Agent depois de cada gravação,
-para a mudança valer na mensagem seguinte sem reiniciar o servidor.
+(agente/usuarios.py) e a remontagem do Agent depois de cada gravação, para a mudança valer na mensagem
+seguinte sem reiniciar o servidor.
 
-Também aqui: o canal WhatsApp (/canal: quem atende pela Unnichat, a porta do lead e as tags que calam o
-agente; agente/canal.py), skills, ferramentas HTTP do painel, casos de teste e o assistente de IA que
-escreve rascunhos (agente/fabrica_recursos.py e agente/assistente_fabrica.py). Editar uma skill ou uma
+Também aqui: skills, ferramentas HTTP do painel, casos de teste e o assistente de IA que escreve rascunhos (agente/fabrica_recursos.py e agente/assistente_fabrica.py). Editar uma skill ou uma
 ferramenta remonta os agentes que a usam.
 
 A base de conhecimento de cada agente continua em /painel/api/base?agente=<id>, os documentos em
@@ -19,11 +17,10 @@ from agno.agent import Agent
 from fastapi import APIRouter, Cookie, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from agente import assistente_fabrica, base, canal, equipes, fabrica, fabrica_recursos, perfis
+from agente import assistente_fabrica, base, equipes, fabrica, fabrica_recursos, perfis
 from agente.agente import _indexar_em_segundo_plano, montar_agente
 from agente.perfil import Perfil
-from calibracao_api import _negado, _pode, _quem
-from painel_api import exigir_chave
+from painel_api import _negado, _pode, _quem, exigir_chave
 
 
 class CamposAgente(BaseModel):
@@ -69,16 +66,6 @@ class EquipeCampos(BaseModel):
 
 class EquipeNova(EquipeCampos):
     id: str = Field(max_length=60)
-
-
-class CanalCampos(BaseModel):
-    atendente: str = Field(max_length=60)
-    leads: str = Field(default="", max_length=60)
-    tags_sem_agente: list[str] = Field(default_factory=list, max_length=100)
-    horas_pessoa: int = Field(default=24, ge=0, le=168)
-    somente_pipeline: bool = True
-    dias_comercial: int = Field(default=7, ge=0, le=60)
-    pela_tag: bool = False
 
 
 class TextoInstrucoes(BaseModel):
@@ -146,7 +133,7 @@ class PedidoAssistente(BaseModel):
 
 def criar_rotas_fabrica(agentes: dict[str, Agent], ao_mudar: Callable[[Agent], None] | None = None,
                         ao_mudar_equipe: Callable | None = None) -> APIRouter:
-    """`agentes` é o dicionário do servidor (o mesmo que o painel e a Unnichat usam): a fábrica troca
+    """`agentes` é o dicionário do servidor (o mesmo que o painel usa): a fábrica troca
     nele o Agent remontado. As equipes ficam em equipes.EQUIPES. `ao_mudar` e `ao_mudar_equipe` avisam
     quem mais guarda agentes e equipes (as listas do AgentOS)."""
     banco = next(iter(agentes.values())).db
@@ -162,7 +149,7 @@ def criar_rotas_fabrica(agentes: dict[str, Agent], ao_mudar: Callable[[Agent], N
     def _executar(acao: Callable[[], object]):
         try:
             return acao()
-        except (fabrica.ErroFabrica, fabrica_recursos.ErroRecurso, equipes.ErroEquipe, canal.ErroCanal) as erro:
+        except (fabrica.ErroFabrica, fabrica_recursos.ErroRecurso, equipes.ErroEquipe) as erro:
             raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
 
     def _remontar_quem_usa(campo: str, recurso_id: str) -> list[str]:
@@ -378,10 +365,9 @@ def criar_rotas_fabrica(agentes: dict[str, Agent], ao_mudar: Callable[[Agent], N
 
     @rotas.get("/agentes/{agente_id}/casos")
     def listar_casos(agente_id: str) -> dict:
-        """Os casos da fábrica (editáveis aqui) e os do dataset da Calibração (só leitura): a execução roda os dois."""
+        """Os casos de teste do agente e as últimas execuções."""
         _agente(agente_id)
-        return {"casos": fabrica_recursos.listar_casos(agente_id), "calibracao": fabrica_recursos.casos_da_calibracao(agente_id),
-                "execucoes": fabrica_recursos.execucoes(agente_id, 5)}
+        return {"casos": fabrica_recursos.listar_casos(agente_id), "execucoes": fabrica_recursos.execucoes(agente_id, 5)}
 
     @rotas.post("/agentes/{agente_id}/casos", status_code=201)
     def criar_caso(agente_id: str, pedido: CasoCampos, painel_sessao: str | None = Cookie(default=None)) -> dict:
@@ -439,7 +425,7 @@ def criar_rotas_fabrica(agentes: dict[str, Agent], ao_mudar: Callable[[Agent], N
 
     @rotas.delete("/equipes/{equipe_id}", status_code=204)
     def excluir_equipe(equipe_id: str, painel_sessao: str | None = Cookie(default=None)) -> None:
-        """Exclusão lógica (equipe inativa e fora do Canal WhatsApp): sai da Unnichat e das listas na hora."""
+        """Exclusão lógica (equipe inativa): sai das listas na hora."""
         quem = _curador(painel_sessao, "excluir")
         _executar(lambda: equipes.excluir(equipe_id, quem))
 
@@ -449,22 +435,6 @@ def criar_rotas_fabrica(agentes: dict[str, Agent], ao_mudar: Callable[[Agent], N
         equipe = _executar(lambda: equipes.publicar(equipe_id, pedido.publicado, quem))
         _remontar_equipe(equipe_id)  # publicada, a recepção passa a escolher só entre os agentes publicados
         return equipe
-
-    # ───────── Canal WhatsApp (quem atende pela Unnichat) ─────────
-
-    @rotas.get("/canal")
-    def obter_canal() -> dict:
-        return canal.obter()
-
-    @rotas.get("/canal/historico")
-    def historico_canal() -> dict:
-        return {"versoes": canal.historico()}
-
-    @rotas.put("/canal")
-    def alterar_canal(pedido: CanalCampos, painel_sessao: str | None = Cookie(default=None)) -> dict:
-        """Vale na mensagem seguinte. Trocar quem atende é pôr no ar: pede a permissão de publicar."""
-        quem = _curador(painel_sessao, "publicar")
-        return _executar(lambda: canal.alterar(pedido.model_dump(), quem))
 
     # ───────── Assistente de IA ─────────
 

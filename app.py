@@ -26,7 +26,7 @@ for _saida in (sys.stdout, sys.stderr):
 from agno.os import AgentOS
 from agno.os.config import AuthorizationConfig
 from agno.scheduler import ScheduleManager
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -34,13 +34,11 @@ from agente import companyos, demo, perfis
 from agente.equipes import EQUIPES
 from agente.agente import _modelo, criar_agentes, montar_agente
 from banco_api import criar_rotas_banco
-from calibracao_api import criar_rotas_calibracao
 from conhecimento_api import criar_rotas_conhecimento
 from fabrica_api import criar_rotas_fabrica
 from gestao_api import criar_rotas_gestao
 from prefeitura_api import criar_rotas_prefeitura
 from painel_api import criar_rotas
-from qualidade_api import criar_rotas_qualidade
 
 PASTA_PAINEL = Path(__file__).parent / "painel" / "dist"
 PORTA = int(os.getenv("PORT") or os.getenv("AGENTOS_PORTA") or "7778")
@@ -59,8 +57,8 @@ agente = agentes[perfis.PADRAO]
 for _novo in demo.semear():
     agentes[_novo] = montar_agente(perfis.PERFIS[_novo], agente.db)
 
-# Sem a telemetria por requisição do FastAPI: ela gravava um trace a cada chamada (a rotina de
-# inatividade, a cada minuto, era 98% dos traces) e herdava o `traceparent` de quem chama. Os traces
+# Sem a telemetria por requisição do FastAPI: ela gravava um trace a cada chamada e herdava o `traceparent`
+# de quem chama. Os traces
 # que importam são os das respostas do agente, gravados pelo Agno (ver atendimento._trace_proprio).
 base_app = FastAPI(
     title="GestorGov — Gestão Pública Inteligente",
@@ -69,10 +67,8 @@ base_app = FastAPI(
 base_app.include_router(criar_rotas(agente, agentes))
 base_app.include_router(criar_rotas_gestao())
 base_app.include_router(criar_rotas_prefeitura())
-base_app.include_router(criar_rotas_calibracao(agentes))
 base_app.include_router(criar_rotas_conhecimento(agentes))
 base_app.include_router(criar_rotas_banco(agentes))
-base_app.include_router(criar_rotas_qualidade(agentes))
 
 
 def _trocar_no_agentos(novo) -> None:
@@ -133,35 +129,22 @@ if PASTA_PAINEL.exists():
 
     @base_app.get("/painel/{caminho:path}", include_in_schema=False)
     def painel(caminho: str):
-        # Arquivo público (favicon etc.) ou rota da aplicação (devolve o index.html).
+        # Arquivo público (favicon etc.) ou rota da aplicação (devolve o index.html). Rota de API que não existe
+        # é 404, não a página: a tela não pode tomar o HTML por uma resposta vazia.
+        if caminho.startswith("api/"):
+            raise HTTPException(status_code=404, detail="Rota não encontrada.")
         arquivo = (PASTA_PAINEL / caminho).resolve()
         if caminho and arquivo.is_file() and PASTA_PAINEL.resolve() in arquivo.parents:
             return FileResponse(arquivo, headers=SEM_CACHE)
         return FileResponse(PASTA_PAINEL / "index.html", headers=SEM_CACHE)
 
-# Rotinas de manutenção (idempotentes a cada reinício). As rotinas dos SETORES são do CompanyOS.
-ScheduleManager(agente.db).create(
-    name="encerrar-conversas-inativas",
-    description="Encerra as conversas paradas há mais que o prazo de cada agente (padrão: 8 h).",
-    cron="*/10 * * * *",
-    endpoint="/painel/api/manutencao/inatividade",
-    method="POST",
-    timeout_seconds=120,
-    if_exists="update",
-)
-# Avaliações automáticas todo dia (resultados na tela Evaluation). AVALIACOES_DIARIAS=nao desliga.
-ScheduleManager(agente.db).create(
-    name="avaliacoes-diarias",
-    description="Roda as avaliações dos agentes (casos de teste da fábrica + aprovados na Calibração) num processo separado.",
-    cron=os.getenv("AVALIACOES_CRON", "0 6 * * *"),
-    timezone="America/Sao_Paulo",
-    endpoint="/painel/api/manutencao/avaliacoes",
-    method="POST",
-    timeout_seconds=60,
-    if_exists="update",
-)
+# Rotinas de manutenção (idempotentes a cada reinício). As herdadas do NexaAgents saem do banco.
+_rotinas = ScheduleManager(agente.db)
+for _antiga in _rotinas.list() or []:
+    if getattr(_antiga, "name", None) in ("encerrar-conversas-inativas", "avaliacoes-diarias"):
+        _rotinas.delete(_antiga.id)
 # Limpeza diária dos traces e execuções antigas de rotinas.
-ScheduleManager(agente.db).create(
+_rotinas.create(
     name="limpeza",
     description="Apaga traces e execuções de rotinas antigas.",
     cron="0 3 * * *",

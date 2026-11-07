@@ -7,11 +7,10 @@ import { fmtDataHora, fmtInt } from "@/lib/formato";
 import { dividir, tipoDaSecao } from "@/lib/roteiro";
 import { cn } from "@/lib/utils";
 import { Abas, EmptyState, PageHeader, PageLoader, Pills } from "@/components/widgets/widgets";
-import { useOpcoesCalibracao } from "@/components/calibracao/avaliar-resposta";
+import { useAgentes } from "@/hooks/use-agentes";
 import { Documentos } from "@/components/conhecimento/documentos";
 import { TabelaBases } from "@/components/conhecimento/bases";
 import { chaveBase, TabelaHistorico, TabelaSecoes } from "@/components/conhecimento/roteiro";
-import { PainelSugestoes } from "@/components/conhecimento/sugestoes";
 
 type Aba = "roteiro" | "documentos" | "historico" | "bases";
 
@@ -25,10 +24,9 @@ const MENSAGENS = ["Boas-vindas", "Encerramento por inatividade", "Pedido fora d
 export function BaseConhecimento() {
   const navigate = useNavigate();
   const pedido = useSearch({ from: "/protegido/painel/base" });
-  const agentes = useOpcoesCalibracao().data?.agentes ?? [];
+  const agentes = useAgentes();
   const agente = pedido.agente ?? AGENTE_PADRAO;
   const [aba, setAba] = useState<Aba>("roteiro");
-  const [atualizarComIA, setAtualizarComIA] = useState(false);
   const base = useQuery({ queryKey: chaveBase(agente), queryFn: () => api<Base>(`/base?agente=${encodeURIComponent(agente)}`) });
 
   const nomeAgente = agentes.find((a) => a.id === agente)?.nome ?? agente;
@@ -107,9 +105,8 @@ export function BaseConhecimento() {
           />
 
           {aba === "roteiro" && (
-            <TabelaSecoes key={agente} agente={agente} base={base.data} nomeAgente={nomeAgente} aoAtualizarComIA={() => setAtualizarComIA(true)} />
+            <TabelaSecoes key={agente} agente={agente} base={base.data} nomeAgente={nomeAgente} />
           )}
-          <PainelSugestoes modoAjuste aberto={atualizarComIA} dono={agente} aoFechar={() => setAtualizarComIA(false)} />
           {aba === "documentos" && <Documentos agente={agente} />}
           {aba === "historico" && <TabelaHistorico agente={agente} />}
           {aba === "bases" && <TabelaBases />}
