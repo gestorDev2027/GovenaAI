@@ -23,7 +23,7 @@ const OMBRO_X = 0.22;
 const BRACO = 0.27;
 const ANTEBRACO = 0.25;
 const FRENTE = 0.1;
-const ALERTA = "#f59e0b";
+const ALERTA = "#F4B800";
 const lerp = THREE.MathUtils.lerp;
 
 // A tela do rosto: 256 × 160 px, desenhada a até 12 quadros por segundo e só quando muda.
@@ -200,7 +200,7 @@ export function RoboAgente({
       vidro: new THREE.MeshPhysicalMaterial({ color: "#05080d", roughness: 0.08, metalness: 0.2, clearcoat: 1, clearcoatRoughness: 0.05 }),
       rosto: new THREE.MeshBasicMaterial({ map: tela.textura, toneMapped: false }),
       logo: new THREE.MeshBasicMaterial({ map: logo, transparent: true, toneMapped: false }),
-      pasta: new THREE.MeshStandardMaterial({ color: "#f7931e", roughness: 0.6 }),
+      pasta: new THREE.MeshStandardMaterial({ color: "#F4B800", roughness: 0.6 }),
       papel: new THREE.MeshStandardMaterial({ color: "#f8fafc", roughness: 0.8 }),
     }),
     [cor, logo, tela],

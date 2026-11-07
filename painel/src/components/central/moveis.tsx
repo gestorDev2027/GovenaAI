@@ -5,19 +5,19 @@ import * as THREE from "three";
 
 /*
  * Móveis e acabamento da central, no estilo de um prédio de secretaria: piso de
- * concreto, divisórias de vidro com perfil preto, painel de madeira, estações brancas com divisória
+ * concreto, divisórias de vidro com perfil preto, painel ripado azul-marinho, estações brancas com divisória
  * azul de tecido e dois monitores, cadeiras pretas de tela e luminárias lineares penduradas.
  */
 
 export const PALETAS = {
   escuro: {
-    piso: "#3b414b", juntas: "#474e59", parede: "#2a3240", vidro: "#9db6d0", perfil: "#0c0f14", madeira: "#9a6640",
+    piso: "#3b414b", juntas: "#474e59", parede: "#2a3240", vidro: "#9db6d0", perfil: "#0c0f14", madeira: "#1B3566",
     mesa: "#eef1f5", pernaMesa: "#c9cfd8", divisoria: "#4769a0", monitor: "#0b0e13", telaApagada: "#1c2533",
     cadeira: "#1a1d23", cadeiraDetalhe: "#323843", planta: "#3fb57e", plantaEscura: "#2f9466", vaso: "#e5e7eb",
     luminaria: "#f8fafc", luzAmbiente: 0.9, luzSol: 1.75, ceu: "#d6e0ff", chao: "#20242c",
   },
   claro: {
-    piso: "#d2d5da", juntas: "#c2c6cc", parede: "#f2f3f5", vidro: "#b7cbe0", perfil: "#1d2127", madeira: "#b07a4a",
+    piso: "#d2d5da", juntas: "#c2c6cc", parede: "#f2f3f5", vidro: "#b7cbe0", perfil: "#1d2127", madeira: "#2B4C86",
     mesa: "#ffffff", pernaMesa: "#d6dae0", divisoria: "#5677a1", monitor: "#101317", telaApagada: "#283140",
     cadeira: "#1b1e24", cadeiraDetalhe: "#3a3f48", planta: "#3aa874", plantaEscura: "#2b8a5e", vaso: "#ffffff",
     luminaria: "#ffffff", luzAmbiente: 0.82, luzSol: 1.3, ceu: "#ffffff", chao: "#cfd6e2",
@@ -251,7 +251,7 @@ export function SalaReuniao({ p }: { p: Paleta }) {
   );
 }
 
-/** Painel de ripas de madeira com a TV grande, na parede lateral (eixo z). */
+/** Painel ripado azul-marinho com a TV grande, na parede lateral (eixo z). */
 export function PainelMadeira({ p, profundidade }: { p: Paleta; profundidade: number }) {
   const ripas = Math.floor(profundidade / 0.22);
   return (
@@ -355,7 +355,7 @@ export function Rack() {
   );
 }
 
-const LOMBADAS = ["#ef4444", "#3b82f6", "#f59e0b", "#10b981", "#8b5cf6", "#f97316", "#0ea5e9", "#e11d48"];
+const LOMBADAS = ["#ef4444", "#3b82f6", "#F4B800", "#10b981", "#8b5cf6", "#1A63D8", "#0ea5e9", "#e11d48"];
 
 /** Estante de livros (ou de pastas), de frente para +z. */
 export function Estante({ p, largura = 1.8 }: { p: Paleta; largura?: number }) {
@@ -403,7 +403,7 @@ export function TvAula() {
 
 const RABISCOS: [string, number, number, number][] = [
   ["#3b82f6", -0.6, 0.3, 0.9],
-  ["#f7931e", 0.2, 0.05, 1.3],
+  ["#F4B800", 0.2, 0.05, 1.3],
   ["#10b981", -0.3, -0.25, 1.1],
 ];
 
@@ -469,7 +469,7 @@ export function CaixaDePastas({ quantidade }: { quantidade: number }) {
       {Array.from({ length: Math.min(quantidade, 12) }, (_, i) => (
         <mesh key={i} position={[(i % 2) * 0.02, 0.93 + i * 0.035, 0]} rotation={[0, (i % 3) * 0.08, 0]} castShadow>
           <boxGeometry args={[0.42, 0.03, 0.32]} />
-          <meshStandardMaterial color="#f7931e" />
+          <meshStandardMaterial color="#F4B800" />
         </mesh>
       ))}
     </group>
@@ -555,8 +555,8 @@ export function Copa() {
 const PAPELAO = "#c49a6c";
 const PAPELAO_ESCURO = "#ad8456";
 const FITA = "#e2c391";
-// Capas dos cadernos e pastas (laranja e azul-marinho).
-const CAPAS = ["#f7931e", "#14295a"];
+// Capas dos cadernos e pastas (amarelo e azul da marca).
+const CAPAS = ["#F4B800", "#1A63D8"];
 
 /** Caixa de papelão fechada: fita em cima e etiqueta branca na frente (+z). */
 export function CaixaPapelao({ tamanho = [0.5, 0.36, 0.4], escura = false, etiqueta = true }: { tamanho?: [number, number, number]; escura?: boolean; etiqueta?: boolean }) {
@@ -737,7 +737,7 @@ export function BancadaExpedicao({ p }: { p: Paleta }) {
         {Array.from({ length: 5 }, (_, i) => (
           <mesh key={i} ref={i === 2 ? etapaAtual : undefined} position={[-0.18 + i * 0.09, 0.36, 0.021]}>
             <circleGeometry args={[0.022, 16]} />
-            <meshBasicMaterial color={i < 2 ? "#22c55e" : i === 2 ? "#f59e0b" : "#64748b"} />
+            <meshBasicMaterial color={i < 2 ? "#22c55e" : i === 2 ? "#F4B800" : "#64748b"} />
           </mesh>
         ))}
       </group>

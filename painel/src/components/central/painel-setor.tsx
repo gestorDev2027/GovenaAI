@@ -108,8 +108,8 @@ export function PainelSetor({
         <div className="grid grid-cols-2 gap-2">
           <Indicador icone={<Headset />} rotulo="Em atendimento" valor={fmtInt(soma((a) => a.indicadores?.em_atendimento ?? 0))} detalhe={`${fmtInt(soma((a) => a.indicadores?.conversando_agora ?? 0))} conversando agora`} cor={cor} />
           <Indicador icone={<MessagesSquare />} rotulo={`Conversas · ${periodo}`} valor={fmtInt(conversas)} cor="#8b5cf6" />
-          <Indicador icone={<Clock3 />} rotulo="Tempo de resposta" valor={tempos.length ? fmtSegundos(tempos.reduce((x, y) => x + y, 0) / tempos.length) : "—"} detalhe="média dos agentes" cor="#f59e0b" />
-          <Indicador icone={<Users />} rotulo={`Transferidas · ${periodo}`} valor={fmtInt(transferidas)} cor="#f7931e" />
+          <Indicador icone={<Clock3 />} rotulo="Tempo de resposta" valor={tempos.length ? fmtSegundos(tempos.reduce((x, y) => x + y, 0) / tempos.length) : "—"} detalhe="média dos agentes" cor="#F4B800" />
+          <Indicador icone={<Users />} rotulo={`Transferidas · ${periodo}`} valor={fmtInt(transferidas)} cor="#F4B800" />
         </div>
         <div className="flex justify-around rounded-2xl border border-border bg-background/40 py-3">
           <Anel valor={conversas ? 1 - transferidas / conversas : null} cor="#22c55e" rotulo="Resolvidas sem humano" />

@@ -129,7 +129,7 @@ export function MetricasCentral({
     <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
       <Indicador icone={<Headset />} rotulo="Em atendimento" valor={fmtInt(ativas.length)} detalhe={`${fmtInt(ativas.filter(conversandoAgora).length)} conversando agora`} cor="#3b82f6" />
       <Indicador icone={<MessageSquare />} rotulo={`Conversas · ${periodo}`} valor={fmtInt(todas.length)} detalhe={`${fmtInt(mensagens)} mensagens`} cor="#0ea5e9" />
-      <Indicador icone={<Users />} rotulo={`Transferidas · ${periodo}`} valor={fmtInt(transferidas)} detalhe={`${pct(todas.length ? transferidas / todas.length : null)} das conversas`} cor="#f7931e" />
+      <Indicador icone={<Users />} rotulo={`Transferidas · ${periodo}`} valor={fmtInt(transferidas)} detalhe={`${pct(todas.length ? transferidas / todas.length : null)} das conversas`} cor="#F4B800" />
       <Indicador
         icone={<CheckCircle2 />}
         rotulo={`Encerradas · ${periodo}`}

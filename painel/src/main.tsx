@@ -24,6 +24,7 @@ import { Usuarios } from "@/pages/usuarios";
 import { Observabilidade } from "@/pages/observabilidade";
 import { Central } from "@/pages/central";
 import { PainelGestao } from "@/pages/gestao";
+import { Cidade } from "@/pages/cidade";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,6 +61,7 @@ const painel = createRoute({
 
 const rotas = [
   createRoute({ getParentRoute: () => painel, path: "/", component: VisaoGeral }),
+  createRoute({ getParentRoute: () => painel, path: "/cidade", component: Cidade }),
   createRoute({
     getParentRoute: () => painel,
     path: "/conversas",

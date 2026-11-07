@@ -17,14 +17,14 @@ export const SETORES: Record<SetorId, Setor> = {
   recepcao: { nome: "Recepção", descricao: "Onde chegam os pedidos dos servidores e de onde saem as respostas.", cor: "#22c55e" },
   secretaria: { nome: "Cadastro da secretaria", descricao: "Consultas ao cadastro da prefeitura: setores, responsáveis, atividades e unidades.", cor: "#0ea5e9" },
   fontes: { nome: "Fontes públicas", descricao: "Buscas no IBGE, ViaCEP, OpenStreetMap e CNES para montar a secretaria.", cor: "#a855f7" },
-  base: { nome: "Base de conhecimento", descricao: "Roteiro, documentos e exemplos aprovados que os agentes consultam.", cor: "#f59e0b" },
+  base: { nome: "Base de conhecimento", descricao: "Roteiro, documentos e exemplos aprovados que os agentes consultam.", cor: "#52A2FF" },
   implantacao: {
     nome: "Implantação",
     descricao: "Onde a secretaria é montada: município, unidades, setores, responsáveis e agentes gravados no cadastro.",
     cor: "#ec4899",
   },
   catalogo: { nome: "Catálogo de atividades", descricao: "Os tipos de setor e as atividades sugeridas para cada um.", cor: "#10b981" },
-  equipe: { nome: "Equipe humana", descricao: "As conversas transferidas: o agente leva a pasta até os responsáveis.", cor: "#f7931e" },
+  equipe: { nome: "Equipe humana", descricao: "As conversas transferidas: o agente leva a pasta até os responsáveis.", cor: "#F4B800" },
 };
 
 const DA_SECRETARIA = new Set(["consultar_secretaria", "listar_unidades", "situacao_implantacao"]);

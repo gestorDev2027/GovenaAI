@@ -86,8 +86,8 @@ export function PainelAgente({
         <div className="grid grid-cols-2 gap-2">
           <Indicador icone={<Headset />} rotulo="Em atendimento" valor={fmtInt(ind?.em_atendimento ?? ativas.length)} detalhe={`${fmtInt(ind?.conversando_agora ?? 0)} conversando agora`} cor={cor} />
           <Indicador icone={<MessagesSquare />} rotulo={`Conversas · ${periodo}`} valor={fmtInt(ind?.conversas ?? agente.conversas.length)} cor="#8b5cf6" />
-          <Indicador icone={<Clock3 />} rotulo="Tempo de resposta" valor={ind?.tempo_medio_resposta_s != null ? fmtSegundos(ind.tempo_medio_resposta_s) : "—"} cor="#f59e0b" />
-          <Indicador icone={<Users />} rotulo={`Transferidas · ${periodo}`} valor={fmtInt(transferidas)} cor="#f7931e" />
+          <Indicador icone={<Clock3 />} rotulo="Tempo de resposta" valor={ind?.tempo_medio_resposta_s != null ? fmtSegundos(ind.tempo_medio_resposta_s) : "—"} cor="#F4B800" />
+          <Indicador icone={<Users />} rotulo={`Transferidas · ${periodo}`} valor={fmtInt(transferidas)} cor="#F4B800" />
         </div>
         <div className="flex justify-around rounded-2xl border border-border bg-background/40 py-3">
           <Anel valor={ind?.transferencia_pct != null ? 1 - ind.transferencia_pct : null} cor="#22c55e" rotulo="Resolvidas sem humano" />
@@ -106,7 +106,7 @@ export function PainelAgente({
           <Barras
             itens={[
               { rotulo: "Em atendimento", valor: ativas.length, cor: "#3b82f6" },
-              { rotulo: "Transferidas", valor: transferidas, cor: "#f7931e" },
+              { rotulo: "Transferidas", valor: transferidas, cor: "#F4B800" },
               { rotulo: "Encerradas", valor: encerradas, cor: "#10b981" },
             ]}
             vazio="Nenhuma conversa no período."
@@ -118,7 +118,7 @@ export function PainelAgente({
           <div className="space-y-0.5">
             {ativas.slice(0, 10).map((c) => (
               <button key={c.id} type="button" onClick={() => aoAbrirConversa(c.id)} className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-muted/60">
-                <CheckCircle2 className="size-3.5 shrink-0" style={{ color: c.parada_ha_s != null && c.parada_ha_s <= 120 ? "#22c55e" : "#f59e0b" }} />
+                <CheckCircle2 className="size-3.5 shrink-0" style={{ color: c.parada_ha_s != null && c.parada_ha_s <= 120 ? "#22c55e" : "#F4B800" }} />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-semibold">{c.nome || "Servidor sem nome"}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">{c.ultima_mensagem || "—"}</span>

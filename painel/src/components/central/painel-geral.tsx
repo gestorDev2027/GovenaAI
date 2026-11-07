@@ -60,7 +60,7 @@ export function PainelGeral({
       <div className="thin-scroll min-h-0 flex-1 space-y-4 overflow-y-auto p-3">
         <div className="grid grid-cols-2 gap-2">
           <Indicador icone={<Headset />} rotulo="Em atendimento" valor={fmtInt(ativas.length)} detalhe={`${fmtInt(ativas.filter(conversandoAgora).length)} conversando agora`} cor="#3b82f6" />
-          <Indicador icone={<Users />} rotulo={`Transferidas · ${periodo}`} valor={fmtInt(todas.filter((c) => c.transferida_no_periodo).length)} cor="#f7931e" />
+          <Indicador icone={<Users />} rotulo={`Transferidas · ${periodo}`} valor={fmtInt(todas.filter((c) => c.transferida_no_periodo).length)} cor="#F4B800" />
           <Indicador icone={<CheckCircle2 />} rotulo={`Encerradas · ${periodo}`} valor={fmtInt(todas.filter((c) => c.encerrada_no_periodo).length)} cor="#10b981" />
           <Indicador icone={<Clock3 />} rotulo="Tempo de resposta" valor={tempos.length ? fmtSegundos(tempos.reduce((a, b) => a + b, 0) / tempos.length) : "—"} cor="#8b5cf6" />
         </div>

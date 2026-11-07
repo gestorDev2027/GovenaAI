@@ -11,13 +11,14 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
+  Briefcase,
   ClipboardCheck,
   Factory,
   ExternalLink,
-  GraduationCap,
-  House,
   LayoutDashboard,
+  LayoutGrid,
   LogOut,
+  MapPinned,
   Menu,
   MessagesSquare,
   Moon,
@@ -36,7 +37,7 @@ import { Logo, LogoIcone } from "./logo";
  * Casco do painel: menu lateral, barra do topo e o conteúdo.
  *
  * Em tela larga o menu é uma coluna de altura total, separada do conteúdo por uma borda fina; títulos
- * de seção em laranja, caixa alta, e o item ativo com degradê e um marcador luminoso à esquerda. No
+ * de seção em azul, caixa alta, e o item ativo com degradê e um marcador luminoso à esquerda. No
  * tablet (768–1024) fica recolhido e o botão redondo abre a gaveta; no celular vira barra fina com
  * gaveta. A gaveta reusa a mesma lista (duas listas em paralelo divergem no primeiro item acrescentado
  * num lugar só).
@@ -55,30 +56,32 @@ type Item = {
 // O ícone da SEÇÃO só aparece no menu recolhido e nunca repete o de um item da própria seção.
 type Secao = { titulo: string; icone: ComponentType<{ className?: string }>; itens: Item[] };
 
+// As três visões do GestorGov (Cidade, Secretaria e Painel), o trabalho do dia a dia e a configuração.
 const SECOES: Secao[] = [
   {
-    titulo: "Geral",
-    icone: House,
+    titulo: "Visões",
+    icone: LayoutGrid,
     itens: [
-      { to: "/", rotulo: "Visão geral", icone: LayoutDashboard },
-      { to: "/central", rotulo: "Central ao vivo", icone: Building2, novaAba: true },
+      { to: "/cidade", rotulo: "Cidade", icone: MapPinned },
+      { to: "/central", rotulo: "Secretaria", icone: Building2, novaAba: true },
+      { to: "/", rotulo: "Painel", icone: LayoutDashboard },
+    ],
+  },
+  {
+    titulo: "Trabalho",
+    icone: Briefcase,
+    itens: [
+      { to: "/chat", rotulo: "Chat com os agentes", icone: Bot, permissao: "usar_chat" },
       { to: "/conversas", rotulo: "Conversas", icone: MessagesSquare },
-      { to: "/chat", rotulo: "Chat de teste", icone: Bot, permissao: "usar_chat" },
     ],
   },
   {
-    titulo: "Treinamento",
-    icone: GraduationCap,
-    itens: [
-      { to: "/fabrica", rotulo: "Fábrica de agentes", icone: Factory, permissao: "editar_agentes" },
-      { to: "/calibracao", rotulo: "Calibração", icone: ClipboardCheck },
-      { to: "/base", rotulo: "Conhecimento", icone: BookOpen },
-    ],
-  },
-  {
-    titulo: "Gestão",
+    titulo: "Configuração",
     icone: SlidersHorizontal,
     itens: [
+      { to: "/fabrica", rotulo: "Fábrica de agentes", icone: Factory, permissao: "editar_agentes" },
+      { to: "/base", rotulo: "Conhecimento", icone: BookOpen },
+      { to: "/calibracao", rotulo: "Calibração", icone: ClipboardCheck },
       { to: "/observabilidade", rotulo: "Observabilidade", icone: Activity, permissao: "ver_banco" },
       { to: "/usuarios", rotulo: "Usuários e permissões", icone: UsersRound, permissao: "gerenciar_usuarios" },
     ],
@@ -146,7 +149,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     <div className="bi-shell flex h-svh w-full overflow-hidden bg-background text-foreground">
       {/* Celular: barra fina */}
       <div className="fixed inset-x-0 top-0 z-40 flex h-14 items-center justify-between border-b border-sidebar-border/70 bg-sidebar/95 px-3 text-sidebar-foreground backdrop-blur-xl md:hidden">
-        <Link to="/" aria-label="GestorGov — visão geral">
+        <Link to="/" aria-label="GestorGov — painel">
           <Logo />
         </Link>
         <button
@@ -182,7 +185,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           >
             <Link
               to="/"
-              aria-label="GestorGov — visão geral"
+              aria-label="GestorGov — painel"
               className="inline-flex rounded-lg p-0.5 transition-transform duration-300 outline-none group-hover/logo:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
               {recolhidoNaTela ? <LogoIcone /> : <Logo />}
@@ -315,7 +318,7 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
   );
 }
 
-/* ───────── Seção aberta: título laranja em caixa alta, recolhível ───────── */
+/* ───────── Seção aberta: título azul em caixa alta, recolhível ───────── */
 
 function SecaoDoMenu({
   secao,
@@ -364,8 +367,8 @@ function SecaoDoMenu({
   );
 }
 
-// Item do menu: h-10, ícone de 18px que cresce no hover, item ativo com degradê
-// laranja e um marcador de 3px que brilha na borda esquerda.
+// Item do menu: h-10, ícone de 18px que cresce no hover, item ativo com fundo
+// azul claro e um marcador de 3px que brilha na borda esquerda.
 const ITEM_BASE =
   "group/item relative flex h-10 items-center justify-start gap-3 overflow-hidden rounded-lg px-3 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
 const ITEM_INATIVO = "text-sidebar-foreground/75 hover:bg-sidebar-accent/60 hover:text-sidebar-foreground";
@@ -604,7 +607,7 @@ function BotaoAjuda() {
       <MenuFlutuante aberto={aberto} aoFechar={() => setAberto(false)} ancora={botao} rotulo="Ajuda sobre o menu" papel="dialog">
         <p className="px-2 py-1.5 text-xs font-semibold tracking-wider text-muted-foreground uppercase">Como usar o menu</p>
         <ul className="space-y-1.5 px-2 pt-1 pb-2 text-xs leading-relaxed">
-          <li>O botão laranja na borda recolhe o menu e deixa só os ícones; a escolha fica gravada neste navegador.</li>
+          <li>O botão azul na borda recolhe o menu e deixa só os ícones; a escolha fica gravada neste navegador.</li>
           <li>Recolhido, cada ícone é uma seção: clique para ver as telas dela.</li>
           <li>Aberto, clique no título de uma seção para recolhê-la.</li>
           <li>O botão de tema diz para qual tema ele leva.</li>

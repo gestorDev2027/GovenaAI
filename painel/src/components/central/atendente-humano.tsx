@@ -20,7 +20,7 @@ const FRENTE = 0.1;
 
 const PELES = ["#f1c7a5", "#c68b62", "#8d5a3b", "#e0ac83", "#5c3a26", "#f3d2b8"];
 const CABELOS = ["#2b1b12", "#5a3a22", "#111111", "#a0522d", "#1c1c1c", "#c9a36b"];
-const CAMISAS = ["#2f80ff", "#f7931e", "#10b981", "#8b5cf6", "#ef4444", "#0ea5e9"];
+const CAMISAS = ["#2f80ff", "#F4B800", "#10b981", "#8b5cf6", "#ef4444", "#0ea5e9"];
 // 0 curto, 1 longo, 2 coque
 const PENTEADOS = [0, 1, 0, 2, 0, 1];
 
