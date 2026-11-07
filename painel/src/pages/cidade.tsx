@@ -1,17 +1,19 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Landmark, MapPinned, MessagesSquare, Rocket, Users } from "lucide-react";
+import { Building2, Landmark, MapPin, MapPinned, MessagesSquare, Rocket, Users, X } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAcesso } from "@/hooks/use-permissoes";
 import { fmtInt } from "@/lib/formato";
 import { EmptyState, PageHeader, PageLoader } from "@/components/widgets/widgets";
 import { Table, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableWrapper } from "@/components/ui/tabela";
+import { MapaCidade, type UnidadeNoMapa } from "@/components/mapa/mapa-cidade";
+import { cn } from "@/lib/utils";
 
 /*
- * Visão Cidade: o município com as unidades de saúde, a partir do cadastro (GET /gestao/panorama e
- * /gestao/catalogo). O mapa (MapLibre + OpenStreetMap) entra com a tela de implantação; esta lista é a
- * versão acessível dele e continua valendo depois (3D e mapa nunca são obrigatórios).
+ * Visão Cidade: o município com as unidades de saúde públicas e conveniadas ao SUS, a partir do cadastro
+ * (GET /prefeitura/panorama ou /gestao/panorama). O mapa (Mapbox, com MAPBOX_TOKEN) mostra um pino por unidade;
+ * clicar no pino ou na linha abre a ficha. A lista é a versão acessível do mapa e vale sem ele.
  */
 
 interface TipoUnidade {
@@ -27,7 +29,13 @@ interface Unidade {
   cnes: string | null;
   nome: string;
   nome_fantasia: string | null;
+  endereco: string | null;
   bairro: string | null;
+  cep: string | null;
+  telefone: string | null;
+  latitude: string | number | null;
+  longitude: string | number | null;
+  gestao: string | null;
   situacao: string | null;
   confirmada: boolean | null;
 }
@@ -41,7 +49,16 @@ interface Setor {
 }
 
 interface Panorama {
-  municipio: { id: string; nome: string; uf: string; codigo_ibge: string; situacao: string | null; populacao: number | null } | null;
+  municipio: {
+    id: string;
+    nome: string;
+    uf: string;
+    codigo_ibge: string;
+    situacao: string | null;
+    populacao: number | null;
+    latitude: string | number | null;
+    longitude: string | number | null;
+  } | null;
   secretaria?: { nome: string | null; secretario_nome: string | null } | null;
   setores?: Setor[];
   unidades?: Unidade[];
@@ -61,7 +78,10 @@ const ETAPAS: Record<string, string> = {
 
 export function Cidade() {
   // Quem é de uma prefeitura vê a dela; a equipe GestorGov, o município padrão do servidor.
-  const daPrefeitura = !!useAcesso().data?.prefeitura;
+  const acesso = useAcesso().data;
+  const daPrefeitura = !!acesso?.prefeitura;
+  const token = acesso?.mapbox_token;
+  const [selecionada, setSelecionada] = useState<string | null>(null);
   const panorama = useQuery({
     queryKey: ["gestao-panorama", daPrefeitura],
     queryFn: () => api<Panorama>(daPrefeitura ? "/prefeitura/panorama" : "/gestao/panorama"),
@@ -80,6 +100,21 @@ export function Cidade() {
     for (const u of unidades) contagem.set(u.tipo_id ?? "outro", (contagem.get(u.tipo_id ?? "outro") ?? 0) + 1);
     return [...contagem].sort((a, b) => (tipos.get(a[0])?.ordem ?? 99) - (tipos.get(b[0])?.ordem ?? 99));
   }, [unidades, tipos]);
+  const noMapa: UnidadeNoMapa[] = useMemo(
+    () =>
+      unidades
+        .filter((u) => u.latitude != null && u.longitude != null)
+        .map((u) => ({
+          id: u.id,
+          nome: u.nome_fantasia || u.nome,
+          tipo: u.tipo_id ?? "outro",
+          cor: tipos.get(u.tipo_id ?? "")?.cor ?? "#424E6B",
+          latitude: Number(u.latitude),
+          longitude: Number(u.longitude),
+        })),
+    [unidades, tipos],
+  );
+  const ficha = unidades.find((u) => u.id === selecionada);
 
   return (
     <div className="space-y-5 px-4 pb-8 sm:px-8">
@@ -135,6 +170,25 @@ export function Cidade() {
             />
           </div>
 
+          {token && noMapa.length > 0 && (
+            <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <MapaCidade
+                token={token}
+                unidades={noMapa}
+                centro={mun.latitude != null && mun.longitude != null ? [Number(mun.latitude), Number(mun.longitude)] : null}
+                selecionada={selecionada}
+                aoSelecionar={setSelecionada}
+                className="h-[460px]"
+              />
+              <FichaDaUnidade
+                unidade={ficha}
+                tipo={ficha ? tipos.get(ficha.tipo_id ?? "") : undefined}
+                aoFechar={() => setSelecionada(null)}
+                total={noMapa.length}
+              />
+            </section>
+          )}
+
           {porTipo.length > 0 && (
             <section className="surface-card p-4">
               <h2 className="mb-3 text-sm font-semibold">Unidades por tipo</h2>
@@ -153,7 +207,7 @@ export function Cidade() {
           <section className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="text-sm font-semibold">Unidades de saúde</h2>
-              <p className="text-xs text-muted-foreground">O mapa do município chega com a tela de implantação.</p>
+              <p className="text-xs text-muted-foreground">Públicas e conveniadas ao SUS. Clique numa linha para ver no mapa.</p>
             </div>
             <TableWrapper>
               <Table>
@@ -173,7 +227,11 @@ export function Cidade() {
                     </TableEmpty>
                   )}
                   {unidades.map((u) => (
-                    <TableRow key={u.id}>
+                    <TableRow
+                      key={u.id}
+                      onClick={() => setSelecionada(u.id)}
+                      className={cn("cursor-pointer", u.id === selecionada && "bg-primary/8")}
+                    >
                       <TableCell className="font-medium">{u.nome_fantasia || u.nome}</TableCell>
                       <TableCell>
                         <span className="inline-flex items-center gap-1.5">
@@ -234,5 +292,69 @@ function Numero({ icone: Icone, rotulo, valor, detalhe }: { icone: typeof Buildi
         {detalhe && <div className="text-xs text-muted-foreground">{detalhe}</div>}
       </div>
     </div>
+  );
+}
+
+const VINCULO: Record<string, string> = { publica: "Pública (municipal)", conveniada: "Conveniada ao SUS" };
+
+function FichaDaUnidade({
+  unidade,
+  tipo,
+  aoFechar,
+  total,
+}: {
+  unidade?: Unidade;
+  tipo?: TipoUnidade;
+  aoFechar: () => void;
+  total: number;
+}) {
+  if (!unidade) {
+    return (
+      <aside className="surface-card flex flex-col justify-center gap-2 p-5 text-sm text-muted-foreground">
+        <MapPin className="size-5 text-primary-text" />
+        <p className="font-semibold text-foreground">{total} unidades no mapa</p>
+        <p>Clique num pino (ou numa linha da tabela) para ver a ficha da unidade.</p>
+      </aside>
+    );
+  }
+  const linhas: [string, string | null | undefined][] = [
+    ["Tipo", tipo?.nome ?? unidade.tipo_id],
+    ["Vínculo", unidade.gestao ? VINCULO[unidade.gestao] ?? unidade.gestao : null],
+    ["Endereço", [unidade.endereco, unidade.bairro].filter(Boolean).join(" · ") || null],
+    ["CEP", unidade.cep],
+    ["Telefone", unidade.telefone],
+    ["CNES", unidade.cnes],
+    ["Situação no cadastro", unidade.confirmada ? "Confirmada" : "A confirmar com a secretaria"],
+  ];
+  return (
+    <aside className="surface-card flex flex-col gap-3 p-5" aria-label={`Ficha de ${unidade.nome_fantasia || unidade.nome}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-start gap-3">
+          <span aria-hidden="true" className="mt-1 size-3 shrink-0 rounded-full" style={{ background: tipo?.cor ?? "#424E6B" }} />
+          <h2 className="text-base leading-snug font-semibold">{unidade.nome_fantasia || unidade.nome}</h2>
+        </div>
+        <button
+          type="button"
+          onClick={aoFechar}
+          aria-label="Fechar a ficha"
+          className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
+        >
+          <X className="size-4" />
+        </button>
+      </div>
+      <dl className="space-y-2 text-sm">
+        {linhas
+          .filter(([, v]) => v)
+          .map(([k, v]) => (
+            <div key={k}>
+              <dt className="text-xs text-muted-foreground">{k}</dt>
+              <dd>{v}</dd>
+            </div>
+          ))}
+      </dl>
+      <p className="mt-auto rounded-lg bg-muted/60 p-3 text-xs text-muted-foreground">
+        Em breve: a equipe da unidade, o estoque de insumos e medicamentos, a produção do dia e o agente da unidade.
+      </p>
+    </aside>
   );
 }

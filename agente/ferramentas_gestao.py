@@ -135,7 +135,7 @@ def registrar_municipio(run_context: RunContext, codigo_ibge: str, nome: str, uf
 
 
 def importar_unidades_cnes(run_context: RunContext) -> str:
-    """Traz do CNES (dados abertos do Ministério da Saúde) as unidades públicas de saúde do município e grava
+    """Traz do CNES (dados abertos do Ministério da Saúde) as unidades públicas e as conveniadas ao SUS do município e grava
     como "a confirmar". Mostre ao secretário o resumo por tipo e peça para conferir. Se a fonte não responder,
     siga com cadastrar_unidade, uma por uma."""
     if erro := _sem_banco():
@@ -159,6 +159,9 @@ def importar_unidades_cnes(run_context: RunContext) -> str:
         for codigo in tipo.get("codigos_cnes") or []:
             por_codigo[str(codigo).zfill(2)] = tipo["id"]
     contagem: dict[str, int] = {}
+    # Só as unidades públicas e as conveniadas ao SUS: consultórios e clínicas particulares ficam de fora.
+    particulares = sum(1 for u in brutas if gestao.vinculo_cnes(u) is None)
+    brutas = [u for u in brutas if gestao.vinculo_cnes(u) is not None]
     for u in brutas:
         codigo_tipo = str(u.get("codigo_tipo_unidade") or u.get("tipo_unidade") or "").zfill(2)
         tipo_id = por_codigo.get(codigo_tipo, "outro")
@@ -170,10 +173,12 @@ def importar_unidades_cnes(run_context: RunContext) -> str:
             cnes=str(u.get("codigo_cnes") or ""), endereco=endereco, bairro=u.get("bairro_estabelecimento") or "",
             cep=str(u.get("codigo_cep_estabelecimento") or ""),
             latitude=float(lat) if lat not in (None, "") else None, longitude=float(lng) if lng not in (None, "") else None,
-            origem="cnes", dados_cnes=u, confirmada=False, quem=_quem(run_context), session_id=_sessao(run_context))
+            origem="cnes", dados_cnes=u, confirmada=False, gestao=gestao.vinculo_cnes(u), quem=_quem(run_context),
+            session_id=_sessao(run_context))
         contagem[tipo_id] = contagem.get(tipo_id, 0) + 1
-    return _json({"importadas": len(brutas), "por_tipo": contagem,
-                  "orientacao": "Mostre o resumo por tipo e pergunte se está certo e se falta alguma unidade."})
+    return _json({"importadas": len(brutas), "por_tipo": contagem, "particulares_fora": particulares,
+                  "orientacao": "Mostre o resumo por tipo (são as unidades públicas e as conveniadas ao SUS; os "
+                                "consultórios particulares ficaram de fora) e pergunte se está certo e se falta alguma."})
 
 
 def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, endereco: str = "", bairro: str = "",

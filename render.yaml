@@ -46,6 +46,10 @@ services:
       - key: PAINEL_DOMINIOS
         sync: false
 
+      # ── Mapa da cidade (Mapbox): o token público (pk.), restrito ao domínio do Render no painel do Mapbox ──
+      - key: MAPBOX_TOKEN
+        sync: false
+
       # ── GestorGov ──
       # CompanyOS: as atividades de rotina dos setores viram Rotinas do Agno (agente/companyos.py).
       - key: GESTORGOV_COMPANYOS

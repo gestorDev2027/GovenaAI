@@ -113,9 +113,13 @@ def _semear_itatiaia() -> list[str]:
             secretario_email=f"{_slug(PESSOAS['secretario'])}@{DOMINIO}")["id"])
     ctx = _contexto(mid)
 
-    # 2. Unidades do CNES
+    # 2. Unidades do CNES (só as públicas e as conveniadas ao SUS; tira as particulares de importações antigas)
     if not gestao.unidades(mid):
         log_info(f"Demonstração: {ferramentas.importar_unidades_cnes(ctx)[:160]}")
+    else:
+        removidas = gestao.remover_particulares(mid, QUEM)
+        if removidas:
+            log_info(f"Demonstração: {removidas} unidades particulares saíram do cadastro.")
 
     # 3. Setores e atividades
     tipos = [t["id"] for t in gestao.tipos_setor()]

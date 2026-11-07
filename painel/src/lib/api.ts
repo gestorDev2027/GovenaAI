@@ -188,6 +188,8 @@ export interface Acesso {
   /** Cadastro e login com e-mail e senha ligados (o servidor tem a OS_SECURITY_KEY). */
   aceita_senha?: boolean;
   google_client_id: string | null;
+  /** Token público do Mapbox (mapa da cidade); null sem MAPBOX_TOKEN no servidor. */
+  mapbox_token?: string | null;
   /** false: com o Google ligado, pessoas entram só por ele (não mostrar o campo da chave). */
   aceita_chave?: boolean;
   usuario: Usuario | null;

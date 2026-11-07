@@ -555,6 +555,8 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             # Cadastro e login com e-mail e senha: precisam da chave (é ela que assina a sessão).
             "aceita_senha": bool(_chave()) and usuarios.disponivel(),
             "google_client_id": _google_client_id() or None,
+            # Token público do Mapbox (pk.): o mapa da cidade carrega no navegador.
+            "mapbox_token": os.getenv("MAPBOX_TOKEN", "").strip() or None,
             # Com o Google ligado, pessoas entram por ele; a chave fica para rotinas (PAINEL_LOGIN_CHAVE=sim reabre).
             "aceita_chave": not google or os.getenv("PAINEL_LOGIN_CHAVE", "").strip().lower() in ("1", "sim", "true"),
             # A prefeitura da pessoa (dono ou membro) e as permissões dela lá (agente/acessos.py).

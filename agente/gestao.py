@@ -329,6 +329,33 @@ def unidades_cnes(codigo_ibge: str) -> list[dict]:
     return saida
 
 
+def vinculo_cnes(unidade: dict) -> str | None:
+    """"publica" (natureza jurídica 1xxx: administração pública), "conveniada" (privada que atende pelo SUS) ou
+    None (particular: consultórios e clínicas privadas, que ficam fora do cadastro da Secretaria)."""
+    natureza = str(unidade.get("descricao_natureza_juridica_estabelecimento") or unidade.get("natureza_juridica") or "")
+    if natureza.startswith("1"):
+        return "publica"
+    if str(unidade.get("estabelecimento_faz_atendimento_ambulatorial_sus") or "").upper() == "SIM":
+        return "conveniada"
+    return None
+
+
+def remover_particulares(municipio_id: str, quem: str) -> int:
+    """Tira do cadastro as unidades importadas do CNES que não são públicas nem conveniadas ao SUS (importações
+    antigas, de antes do filtro). Devolve quantas saíram."""
+    tu = _t("unidades")
+    fora = [u for u in _linhas(select(tu).where(tu.c.municipio_id == municipio_id, tu.c.origem == "cnes"))
+            if isinstance(u.get("dados_cnes"), dict) and vinculo_cnes(u["dados_cnes"]) is None]
+    if not fora:
+        return 0
+    with _estado["engine"].begin() as c:
+        for u in fora:
+            c.execute(tu.delete().where(tu.c.id == u["id"]))
+        auditar(c, municipio_id=municipio_id, origem="sistema", quem=quem, acao="remover_particulares",
+                entidade="unidades", depois={"removidas": len(fora)})
+    return len(fora)
+
+
 # ───────────────────────── Leitura ─────────────────────────
 
 def tipos_setor() -> list[dict]:
@@ -521,13 +548,13 @@ def avancar_etapa(municipio_id: str, etapa: str) -> None:
 def salvar_unidade(municipio_id: str, *, nome: str, tipo_id: str, quem: str, endereco: str = "", bairro: str = "",
                    cep: str = "", cnes: str = "", latitude: float | None = None, longitude: float | None = None,
                    origem: str = "manual", dados_cnes: dict | None = None, confirmada: bool = True,
-                   session_id: str | None = None) -> dict:
+                   gestao: str | None = None, session_id: str | None = None) -> dict:
     tu = _t("unidades")
     sec = secretaria_saude(municipio_id)
     cnes = re.sub(r"\D", "", cnes or "")[:7] or None
     valores = {"nome": nome.strip(), "tipo_id": tipo_id, "endereco": endereco or None, "bairro": bairro or None,
                "cep": re.sub(r"\D", "", cep or "") or None, "latitude": latitude, "longitude": longitude,
-               "origem": origem, "dados_cnes": dados_cnes, "confirmada": confirmada,
+               "origem": origem, "dados_cnes": dados_cnes, "confirmada": confirmada, "gestao": gestao,
                "secretaria_id": str(sec["id"]) if sec else None}
     with _estado["engine"].begin() as c:
         atual = None
