@@ -24,7 +24,7 @@ export const MARCADORES = [
     explicacao: "Onde entra a base de conhecimento do agente, a mesma da tela Base de conhecimento.",
   },
   { token: "@@BOAS_VINDAS@@", obrigatorio: false, explicacao: 'Onde entra a seção "## Boas-vindas" da base.' },
-  { token: "{nome_aluno}", obrigatorio: false, explicacao: "O nome do contato." },
+  { token: "{nome_contato}", obrigatorio: false, explicacao: "O nome do contato." },
 ] as const;
 
 /** Cores sugeridas, enquanto as do servidor (/fabrica/opcoes) não chegam; dá para escolher qualquer outra. */
@@ -40,7 +40,7 @@ function normalizar(texto: string, separador: string) {
     .replace(new RegExp(`^\\${separador}+|\\${separador}+$`, "g"), "");
 }
 
-/** "Sucesso do Aluno — Bia" → "sucesso-do-aluno-bia": o id sugerido a partir do nome. */
+/** "Compras e Licitações — Bia" → "compras-e-licitacoes-bia": o id sugerido a partir do nome. */
 export const idDoNome = (nome: string) => normalizar(nome, "-").slice(0, 30);
 
 /** "Acesso à plataforma" → "acesso_a_plataforma": a chave de um motivo de transferência. */

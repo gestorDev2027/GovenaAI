@@ -347,7 +347,7 @@ function FormSecao({
     );
 
   // Prévia das mensagens automáticas, com o nome trocado como o sistema faz.
-  const exemplo = tipo === "mensagem" ? corpo.replaceAll("[NOME DO ALUNO]", "Maria").trim() : "";
+  const exemplo = tipo === "mensagem" ? corpo.replaceAll("[NOME DO CONTATO]", "Maria").trim() : "";
 
   return (
     <PainelLateral
@@ -401,7 +401,7 @@ function FormSecao({
             </div>
           </Campo>
         )}
-        <Campo rotulo="Texto" ajuda="Use “### Subtópico” para dividir. Escreva só o que pode ser dito ao aluno.">
+        <Campo rotulo="Texto" ajuda="Use “### Subtópico” para dividir. Escreva só o que pode ser dito ao servidor.">
           <Textarea
             spellCheck={false}
             rows={18}
@@ -411,7 +411,7 @@ function FormSecao({
           />
         </Campo>
         {exemplo && (
-          <SecaoPainel titulo="Como o aluno recebe">
+          <SecaoPainel titulo="Como o servidor recebe">
             <div className="max-w-md rounded-2xl rounded-tl-sm bg-muted px-4 py-3 text-sm whitespace-pre-wrap">{exemplo}</div>
           </SecaoPainel>
         )}

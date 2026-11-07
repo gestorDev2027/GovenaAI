@@ -64,7 +64,7 @@ export function PainelLateral({
               : undefined
           }
           className={cn(
-            // Vidro do Nexa BI, mais denso (styles.css: .vidro, .vidro-denso): o painel cobre a página.
+            // Vidro do painel, mais denso (styles.css: .vidro, .vidro-denso): o painel cobre a página.
             "vidro vidro-denso fixed inset-0 z-50 flex w-full flex-col overflow-hidden text-card-foreground outline-none",
             "sm:inset-y-3 sm:right-3 sm:left-auto sm:rounded-2xl",
             "!shadow-[inset_0_1px_0_oklch(1_0_0/0.13),0_28px_70px_-16px_rgb(0_0_0/0.55)]",

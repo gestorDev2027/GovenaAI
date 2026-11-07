@@ -12,9 +12,10 @@ import { Anel, Atividade, Barras, Indicador, ListaAoVivo, serieDeAtividade, Titu
  */
 
 const ROTULO_FERRAMENTA: Record<string, string> = {
-  consultar_cadastro: "Consultar cadastro",
-  buscar_aula: "Buscar aula",
-  consultar_brindes: "Apostilas e brindes",
+  consultar_secretaria: "Consultar a secretaria",
+  listar_unidades: "Listar unidades",
+  buscar_municipio: "Buscar o município",
+  importar_unidades_cnes: "Importar unidades do CNES",
   transferir_para_humano: "Transferir para a equipe",
   encerrar_atendimento: "Encerrar atendimento",
   update_user_memory: "Registrar na memória",
@@ -62,7 +63,7 @@ export function PainelAgente({
         <div className="pointer-events-none absolute -top-16 -left-10 size-40 rounded-full opacity-25 blur-3xl" style={{ background: cor }} />
         <div className="relative flex items-start gap-3">
           <span className="grid size-11 shrink-0 place-items-center rounded-2xl shadow-lg" style={{ background: cor }}>
-            <img src="/painel/espaco/cf-branco.png" alt="" className="size-7" />
+            <img src="/painel/espaco/gestorgov-branco.png" alt="" className="size-7" />
           </span>
           <div className="min-w-0 flex-1">
             <div className="font-mono text-[10px] tracking-[0.12em] text-muted-foreground uppercase">
@@ -119,7 +120,7 @@ export function PainelAgente({
               <button key={c.id} type="button" onClick={() => aoAbrirConversa(c.id)} className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left hover:bg-muted/60">
                 <CheckCircle2 className="size-3.5 shrink-0" style={{ color: c.parada_ha_s != null && c.parada_ha_s <= 120 ? "#22c55e" : "#f59e0b" }} />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold">{c.nome || "Aluno sem nome"}</span>
+                  <span className="block truncate text-xs font-semibold">{c.nome || "Servidor sem nome"}</span>
                   <span className="block truncate text-[11px] text-muted-foreground">{c.ultima_mensagem || "—"}</span>
                 </span>
                 <span className="shrink-0 font-mono text-[10px] text-muted-foreground">{fmtRelativo(c.atualizada_em)}</span>

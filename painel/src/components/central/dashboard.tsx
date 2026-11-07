@@ -140,9 +140,10 @@ export function Barras({ itens, vazio, formatar = fmtInt }: { itens: { rotulo: s
 }
 
 const ROTULO_FERRAMENTA: Record<string, string> = {
-  consultar_cadastro: "consultou o cadastro",
-  buscar_aula: "buscou uma aula",
-  consultar_brindes: "consultou apostilas e brindes",
+  consultar_secretaria: "consultou a secretaria",
+  listar_unidades: "listou as unidades",
+  buscar_municipio: "buscou o município",
+  importar_unidades_cnes: "importou as unidades do CNES",
   transferir_para_humano: "transferiu para a equipe",
   encerrar_atendimento: "encerrou o atendimento",
   update_user_memory: "registrou na memória",
@@ -156,7 +157,7 @@ export function descreverEvento(e: EventoCentral) {
     case "respondeu":
       return { icone: <ArrowUpRight />, texto: "respondeu", cor: "#3b82f6" };
     case "ferramenta":
-      return { icone: e.ferramenta === "buscar_aula" ? <Search /> : <Wrench />, texto: ROTULO_FERRAMENTA[e.ferramenta ?? ""] ?? `usou ${e.ferramenta}`, cor: "#0ea5e9" };
+      return { icone: e.ferramenta === "buscar_municipio" ? <Search /> : <Wrench />, texto: ROTULO_FERRAMENTA[e.ferramenta ?? ""] ?? `usou ${e.ferramenta}`, cor: "#0ea5e9" };
     case "transferiu":
       return { icone: <Users />, texto: "transferiu para a equipe", cor: "#f7931e" };
     case "encerrou":

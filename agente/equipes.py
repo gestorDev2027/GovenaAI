@@ -143,7 +143,7 @@ def montar(config: dict, banco) -> Team:
         model=_modelo_da_recepcao(),
         instructions=orientacoes,
         db=banco,
-        session_state={"status": STATUS_EM_ATENDIMENTO, "acoes": [], "nome_aluno": "", "telefone": ""},
+        session_state={"status": STATUS_EM_ATENDIMENTO, "acoes": [], "nome_contato": "", "telefone": ""},
         determine_input_for_members=False,
         add_team_history_to_members=True,
         num_team_history_runs=HISTORICO_PARA_MEMBROS,

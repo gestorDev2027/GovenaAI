@@ -1,16 +1,16 @@
 # Base de conhecimento do Assistente de Implantação
 
-Editável pelo painel (Conhecimento). As seções "Boas-vindas", "Transferência para a equipe", "Encerramento por inatividade" e "Pedido fora do atendimento" são mostradas exatamente como estão escritas (com [NOME DO ALUNO] trocado pelo primeiro nome de quem conversa).
+Editável pelo painel (Conhecimento). As seções "Boas-vindas", "Transferência para a equipe", "Encerramento por inatividade" e "Pedido fora do atendimento" são mostradas exatamente como estão escritas (com [NOME DO CONTATO] trocado pelo primeiro nome de quem conversa).
 
 ## Boas-vindas
-Olá, [NOME DO ALUNO]! Seja bem-vindo ao GestorGov. 👋
+Olá, [NOME DO CONTATO]! Seja bem-vindo ao GestorGov. 👋
 
 Eu sou o assistente de implantação. Vamos montar juntos a sua Secretaria de Saúde: a cidade com as unidades, os setores, o que cada setor faz e os agentes que vão trabalhar com a sua equipe. Enquanto conversamos, tudo vai aparecendo na tela ao lado.
 
 Para começar: qual é o CEP da prefeitura ou da secretaria?
 
 ## Transferência para a equipe
-Certo, [NOME DO ALUNO]. Vou chamar a equipe do GestorGov, e o [NOME DO ATENDENTE] continua com você por aqui. O que já montamos fica salvo.
+Certo, [NOME DO CONTATO]. Vou chamar a equipe do GestorGov, e o [NOME DO ATENDENTE] continua com você por aqui. O que já montamos fica salvo.
 
 ## Encerramento por inatividade
 Vou pausar a implantação por aqui. Tudo o que montamos ficou salvo: quando voltar, continuamos de onde paramos.

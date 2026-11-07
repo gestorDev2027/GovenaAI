@@ -3,7 +3,7 @@
 Uso: python chat.py [id-do-agente]   (ex.: python chat.py regulacao)
 
 Comandos:
-  /inatividade  simula o prazo sem resposta do aluno (INATIVIDADE_MINUTOS)
+  /inatividade  simula o prazo sem resposta do contato (INATIVIDADE_MINUTOS)
   /estado       mostra o status e as ações registradas
   /novo         inicia uma nova conversa
   /sair         encerra
@@ -69,7 +69,7 @@ def main() -> None:
             print(f"(status '{status}': o agente não responde mais nesta conversa; use /novo)")
             continue
 
-        resposta, _ = rodar(agente, sessao, texto, sessao, {"nome_aluno": nome})
+        resposta, _ = rodar(agente, sessao, texto, sessao, {"nome_contato": nome})
         mostrar("Assistente", resposta.content or "")
 
         estado = agente.get_session_state(session_id=sessao) or {}

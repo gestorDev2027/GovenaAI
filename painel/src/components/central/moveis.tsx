@@ -76,10 +76,10 @@ export function Estacao({ p, ocupada, cor, detalhe = 0 }: { p: Paleta; ocupada: 
               emissiveIntensity={ocupada ? (i === 0 ? 0.75 : 0.35) : 0}
             />
           </mesh>
-          {/* Tela da direita com o CF, quando a mesa está ocupada */}
+          {/* Tela da direita com o símbolo do GestorGov, quando a mesa está ocupada */}
           {ocupada && i === 1 && (
             <group position={[0, 1.1, 0.008]} rotation={[0, Math.PI, 0]}>
-              <LogoCF tamanho={0.22} />
+              <LogoGestorGov tamanho={0.22} />
             </group>
           )}
         </group>
@@ -276,7 +276,7 @@ export function PainelMadeira({ p, profundidade }: { p: Paleta; profundidade: nu
 
 /** Banner com o símbolo da equipe, na parede do fundo. */
 export function Banner({ cor }: { cor: string }) {
-  // Quadro azul-marinho com o CF e um filete na cor da marca.
+  // Quadro azul-marinho com o símbolo do GestorGov e um filete na cor da marca.
   return (
     <group>
       <RoundedBox args={[1.5, 1.05, 0.04]} radius={0.02} position={[0, 0, 0]}>
@@ -287,15 +287,15 @@ export function Banner({ cor }: { cor: string }) {
         <meshStandardMaterial color={cor} emissive={cor} emissiveIntensity={0.6} />
       </mesh>
       <group position={[0, 0.04, 0.025]}>
-        <LogoCF tamanho={0.75} />
+        <LogoGestorGov tamanho={0.75} />
       </group>
     </group>
   );
 }
 
-/** O logo do CF num plano (laranja ou branco). */
-export function LogoCF({ tamanho = 1, cor = "laranja", opacidade = 1 }: { tamanho?: number; cor?: "laranja" | "branco"; opacidade?: number }) {
-  const textura = useTexture(`/painel/espaco/cf-${cor}.png`);
+/** O símbolo do GestorGov num plano (colorido ou branco). */
+export function LogoGestorGov({ tamanho = 1, cor = "cor", opacidade = 1 }: { tamanho?: number; cor?: "cor" | "branco"; opacidade?: number }) {
+  const textura = useTexture(`/painel/espaco/gestorgov-${cor}.png`);
   textura.colorSpace = THREE.SRGBColorSpace;
   return (
     <mesh>
@@ -550,12 +550,12 @@ export function Copa() {
   );
 }
 
-/* ───────── Expedição de apostilas ───────── */
+/* ───────── Implantação (bancada, estantes e caixas) ───────── */
 
 const PAPELAO = "#c49a6c";
 const PAPELAO_ESCURO = "#ad8456";
 const FITA = "#e2c391";
-// Capas das apostilas do Exame CFC (laranja) e do livro da Reforma Tributária (azul-marinho).
+// Capas dos cadernos e pastas (laranja e azul-marinho).
 const CAPAS = ["#f7931e", "#14295a"];
 
 /** Caixa de papelão fechada: fita em cima e etiqueta branca na frente (+z). */
@@ -622,7 +622,7 @@ export function EstanteAco({ largura = 2.4, cor }: { largura?: number; cor: stri
   );
 }
 
-/** Bancada de embalagem: caixa aberta com as apostilas, pilhas de apostilas e livros, a impressora de
+/** Bancada de montagem: caixa aberta com os cadernos, pilhas de cadernos e pastas, a impressora de
  * etiquetas e o monitor com as etapas do envio (de frente para +z; quem embala fica do lado +z). */
 export function BancadaExpedicao({ p }: { p: Paleta }) {
   const led = useRef<THREE.MeshBasicMaterial>(null);
@@ -658,7 +658,7 @@ export function BancadaExpedicao({ p }: { p: Paleta }) {
         </mesh>
       ))}
 
-      {/* Caixa aberta, com as abas para fora e as apostilas dentro */}
+      {/* Caixa aberta, com as abas para fora e os cadernos dentro */}
       <group position={[-0.25, 0.93, 0.05]}>
         <mesh position={[0, 0.14, 0]} castShadow>
           <boxGeometry args={[0.6, 0.28, 0.44]} />
@@ -678,7 +678,7 @@ export function BancadaExpedicao({ p }: { p: Paleta }) {
         ))}
       </group>
 
-      {/* Pilhas de apostilas e de livros esperando a caixa */}
+      {/* Pilhas de cadernos e de pastas esperando a caixa */}
       {[0.38, 0.72].map((x, k) => (
         <group key={x} position={[x, 0.93, -0.14]}>
           {Array.from({ length: 5 - k }, (_, i) => (

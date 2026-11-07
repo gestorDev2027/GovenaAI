@@ -13,7 +13,7 @@ modelo só preenche os parâmetros declarados. Servidores MCP ficam para quando 
 - rede interna nunca: antes de cada chamada, o host é resolvido e endereço privado, local ou de
   metadados da nuvem é recusado, mesmo que o host esteja liberado;
 - a chave da API fica no cofre (fabrica_chaves): no Postgres, criptografada no Vault do Supabase, por
-  funções que só alcançam os segredos com prefixo "fabrica:" (supabase/nexa-db, migration da fábrica);
+  funções que só alcançam os segredos com prefixo "fabrica:" (supabase/gestorgov, migration inicial);
   o painel grava e troca, mas nunca lê o valor de volta;
 - a resposta volta cortada e com CPF e cartão mascarados;
 - só leitura por enquanto: GET, ou POST de consulta. Ferramenta que altera dados vai precisar de
@@ -111,7 +111,7 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
             Column("agente", String(40), nullable=False, index=True),
             Column("titulo", String(120), nullable=False),
             Column("mensagem", Text, nullable=False),
-            Column("contexto", JSON, nullable=False),  # {nome_aluno, telefone}
+            Column("contexto", JSON, nullable=False),  # {nome_contato, telefone}
             Column("esperado", JSON, nullable=False),  # {acao, categoria, mencionar, proibido}
             Column("ativo", Boolean, nullable=False, default=True),
             *comuns(),
@@ -406,7 +406,7 @@ def _no_cofre(operacao: str, nome: str, valor: str | None = None, descricao: str
                 return conexao.execute(text(sql), {"nome": nome, "valor": valor, "descricao": descricao}).scalar()
         except Exception as erro:
             if "does not exist" in str(erro):
-                _erro("O cofre de chaves ainda não foi criado no banco (migration da fábrica no nexa-DB).", 503)
+                _erro("O cofre de chaves ainda não foi criado no banco (migration inicial do GestorGov no Supabase).", 503)
             raise
     tabela = _t("cofre_local")
     with engine.begin() as conexao:
@@ -667,7 +667,7 @@ def _validar_caso(dados: dict, categorias: dict[str, str], agentes_validos: list
     lista = lambda chave: [t.strip() for t in esperado.get(chave) or [] if t and t.strip()][:10]  # noqa: E731
     contexto = dados.get("contexto") or {}
     return {"titulo": titulo, "mensagem": mensagem, "ativo": bool(dados.get("ativo", True)),
-            "contexto": {"nome_aluno": (contexto.get("nome_aluno") or "")[:80], "telefone": re.sub(r"\D", "", contexto.get("telefone") or "")[:20]},
+            "contexto": {"nome_contato": (contexto.get("nome_contato") or "")[:80], "telefone": re.sub(r"\D", "", contexto.get("telefone") or "")[:20]},
             "esperado": {"acao": acao, "categoria": categoria, "mencionar": lista("mencionar"), "proibido": lista("proibido"),
                          "agente": agente_esperado}}
 
@@ -783,12 +783,12 @@ def _rodar_caso(agente, caso: dict, avaliador) -> dict:
     base_resultado = {"caso": caso["id"], "origem": caso["origem"], "titulo": caso["titulo"]}
     try:
         if caso["origem"] == "fabrica":
-            mensagens, nome, telefone = [caso["mensagem"]], caso["contexto"].get("nome_aluno") or "", caso["contexto"].get("telefone") or ""
+            mensagens, nome, telefone = [caso["mensagem"]], caso["contexto"].get("nome_contato") or "", caso["contexto"].get("telefone") or ""
         else:
             mensagens, nome, telefone = caso["mensagens"], "", caso["telefone"]
         ferramentas, saida = [], {}
         for mensagem in mensagens:
-            saida = responder(agente, session_id, mensagem, nome_aluno=nome, telefone=telefone)
+            saida = responder(agente, session_id, mensagem, nome_contato=nome, telefone=telefone)
             ferramentas += list(saida.get("ferramentas") or [])
         acoes = saida.get("acoes") or []
         transferencia = next((a for a in reversed(acoes) if a.get("tipo") == "transferencia"), None)

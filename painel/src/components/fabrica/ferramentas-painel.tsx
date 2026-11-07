@@ -449,7 +449,7 @@ export function FormFerramenta({
             tipo="ferramenta_http"
             titulo="Montar com IA a partir da documentação"
             ajuda="Cole a documentação da API ou um comando curl. A IA monta endereço, parâmetros e chave; depois use Testar. Nenhuma chave colada é copiada."
-            placeholder={'Ex.: curl "https://api.exemplo.com.br/v1/alunos/{cpf}/boletos?situacao=aberto" -H "Authorization: Bearer …"'}
+            placeholder={'Ex.: curl "https://api.exemplo.gov.br/v1/unidades/{cnes}/estoque?situacao=baixo" -H "Authorization: Bearer …"'}
             aberto={nova}
             aoReceber={(r) =>
               setF((x) => ({
@@ -646,7 +646,7 @@ function ConfigHttpCampos({
               className="md:col-span-5"
               value={p.descricao}
               maxLength={300}
-              placeholder="Descrição para o agente, ex.: CPF do aluno, só números"
+              placeholder="Descrição para o agente, ex.: CPF do servidor, só números"
               onChange={(e) => mudaParametro(k, { descricao: e.target.value })}
             />
           </div>

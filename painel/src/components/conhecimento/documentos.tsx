@@ -31,7 +31,7 @@ function usoNoAgente(nome: string, ativa: DocumentoConhecimento | undefined, pro
       : { rotulo: "Inteiro nas instruções", tom: "info", explicacao: "O roteiro vai completo em toda resposta (ROTEIRO_MODO=inteiro). Os vetores ficam prontos para o modo busca." };
   }
   return ativa
-    ? { rotulo: "Busca por trechos", tom: "sucesso", explicacao: "O agente recebe os trechos mais parecidos com cada mensagem do aluno." }
+    ? { rotulo: "Busca por trechos", tom: "sucesso", explicacao: "O agente recebe os trechos mais parecidos com cada mensagem do servidor." }
     : { rotulo: "Fora de uso", tom: "neutro", explicacao: "Nenhuma versão ativa: o agente não usa este documento." };
 }
 

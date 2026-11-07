@@ -51,7 +51,7 @@ function Cobertura({ c, avaliadas }: { c: CoberturaQualidade; avaliadas: number 
   const pct = concluidas > 0 ? Math.min(1, avaliadas / concluidas) : null;
   const passos: { rotulo: string; valor: number; nota: string; destaque?: boolean }[] = [
     { rotulo: "Atendimentos", valor: c.atendimentos, nota: "todos do período" },
-    { rotulo: "Só boas-vindas", valor: soBoasVindas, nota: "o aluno não escreveu: não há conversa para julgar" },
+    { rotulo: "Só boas-vindas", valor: soBoasVindas, nota: "o servidor não escreveu: não há conversa para julgar" },
     { rotulo: "Ainda abertas", valor: c.abertas, nota: "entram quando terminarem" },
     { rotulo: "Conversaram e terminaram", valor: concluidas, nota: "é o universo avaliável" },
     { rotulo: "Avaliadas", valor: avaliadas, nota: pct == null ? "—" : `${fmtPct(pct)} das que terminaram`, destaque: true },

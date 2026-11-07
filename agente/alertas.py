@@ -5,7 +5,7 @@ calcular: a baixa (quem, quando e por quê). Cada alerta é a dupla
 (tipo, conversa) com a `referencia`, o momento do acontecimento (a transferência ou a resposta que falhou): se
 acontecer outra coisa na conversa (nova transferência, nova falha), a referência muda e o alerta volta aberto.
 
-Baixa automática (rotina a cada 10 min, /painel/api/manutencao/alertas): quando alguém da equipe escreveu ao aluno
+Baixa automática (rotina a cada 10 min, /painel/api/manutencao/alertas): quando alguém da equipe escreveu ao cidadão
 no WhatsApp depois do acontecimento (unnichat.pessoa_escreveu_desde). Baixa manual: pelos botões da aba Alertas.
 """
 
@@ -153,7 +153,7 @@ def contato_da_conversa(session_id: str) -> str | None:
 
 
 def baixa_automatica(abertos: list[dict], limite: int = 80) -> dict:
-    """Dá baixa nos alertas abertos em que alguém da equipe escreveu ao aluno pelo WhatsApp depois do
+    """Dá baixa nos alertas abertos em que alguém da equipe escreveu ao cidadão pelo WhatsApp depois do
     acontecimento. Até `limite` consultas à Unnichat por rodada (as mais antigas primeiro)."""
     from agente import unnichat
 

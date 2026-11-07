@@ -33,7 +33,7 @@ import { useTheme } from "@/hooks/use-theme";
 import { Logo, LogoIcone } from "./logo";
 
 /**
- * Casco do painel no padrão do menu do Nexa BI (cf-analytics/src/components/layout/app-sidebar.tsx).
+ * Casco do painel: menu lateral, barra do topo e o conteúdo.
  *
  * Em tela larga o menu é uma coluna de altura total, separada do conteúdo por uma borda fina; títulos
  * de seção em laranja, caixa alta, e o item ativo com degradê e um marcador luminoso à esquerda. No
@@ -315,7 +315,7 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
   );
 }
 
-/* ───────── Seção aberta: título laranja em caixa alta, recolhível (como no Nexa BI) ───────── */
+/* ───────── Seção aberta: título laranja em caixa alta, recolhível ───────── */
 
 function SecaoDoMenu({
   secao,
@@ -364,7 +364,7 @@ function SecaoDoMenu({
   );
 }
 
-// Item do menu no padrão do Nexa BI: h-10, ícone de 18px que cresce no hover, item ativo com degradê
+// Item do menu: h-10, ícone de 18px que cresce no hover, item ativo com degradê
 // laranja e um marcador de 3px que brilha na borda esquerda.
 const ITEM_BASE =
   "group/item relative flex h-10 items-center justify-start gap-3 overflow-hidden rounded-lg px-3 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";

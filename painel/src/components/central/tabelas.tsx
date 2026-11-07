@@ -76,7 +76,7 @@ function fmtParada(s: number | null) {
 function SituacaoConversa({ c }: { c: ConversaCentral }) {
   if (c.status === "transferido") return <Chip tom="primario">Transferida</Chip>;
   if (c.status === "encerrado") return <Chip>{c.fim === "inatividade" ? "Encerrada sem resposta" : "Encerrada"}</Chip>;
-  return conversandoAgora(c) ? <Chip tom="sucesso">Conversando agora</Chip> : <Chip tom="alerta">Esperando o aluno</Chip>;
+  return conversandoAgora(c) ? <Chip tom="sucesso">Conversando agora</Chip> : <Chip tom="alerta">Esperando o servidor</Chip>;
 }
 
 function NomeAgente({ id, agentes }: { id: string; agentes: AgenteCentral[] }) {
@@ -137,7 +137,7 @@ export function MetricasCentral({
         detalhe={`${fmtInt(encerradas.length - semResposta)} pelo agente · ${fmtInt(semResposta)} sem resposta`}
         cor="#10b981"
       />
-      <Indicador icone={<Timer />} rotulo="Resposta média" valor={tempoMedio != null ? fmtSegundos(tempoMedio) : "—"} detalhe="por mensagem do aluno" cor="#8b5cf6" />
+      <Indicador icone={<Timer />} rotulo="Resposta média" valor={tempoMedio != null ? fmtSegundos(tempoMedio) : "—"} detalhe="por mensagem do servidor" cor="#8b5cf6" />
       <Indicador icone={<AlertTriangle />} rotulo="Alertas" valor={fmtInt(alertas)} detalhe="pedem atenção agora" cor={alertas ? "#ef4444" : "#94a3b8"} />
     </div>
   );
@@ -377,7 +377,7 @@ function TabelaConversas({
       <Filtros>
         <div className="relative">
           <Search className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input className={cn(campo, "w-60 pl-8")} placeholder="Aluno, mensagem ou motivo" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <input className={cn(campo, "w-60 pl-8")} placeholder="Servidor, mensagem ou motivo" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <Opcoes
           opcoes={[
@@ -385,7 +385,7 @@ function TabelaConversas({
             { value: "em_atendimento", label: "Em atendimento" },
             { value: "transferido", label: `Transferidas · ${periodo}` },
             { value: "encerrado", label: `Encerradas · ${periodo}` },
-            { value: "sem_resposta", label: "Sem resposta do aluno" },
+            { value: "sem_resposta", label: "Sem resposta do servidor" },
           ]}
           valor={situacao}
           onChange={setSituacao}
@@ -398,7 +398,7 @@ function TabelaConversas({
         <Table>
           <TableHeader>
             <tr>
-              <TableHead>{cab("Aluno", "nome")}</TableHead>
+              <TableHead>{cab("Servidor", "nome")}</TableHead>
               <TableHead>{cab("Agente", "agente")}</TableHead>
               <TableHead>Situação</TableHead>
               <TableHead>Motivo</TableHead>
@@ -415,7 +415,7 @@ function TabelaConversas({
             )}
             {linhas.map((c) => (
               <TableRow key={c.id} className="cursor-pointer" onClick={() => aoAbrir(c.id)}>
-                <TableCell className="max-w-48 truncate font-medium">{c.nome || "Aluno sem nome"}</TableCell>
+                <TableCell className="max-w-48 truncate font-medium">{c.nome || "Servidor sem nome"}</TableCell>
                 <TableCell>
                   <NomeAgente id={c.agente} agentes={agentes} />
                 </TableCell>
@@ -567,7 +567,7 @@ function TabelaAlertas({
         />
         <div className="relative">
           <Search className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input className={cn(campo, "w-56 pl-8")} placeholder="Aluno ou o que aconteceu" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <input className={cn(campo, "w-56 pl-8")} placeholder="Servidor ou o que aconteceu" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <Opcoes
           opcoes={[
@@ -585,7 +585,7 @@ function TabelaAlertas({
       </Filtros>
       {vista === "abertos" && (
         <p className="shrink-0 text-[11px] text-muted-foreground">
-          Quando a equipe responde o aluno no WhatsApp, a baixa é automática (conferida a cada 10 minutos). Use os botões para o que foi
+          Quando a equipe responde o servidor no WhatsApp, a baixa é automática (conferida a cada 10 minutos). Use os botões para o que foi
           resolvido de outro jeito; o alerta volta se acontecer algo novo na conversa.
         </p>
       )}
@@ -596,7 +596,7 @@ function TabelaAlertas({
               <TableHead>{cab("Nível", "nivel")}</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Agente</TableHead>
-              <TableHead>{cab("Aluno", "contato")}</TableHead>
+              <TableHead>{cab("Servidor", "contato")}</TableHead>
               <TableHead>{vista === "abertos" ? "O que aconteceu" : "Baixa"}</TableHead>
               <TableHead className="text-right">Desde</TableHead>
               <TableHead className="text-right">{cab("Parado há", "parada", "right")}</TableHead>
@@ -798,7 +798,7 @@ function TabelaAcontecimentos({
       <Filtros>
         <div className="relative">
           <Search className="absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <input className={cn(campo, "w-56 pl-8")} placeholder="Aluno, resposta ou motivo" value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <input className={cn(campo, "w-56 pl-8")} placeholder="Servidor, resposta ou motivo" value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <Opcoes opcoes={FILTROS_TIPO} valor={tipo} onChange={setTipo} contagem={(v) => daBusca.filter((e) => doTipo(e, v)).length} />
         <SeletorAgente agentes={agentes} valor={agente} onChange={setAgente} />
@@ -816,7 +816,7 @@ function TabelaAcontecimentos({
               <TableHead>Quando</TableHead>
               <TableHead>Agente</TableHead>
               <TableHead>O que fez</TableHead>
-              <TableHead>Aluno</TableHead>
+              <TableHead>Servidor</TableHead>
               <TableHead>Detalhe</TableHead>
               <TableHead>Canal</TableHead>
             </tr>
@@ -894,7 +894,7 @@ function PainelConversaLateral({
   });
   const c = conversa.data;
   const transferencia = c?.acoes.filter((a) => a.tipo === "transferencia").at(-1);
-  const nome = resumo?.nome || c?.nome || "Aluno sem nome";
+  const nome = resumo?.nome || c?.nome || "Servidor sem nome";
   return (
     <PainelLateral
       aberto
@@ -948,13 +948,13 @@ function PainelConversaLateral({
             </p>
           )}
           {conversa.isError && <p className="py-4 text-xs text-destructive">{(conversa.error as Error).message}</p>}
-          {c && c.itens.length === 0 && <p className="py-4 text-xs text-muted-foreground">O aluno ainda não respondeu: só as boas-vindas foram enviadas.</p>}
+          {c && c.itens.length === 0 && <p className="py-4 text-xs text-muted-foreground">O servidor ainda não respondeu: só as boas-vindas foram enviadas.</p>}
           <div className="space-y-3">
             {c?.itens.map((item, i) =>
-              item.papel === "aluno" ? (
+              item.papel === "contato" ? (
                 <div key={i} className="flex justify-end gap-2">
                   <div className="max-w-[85%] rounded-2xl rounded-tr-sm bg-secondary px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-secondary-foreground">
-                    {item.texto === "(o aluno enviou o anexo sem texto)" ? "📎 anexo" : item.texto}
+                    {item.texto === "(o servidor enviou o anexo sem texto)" ? "📎 anexo" : item.texto}
                     {!!item.anexos?.length && <div className="mt-1 text-[11px] opacity-70">📎 {item.anexos.map((a) => a.nome).join(", ")}</div>}
                   </div>
                   <span className="grid size-7 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground">
@@ -1047,7 +1047,7 @@ function PainelAgenteLateral({
             <Table>
               <TableHeader>
                 <tr>
-                  <TableHead>Aluno</TableHead>
+                  <TableHead>Servidor</TableHead>
                   <TableHead>Situação</TableHead>
                   <TableHead className="text-right">Msgs</TableHead>
                   <TableHead className="text-right">Atividade</TableHead>
@@ -1057,7 +1057,7 @@ function PainelAgenteLateral({
                 {recentes.length === 0 && <TableEmpty colSpan={4}>Nenhuma conversa no período.</TableEmpty>}
                 {recentes.map((c) => (
                   <TableRow key={c.id} className="cursor-pointer" onClick={() => aoAbrirConversa(c.id)}>
-                    <TableCell className="max-w-44 truncate font-medium">{c.nome || "Aluno sem nome"}</TableCell>
+                    <TableCell className="max-w-44 truncate font-medium">{c.nome || "Servidor sem nome"}</TableCell>
                     <TableCell>
                       <SituacaoConversa c={c} />
                     </TableCell>

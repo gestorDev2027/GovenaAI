@@ -96,12 +96,12 @@ def _instrucoes(perfil: Perfil):
 
 
 def _aprendizado(perfil: Perfil) -> dict:
-    """O que o agente aprende com cada aluno (AGENTE_APRENDIZADO, ver agente/aprendizado.py).
+    """O que o agente aprende com cada contato (AGENTE_APRENDIZADO, ver agente/aprendizado.py).
 
     memoria: memórias automáticas (MemoryManager), em paralelo com a resposta, seguindo as instruções
     do perfil; voltam no contexto quando o mesmo contato conversa de novo. O modo agêntico (o modelo
     decidir chamar a ferramenta) quase nunca gravava: 0 memórias em produção.
-    learning: o Learning do Agno (perfil do aluno, memórias e resumo da sessão), no lugar do anterior.
+    learning: o Learning do Agno (perfil do contato, memórias e resumo da sessão), no lugar do anterior.
     """
     if aprendizado.modo() == "learning":
         return {"learning": aprendizado.maquina(_modelo(), perfil.memoria_instrucoes), "add_learnings_to_context": True}
@@ -124,8 +124,8 @@ def montar_agente(perfil: Perfil, banco: PostgresDb | SqliteDb) -> Agent:
         # Skills do painel: o agente vê nome e descrição e lê o resto quando precisa (fábrica de agentes).
         skills=fabrica_recursos.skills_do_agente(perfil.skills_ids),
         db=banco,
-        # nome_aluno: o nome de quem conversa (o servidor, no GestorGov); municipio_id: a prefeitura da conversa.
-        session_state={"status": STATUS_EM_ATENDIMENTO, "acoes": [], "nome_aluno": "", "telefone": "", "municipio_id": None},
+        # nome_contato: o nome de quem conversa (o servidor, no GestorGov); municipio_id: a prefeitura da conversa.
+        session_state={"status": STATUS_EM_ATENDIMENTO, "acoes": [], "nome_contato": "", "telefone": "", "municipio_id": None},
         **_aprendizado(perfil),
         add_history_to_context=True,
         num_history_runs=20,

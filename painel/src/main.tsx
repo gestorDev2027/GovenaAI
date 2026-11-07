@@ -66,7 +66,7 @@ const rotas = [
     validateSearch: (s: Record<string, unknown>): { id?: string; status?: string; aba?: string } => ({
       id: typeof s.id === "string" ? s.id : undefined,
       status: typeof s.status === "string" ? s.status : undefined,
-      // A aba da coluna do aluno: o link abre onde parou.
+      // A aba da coluna do servidor: o link abre onde parou.
       aba: typeof s.aba === "string" ? s.aba : undefined,
     }),
     component: Conversas,

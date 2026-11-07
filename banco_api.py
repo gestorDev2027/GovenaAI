@@ -1,13 +1,13 @@
 """Visão gerencial do banco dos agentes no painel (/painel/api/banco). Só leitura.
 
-Lista as tabelas do schema dos agentes (agente_sdr no nexa-DB; o SQLite local nos testes) com a
+Lista as tabelas do schema dos agentes (gestorgov no Supabase; o SQLite local nos testes) com a
 quantidade de linhas e as colunas, e mostra as linhas de cada uma, com paginação e busca. A lista
 vem do próprio banco: tabela nova aparece sozinha. Vetores (embedding) aparecem como "vetor de N
 dimensões"; textos e JSON longos vêm cortados na listagem e inteiros ao abrir o registro.
 
 Cada consulta roda numa transação de leitura (Postgres: READ ONLY e limite de tempo), e o nome da
 tabela só é aceito se estiver na lista do banco. Acesso só para quem tem a permissão "ver o banco" (agente/usuarios.py):
-as tabelas têm telefones, mensagens dos alunos e dados de cadastro.
+as tabelas têm telefones, mensagens dos contatos e dados de cadastro.
 """
 
 import json
@@ -162,7 +162,7 @@ def criar_rotas_banco(agentes: dict[str, Agent]) -> APIRouter:
                 linhas = conexao.execute(text(f"select count(*) from {nome_completo(nome)}")).scalar_one()
                 grupo, descricao = _descricao(nome)
                 resultado.append({"nome": nome, "grupo": grupo, "descricao": descricao, "linhas": linhas})
-        return {"banco": "Postgres (nexa-DB)" if postgres else "SQLite local", "schema": schema, "tabelas": resultado}
+        return {"banco": "Postgres (Supabase)" if postgres else "SQLite local", "schema": schema, "tabelas": resultado}
 
     @rotas.get("/tabelas/{tabela}")
     def linhas(

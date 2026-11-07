@@ -55,11 +55,11 @@ import { SeletorPeriodo } from "@/components/central/seletor-periodo";
 import { DIAS_MAX, consultaPeriodo, rotuloPeriodo, type PeriodoCentral } from "@/lib/periodo-central";
 
 /**
- * Visão geral no padrão do Nexa BI. A régua (o que é atendimento, concluído, retido) é a mesma da Central ao
+ * Visão geral. A régua (o que é atendimento, concluído, retido) é a mesma da Central ao
  * vivo e da tela de Conversas, e está escrita no Dicionário no fim da página.
  *
  * Retenção = atendimentos concluídos que NÃO foram transferidos para um humano ÷ concluídos. A decomposição
- * mostra de onde ela vem: resolvido pelo agente, aluno parou no meio e não respondeu às boas-vindas. A visão
+ * mostra de onde ela vem: resolvido pelo agente, servidor parou no meio e não respondeu às boas-vindas. A visão
  * "Só quem conversou" tira da conta quem nunca respondeu.
  */
 
@@ -83,9 +83,8 @@ const EIXO = { fontSize: 11, fill: "var(--color-muted-foreground)" };
 const GRADE = "color-mix(in oklab, var(--color-foreground) 6%, transparent)";
 
 const NOME_FERRAMENTA: Record<string, string> = {
-  consultar_cadastro: "Consultar cadastro do aluno",
-  consultar_brindes: "Consultar apostilas e brindes",
-  buscar_aula: "Buscar aula",
+  consultar_secretaria: "Consultar a secretaria",
+  listar_unidades: "Listar unidades de saúde",
   delegate_task_to_member: "Passar para outro agente da equipe",
 };
 
@@ -212,7 +211,7 @@ export function ConteudoGestao({ dados, periodo }: { dados: Indicadores; periodo
   );
 }
 
-/* ───────── Peças no padrão do Nexa BI ───────── */
+/* ───────── Peças da Visão geral ───────── */
 
 function Cabecalho({
   icone: Icone,
@@ -279,7 +278,7 @@ function Segmentado<T extends string>({ opcoes, valor, aoMudar }: { opcoes: [T, 
   );
 }
 
-/** Mini-cartão do Nexa BI: ícone num quadrado, rótulo pequeno em caixa alta e o valor. */
+/** Mini-cartão: ícone num quadrado, rótulo pequeno em caixa alta e o valor. */
 function Mini({ icone: Icone, rotulo, valor, detalhe, tom }: { icone: typeof Info; rotulo: ReactNode; valor: ReactNode; detalhe?: ReactNode; tom: string }) {
   return (
     <div className="flex items-center gap-2.5 rounded-xl border border-border/50 bg-muted/20 px-3 py-2">
@@ -341,7 +340,7 @@ function Conteudo({ dados, periodo }: { dados: Indicadores; periodo: string }) {
     return (
       <div className="surface-card has-waves">
         <EmptyState icon={<MessagesSquare className="size-5" />} title="Nenhum atendimento no período">
-          Quando alunos (ou a equipe, pelo Chat de teste) conversarem com o agente, os números aparecem aqui.{" "}
+          Quando servidores (ou a equipe, pelo Chat de teste) conversarem com o agente, os números aparecem aqui.{" "}
           <Link to="/chat" className="font-semibold text-primary-text hover:underline">
             Abrir o Chat de teste
           </Link>
@@ -360,7 +359,7 @@ function Conteudo({ dados, periodo }: { dados: Indicadores; periodo: string }) {
         >
           <AlertTriangle className="size-4 shrink-0" />
           <span>
-            <b>{fmtInt(t.nao_chegaram)}</b> aluno(s) entraram com o agente na Unnichat e o <b>agente ainda não interagiu</b>: o aviso de
+            <b>{fmtInt(t.nao_chegaram)}</b> contato(s) entraram com o agente na Unnichat e o <b>agente ainda não interagiu</b>: o aviso de
             entrada não chegou ao servidor e ninguém mandou as boas-vindas.
           </span>
           <ArrowRight className="ml-auto size-4 shrink-0" />
@@ -434,7 +433,7 @@ function Retencao({ dados, periodo }: { dados: Indicadores; periodo: string }) {
   const todos = base === "todos";
   const partes = [
     { chave: "resolvido", rotulo: "Resolvido pelo agente", valor: d.encerradas_pelo_agente, icone: CheckCircle2, tom: "bg-success/14 text-success", cor: COR.resolvido },
-    { chave: "parou", rotulo: "Aluno parou no meio", valor: d.inatividade, icone: PauseCircle, tom: "bg-chart-3/14 text-chart-3", cor: COR.parou },
+    { chave: "parou", rotulo: "Servidor parou no meio", valor: d.inatividade, icone: PauseCircle, tom: "bg-chart-3/14 text-chart-3", cor: COR.parou },
     ...(todos
       ? [{ chave: "sem", rotulo: "Não respondeu", valor: d.sem_resposta, icone: MessageCircleOff, tom: "bg-muted text-muted-foreground", cor: COR.semResposta }]
       : []),
@@ -458,7 +457,7 @@ function Retencao({ dados, periodo }: { dados: Indicadores; periodo: string }) {
           <span className="text-[11px] font-medium tracking-[0.12em] text-muted-foreground uppercase">Taxa de retenção · {periodo}</span>
           <InfoTip>
             <b>Atendimentos concluídos que não foram transferidos para um humano</b> ÷ atendimentos concluídos. Concluído = resolvido pelo
-            agente, aluno parou de responder, não respondeu às boas-vindas em 23 h ou transferido. Os em andamento ficam fora até terminar.
+            agente, servidor parou de responder, não respondeu às boas-vindas em 23 h ou transferido. Os em andamento ficam fora até terminar.
             “Só quem conversou” tira da conta quem nunca respondeu às boas-vindas.
           </InfoTip>
         </div>
@@ -544,7 +543,7 @@ function Agora({ dados }: { dados: Indicadores }) {
           accent="green"
           icon={<MessageSquareMore />}
           hint="últimos 15 min"
-          insight={<>Conversas abertas com mensagem do aluno ou do agente nos últimos 15 minutos: quem está na mesa do escritório da Central.</>}
+          insight={<>Conversas abertas com mensagem do servidor ou do agente nos últimos 15 minutos: quem está na mesa do escritório da Central.</>}
         />
         <KpiCard
           className="rise"
@@ -554,7 +553,7 @@ function Agora({ dados }: { dados: Indicadores }) {
           accent="cyan"
           icon={<Send />}
           hint="dentro de 23 h"
-          insight={<>O agente mandou as boas-vindas e o aluno ainda não escreveu. Passado o prazo de inatividade, o atendimento é concluído como “não respondeu”.</>}
+          insight={<>O agente mandou as boas-vindas e o servidor ainda não escreveu. Passado o prazo de inatividade, o atendimento é concluído como “não respondeu”.</>}
         />
         <KpiCard
           className="rise"
@@ -563,10 +562,10 @@ function Agora({ dados }: { dados: Indicadores }) {
           count={g.abertas_paradas}
           accent="violet"
           icon={<Hourglass />}
-          hint={g.abertas_fora_do_prazo > 0 ? `${fmtInt(g.abertas_fora_do_prazo)} fora do prazo` : "esperando o aluno"}
+          hint={g.abertas_fora_do_prazo > 0 ? `${fmtInt(g.abertas_fora_do_prazo)} fora do prazo` : "esperando o servidor"}
           insight={
             <>
-              O aluno conversou e não escreve há mais de 15 minutos, sem a conversa terminar. As que passaram do prazo de inatividade já
+              O servidor conversou e não escreve há mais de 15 minutos, sem a conversa terminar. As que passaram do prazo de inatividade já
               deveriam ter sido encerradas pela rotina: vale conferir em Observabilidade.
             </>
           }
@@ -579,7 +578,7 @@ function Agora({ dados }: { dados: Indicadores }) {
           accent="amber"
           icon={<AlertTriangle />}
           hint="ação manual"
-          insight={<>A Unnichat colocou o aluno com o agente, mas o aviso não chegou ao servidor e ninguém mandou as boas-vindas. Fica fora de todas as taxas.</>}
+          insight={<>A Unnichat colocou o servidor com o agente, mas o aviso não chegou ao servidor e ninguém mandou as boas-vindas. Fica fora de todas as taxas.</>}
         />
       </div>
     </section>
@@ -641,11 +640,11 @@ function Jornada({ dados }: { dados: Indicadores }) {
   // As mesmas categorias do bloco "Agora" e da Central. Os totais fecham: atendimentos = só boas-vindas + conversou.
   const boasVindas: Fatia[] = [
     { nome: "Não respondeu", cor: COR.semResposta, total: d.sem_resposta, nota: "passou de 23 h sem escrever" },
-    { nome: "Aguardando o aluno", cor: COR.andamento, total: t.aguardando_boas_vindas, nota: "ainda dentro das 23 h" },
+    { nome: "Aguardando o servidor", cor: COR.andamento, total: t.aguardando_boas_vindas, nota: "ainda dentro das 23 h" },
   ];
   const conversa: Fatia[] = [
     { nome: "Resolvido pelo agente", cor: COR.resolvido, total: d.encerradas_pelo_agente },
-    { nome: "Aluno parou no meio", cor: COR.parou, total: d.inatividade },
+    { nome: "Servidor parou no meio", cor: COR.parou, total: d.inatividade },
     { nome: "Transferido para humano", cor: COR.transferido, total: t.transferidas },
     { nome: "Conversa aberta", cor: COR.andamento, total: t.abertas, nota: "ainda em andamento" },
   ];
@@ -662,10 +661,10 @@ function Jornada({ dados }: { dados: Indicadores }) {
         icone={GitBranch}
         tom="cyan"
         titulo="Para onde foi cada atendimento"
-        subtitulo="Primeiro, se o aluno conversou; depois, como terminou"
+        subtitulo="Primeiro, se o servidor conversou; depois, como terminou"
         ajuda={
           <>
-            As mesmas categorias do bloco “Agora” e da Central. Em andamento = {fmtInt(t.aguardando_boas_vindas)} aguardando o aluno +{" "}
+            As mesmas categorias do bloco “Agora” e da Central. Em andamento = {fmtInt(t.aguardando_boas_vindas)} aguardando o servidor +{" "}
             {fmtInt(t.abertas)} conversas abertas = {fmtInt(t.em_andamento)}; entram nas taxas quando terminarem.
           </>
         }
@@ -703,7 +702,7 @@ function Jornada({ dados }: { dados: Indicadores }) {
 
 const SERIES_DIA = [
   { chave: "encerradas_pelo_agente", rotulo: "Resolvido pelo agente", cor: COR.resolvido },
-  { chave: "inatividade", rotulo: "Aluno parou", cor: COR.parou },
+  { chave: "inatividade", rotulo: "Servidor parou", cor: COR.parou },
   { chave: "transferidas", rotulo: "Transferido", cor: COR.transferido },
   { chave: "sem_resposta", rotulo: "Não respondeu às boas-vindas", cor: COR.semResposta },
   { chave: "em_andamento", rotulo: "Em andamento", cor: COR.andamento },
@@ -996,7 +995,7 @@ function Ferramentas({ dados, periodo }: { dados: Indicadores; periodo: string }
         tom="violet"
         titulo="Uso de ferramentas"
         subtitulo={`Consultas que o agente faz para responder · ${periodo} · sem transferir e encerrar, que são desfechos`}
-        ajuda="Chamadas que o agente fez durante as respostas: consultar o cadastro do aluno, as apostilas e brindes, buscar uma aula ou passar para outro agente da equipe."
+        ajuda="Chamadas que o agente fez durante as respostas: consultar a secretaria, listar as unidades ou passar para outro agente da equipe."
       />
       <div className="mb-5 grid grid-cols-2 gap-2.5 md:grid-cols-4">
         <Mini icone={MessageSquareText} rotulo="Respostas com consulta" valor={fmtPct(taxa(t.respostas_com_consulta, t.respostas))} detalhe={`${fmtInt(t.respostas_com_consulta)} de ${fmtInt(t.respostas)}`} tom="bg-chart-5/14 text-chart-5" />
@@ -1095,9 +1094,9 @@ function Ferramentas({ dados, periodo }: { dados: Indicadores; periodo: string }
 
 /* ───────── Horário, eficiência e últimas transferências ───────── */
 
-type PorHora = { desde: number; ate: number | null; total_alunos: number; total_mensagens: number; alunos: number[]; mensagens: number[] };
+type PorHora = { desde: number; ate: number | null; total_contatos: number; total_mensagens: number; contatos: number[]; mensagens: number[] };
 
-/** Quando os alunos conversam: alunos diferentes por hora do dia, com o mesmo filtro de período da Central. */
+/** Quando os servidores conversam: servidores diferentes por hora do dia, com o mesmo filtro de período da Central. */
 function Horario({ diasPagina }: { diasPagina: number }) {
   const gestao = useCodigoGestao();
   const [periodo, setPeriodo] = useState<PeriodoCentral>({ tipo: "horas", horas: Math.min(diasPagina, DIAS_MAX) * 24 });
@@ -1107,7 +1106,7 @@ function Horario({ diasPagina }: { diasPagina: number }) {
     queryFn: () => api<PorHora>(gestao ? `/gestao/${encodeURIComponent(gestao)}/por-hora?${consulta}` : `/indicadores/por-hora?${consulta}`),
     placeholderData: (anterior) => anterior,
   });
-  const valores = q.data?.alunos ?? [];
+  const valores = q.data?.contatos ?? [];
   const max = Math.max(0, ...valores);
   const pico = valores.indexOf(max);
   const serie = valores.map((n, h) => ({ hora: `${h}h`, n }));
@@ -1119,19 +1118,19 @@ function Horario({ diasPagina }: { diasPagina: number }) {
       <Cabecalho
         icone={Clock3}
         tom="violet"
-        titulo="Quando os alunos conversam"
-        subtitulo={`${rotuloPeriodo(periodo)} · hora de Brasília · alunos diferentes que escreveram ao agente em cada hora`}
+        titulo="Quando os servidores conversam"
+        subtitulo={`${rotuloPeriodo(periodo)} · hora de Brasília · servidores diferentes que escreveram ao agente em cada hora`}
         acao={<SeletorPeriodo periodo={periodo} aoMudar={setPeriodo} />}
       />
       <div className="mb-4 grid grid-cols-1 gap-2.5 sm:grid-cols-3">
         <Mini
           icone={Users}
-          rotulo="Alunos que conversaram"
-          valor={q.data ? fmtInt(q.data.total_alunos) : "—"}
+          rotulo="Servidores que conversaram"
+          valor={q.data ? fmtInt(q.data.total_contatos) : "—"}
           detalhe={q.data ? `${fmtInt(q.data.total_mensagens)} mensagens` : undefined}
           tom="bg-chart-5/14 text-chart-5"
         />
-        <Mini icone={Clock3} rotulo="Hora de pico" valor={max > 0 ? `${pico}h–${pico + 1}h` : "—"} detalhe={max > 0 ? `${fmtInt(max)} alunos` : undefined} tom="bg-chart-5/14 text-chart-5" />
+        <Mini icone={Clock3} rotulo="Hora de pico" valor={max > 0 ? `${pico}h–${pico + 1}h` : "—"} detalhe={max > 0 ? `${fmtInt(max)} servidores` : undefined} tom="bg-chart-5/14 text-chart-5" />
         <Mini
           icone={MessageSquareText}
           rotulo="Mensagens fora do horário (20h–8h)"
@@ -1147,7 +1146,7 @@ function Horario({ diasPagina }: { diasPagina: number }) {
             <XAxis dataKey="hora" tick={EIXO} axisLine={false} tickLine={false} interval={1} />
             <YAxis allowDecimals={false} tick={EIXO} axisLine={false} tickLine={false} tickFormatter={(v: number) => fmtInt(v)} />
             <Tooltip content={<DicaGrafico />} cursor={{ fill: "var(--color-muted)", opacity: 0.35 }} />
-            <Bar dataKey="n" name="Alunos" radius={[4, 4, 0, 0]}>
+            <Bar dataKey="n" name="Servidores" radius={[4, 4, 0, 0]}>
               {serie.map((s) => (
                 <Cell key={s.hora} fill={s.n === max && max > 0 ? "var(--color-chart-1)" : "color-mix(in oklab, var(--color-accent) 70%, transparent)"} />
               ))}
@@ -1156,7 +1155,7 @@ function Horario({ diasPagina }: { diasPagina: number }) {
         </ResponsiveContainer>
       </div>
       <p className="mt-2 text-[11px] text-muted-foreground">
-        Cada aluno conta uma vez por hora em que escreveu. Por isso a soma das barras pode passar do total de alunos: quem escreveu às 10h e às 15h aparece nas duas.
+        Cada servidor conta uma vez por hora em que escreveu. Por isso a soma das barras pode passar do total de servidores: quem escreveu às 10h e às 15h aparece nas duas.
       </p>
     </section>
   );
@@ -1207,8 +1206,8 @@ function Dicionario({ dados, periodo }: { dados: Indicadores; periodo: string })
       "Volume",
       MessagesSquare,
       [
-        ["Atendimentos", "Quantos alunos o agente recebeu?", `${fmtInt(t.conversas - t.com_resposta)} só boas-vindas + ${fmtInt(t.com_resposta)} conversaram = ${fmtInt(t.conversas)}`, "Aviso de entrada que não chegou (fica em “Agora”)."],
-        ["Alunos que conversaram", "A mensagem de boas-vindas engaja?", `${fmtInt(t.com_resposta)} ÷ ${fmtInt(t.conversas)} atendimentos = ${fmtPct(taxa(t.com_resposta, t.conversas))}`, "Quem só recebeu as boas-vindas."],
+        ["Atendimentos", "Quantos servidores o agente recebeu?", `${fmtInt(t.conversas - t.com_resposta)} só boas-vindas + ${fmtInt(t.com_resposta)} conversaram = ${fmtInt(t.conversas)}`, "Aviso de entrada que não chegou (fica em “Agora”)."],
+        ["Servidores que conversaram", "A mensagem de boas-vindas engaja?", `${fmtInt(t.com_resposta)} ÷ ${fmtInt(t.conversas)} atendimentos = ${fmtPct(taxa(t.com_resposta, t.conversas))}`, "Quem só recebeu as boas-vindas."],
       ],
     ],
     [
@@ -1218,8 +1217,8 @@ function Dicionario({ dados, periodo }: { dados: Indicadores; periodo: string })
         ["Concluído", "Quais atendimentos já têm resultado?", `${fmtInt(t.conversas)} atendimentos − ${fmtInt(t.em_andamento)} em andamento = ${fmtInt(t.terminadas)}`, "Boas-vindas ainda no prazo e conversas abertas."],
         ["Taxa de retenção", "Quanto o agente resolve sem a equipe?", `${fmtInt(t.retidas)} não transferidos ÷ ${fmtInt(t.terminadas)} concluídos = ${fmtPct(t.retencao_pct)}`, "Em andamento. Em “Só quem conversou”, também quem não respondeu."],
         ["Transferência", "Quanto vai para a equipe?", `${fmtInt(t.transferidas)} ÷ ${fmtInt(t.terminadas)} concluídos = ${fmtPct(t.transferencia_pct)}`, "Em andamento. Retenção + transferência = 100%."],
-        ["Resolvido pelo agente", "Em quantos o agente fechou o assunto?", `${fmtInt(d.encerradas_pelo_agente)} ÷ ${fmtInt(conversou)} que conversaram = ${fmtPct(taxa(d.encerradas_pelo_agente, conversou))}`, "Quem parou de responder no meio (é “aluno parou”)."],
-        ["Aluno parou no meio", "Quantos abandonaram a conversa?", `${fmtInt(d.inatividade)} encerrados por inatividade depois de conversar`, "Quem nunca respondeu às boas-vindas."],
+        ["Resolvido pelo agente", "Em quantos o agente fechou o assunto?", `${fmtInt(d.encerradas_pelo_agente)} ÷ ${fmtInt(conversou)} que conversaram = ${fmtPct(taxa(d.encerradas_pelo_agente, conversou))}`, "Quem parou de responder no meio (é “servidor parou”)."],
+        ["Servidor parou no meio", "Quantos abandonaram a conversa?", `${fmtInt(d.inatividade)} encerrados por inatividade depois de conversar`, "Quem nunca respondeu às boas-vindas."],
       ],
     ],
     [
@@ -1227,7 +1226,7 @@ function Dicionario({ dados, periodo }: { dados: Indicadores; periodo: string })
       Radio,
       [
         ["Atendendo agora", "Há alguém sendo atendido neste momento?", "Conversa aberta com mensagem nos últimos 15 min (a mesa do escritório da Central)", "Conversas paradas e boas-vindas aguardando."],
-        ["Conversas abertas paradas", "Quantas conversas esperam o aluno?", "O aluno conversou e não escreve há mais de 15 min", "Boas-vindas sem resposta."],
+        ["Conversas abertas paradas", "Quantas conversas esperam o servidor?", "O servidor conversou e não escreve há mais de 15 min", "Boas-vindas sem resposta."],
       ],
     ],
     [
@@ -1242,7 +1241,7 @@ function Dicionario({ dados, periodo }: { dados: Indicadores; periodo: string })
       "Velocidade e qualidade",
       ShieldCheck,
       [
-        ["Tempo de resposta", "O aluno espera muito?", `Média ${fmtSegundos(t.tempo_modelo_s)} · p90 ${fmtSegundos(t.tempo_resposta_p90_s)}`, "A espera proposital para juntar mensagens seguidas."],
+        ["Tempo de resposta", "O servidor espera muito?", `Média ${fmtSegundos(t.tempo_modelo_s)} · p90 ${fmtSegundos(t.tempo_resposta_p90_s)}`, "A espera proposital para juntar mensagens seguidas."],
         ["Nota automática", "As respostas estão corretas?", "Média diária das notas de 0 a 10 do avaliador nos casos de teste", "Conversas reais (avaliadas pela equipe na Calibração)."],
       ],
     ],

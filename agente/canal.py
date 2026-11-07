@@ -3,7 +3,7 @@
 Três escolhas, que valem na mensagem seguinte, sem deploy:
 - atendente: o agente ou a equipe publicada que atende as conversas (com uma equipe, a recepção
   escolhe o agente a cada mensagem);
-- leads: o que fazer com quem não é aluno numa conversa nova: "" (sem porta, o atendente atende
+- leads: o que fazer com quem não é cidadão numa conversa nova: "" (sem porta, o atendente atende
   todos), "nenhum" (fica com o time na caixa da Unnichat) ou um agente ou equipe publicada;
 - tags_sem_agente: contato com uma dessas tags não é atendido. Terminada em *, vale como prefixo
   (ex.: black_26_* cala o agente com qualquer tag de fluxo da Black). `agente-transferiu` e
@@ -11,7 +11,7 @@ Três escolhas, que valem na mensagem seguinte, sem deploy:
 - dias_comercial: na entrada do negócio no CS, quem conversou com alguém do time pelo Live Chat nesses
   últimos dias (ou tem a tag do comercial) veio pelo comercial: ganha a tag `agente-veio-do-comercial` e
   o agente não entra nem depois (0 desliga a conversa; a tag do comercial continua valendo). Tirar a
-  tag devolve o aluno ao agente;
+  tag devolve o cidadão ao agente;
 - somente_pipeline: só atende quem tem negócio aberto no pipeline do onboarding (UNNICHAT_PIPELINE_ONBOARDING,
   o CS); a entrada de um negócio de outro pipeline não abre onboarding. Ligado por padrão quando o
   pipeline está configurado;
@@ -41,7 +41,7 @@ from sqlalchemy.engine import Engine
 from agente import equipes, perfis
 from agente.unnichat import TAG_TRANSFERIU
 
-SEM_AGENTE = "nenhum"  # leads: quem não é aluno não é atendido por agente
+SEM_AGENTE = "nenhum"  # leads: quem não é cidadão não é atendido por agente
 TAG_VEIO_DO_COMERCIAL = "agente-veio-do-comercial"  # posta na entrada no CS de quem comprou com o comercial
 TAG_COMERCIAL = "comercial-em-atendimento"
 # Sem elas, o agente voltaria a falar com quem já foi para a equipe ou comprou com o comercial.
@@ -142,7 +142,7 @@ def tags_sem_agente() -> list[str]:
 
 
 def dias_comercial() -> int:
-    """Quantos dias antes da entrada no CS uma conversa com o time marca o aluno como do comercial (0 = só a tag)."""
+    """Quantos dias antes da entrada no CS uma conversa com o time marca o cidadão como do comercial (0 = só a tag)."""
     return int(_config()["dias_comercial"])
 
 

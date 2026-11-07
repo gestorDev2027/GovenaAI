@@ -182,7 +182,7 @@ export function EscolhaDeFerramentas({
   );
 }
 
-/** O avatar do agente: o CF em branco sobre a cor dele, como na barra da Central. */
+/** O avatar do agente: o símbolo do GestorGov em branco sobre a cor dele, como na barra da Central. */
 export function AvatarAgente({ cor, tamanho = "md", className }: { cor: string; tamanho?: "sm" | "md" | "lg"; className?: string }) {
   const medidas = { sm: ["size-7", "size-4"], md: ["size-9", "size-5"], lg: ["size-12", "size-7"] }[tamanho];
   return (
@@ -191,7 +191,7 @@ export function AvatarAgente({ cor, tamanho = "md", className }: { cor: string; 
       className={cn("grid shrink-0 place-items-center rounded-full shadow-sm ring-2 ring-white/15", medidas[0], className)}
       style={{ background: `radial-gradient(circle at 30% 25%, color-mix(in oklab, ${cor} 70%, white), ${cor} 60%)` }}
     >
-      <img src="/painel/espaco/cf-branco.png" alt="" className={cn("drop-shadow-sm", medidas[1])} />
+      <img src="/painel/espaco/gestorgov-branco.png" alt="" className={cn("drop-shadow-sm", medidas[1])} />
     </span>
   );
 }

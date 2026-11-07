@@ -33,7 +33,7 @@ class Motivo(BaseModel):
 
 
 class RascunhoAgente(BaseModel):
-    id: str = Field(description="Identificador: 3 a 30 caracteres, minúsculas, números e hífen (ex.: bia-matriculas).")
+    id: str = Field(description="Identificador: 3 a 30 caracteres, minúsculas, números e hífen (ex.: farmacia-estoque).")
     nome: str = Field(description="Nome de apresentação, como uma pessoa (ex.: Bia).")
     area: str
     cargo: str
@@ -48,7 +48,7 @@ class RascunhoAgente(BaseModel):
 
 
 class RascunhoInstrucoes(BaseModel):
-    texto: str = Field(description=f"O texto completo das instruções, mantendo {MARCADOR_BASE}, @@BOAS_VINDAS@@ e {{nome_aluno}}.")
+    texto: str = Field(description=f"O texto completo das instruções, mantendo {MARCADOR_BASE}, @@BOAS_VINDAS@@ e {{nome_contato}}.")
     resumo: str = Field(description="O que mudou, em até 3 itens curtos.")
     alertas: list[str] = Field(default_factory=list)
 
@@ -148,7 +148,7 @@ transferir_para_humano (sempre: encaminha ao responsável) e encerrar_atendiment
         agente, _ = _do_agente(agente_id)
         texto = (atual or {}).get("texto") or fabrica.instrucoes(agente_id)["atual"]["texto"]
         saida = _rodar(RascunhoInstrucoes, f"""Reescreva as instruções do agente {agente['nome']} ({agente['descricao']}) conforme o pedido.
-Mantenha a estrutura em blocos <...> e os marcadores {MARCADOR_BASE}, @@BOAS_VINDAS@@ e {{nome_aluno}} exatamente como estão.
+Mantenha a estrutura em blocos <...> e os marcadores {MARCADOR_BASE}, @@BOAS_VINDAS@@ e {{nome_contato}} exatamente como estão.
 Mude só o que o pedido pede; o conteúdo do negócio (prazos, links, regras) fica na base de conhecimento, não nas instruções.
 Motivos de transferência do agente (chaves que as instruções podem citar): {', '.join(agente['categorias'])}.""",
                        f"<instrucoes_atuais>\n{texto}\n</instrucoes_atuais>\n\n<pedido>\n{pedido}\n</pedido>")

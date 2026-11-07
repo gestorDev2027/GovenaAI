@@ -46,7 +46,7 @@ export type TipoSecao = "mensagem" | "regra" | "conteudo";
 
 const normalizar = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-/** Seções que o sistema envia exatamente como estão escritas (com [NOME DO ALUNO] trocado pelo primeiro nome). */
+/** Seções que o sistema envia exatamente como estão escritas (com [NOME DO CONTATO] trocado pelo primeiro nome). */
 const MENSAGENS = ["boas-vindas", "encerramento por inatividade", "pedido fora do atendimento", "transferencia para a equipe"];
 
 export function tipoDaSecao(titulo: string): TipoSecao {
@@ -61,7 +61,7 @@ export const TIPO_SECAO: Record<TipoSecao, { rotulo: string; tom: "primario" | "
     rotulo: "Mensagem automática",
     tom: "primario",
     ajuda:
-      "O sistema envia esta seção como está escrita, com [NOME DO ALUNO] trocado pelo primeiro nome. Sem a seção, a mensagem não é enviada.",
+      "O sistema envia esta seção como está escrita, com [NOME DO CONTATO] trocado pelo primeiro nome. Sem a seção, a mensagem não é enviada.",
   },
   regra: {
     rotulo: "Regra de transferência",
@@ -71,7 +71,7 @@ export const TIPO_SECAO: Record<TipoSecao, { rotulo: string; tom: "primario" | "
   conteudo: {
     rotulo: "Conteúdo",
     tom: "neutro",
-    ajuda: "Vale para os alunos na próxima mensagem. Links, prazos e valores são repetidos exatamente como estão escritos.",
+    ajuda: "Vale para os servidores na próxima mensagem. Links, prazos e valores são repetidos exatamente como estão escritos.",
   },
 };
 

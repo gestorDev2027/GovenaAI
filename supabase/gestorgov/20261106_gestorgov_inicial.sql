@@ -18,7 +18,7 @@
 --
 -- Mudanças em relação ao NexaAgents (Contabilidade Facilitada):
 --   - schema `gestorgov` no lugar de `agente_sdr`; papel `gestorgov_app` no lugar de `agente_sdr_app`;
---   - sem Data Gateway, compras, área do aluno, Unnichat nem as views de métricas do WhatsApp
+--   - sem Data Gateway, compras, Unnichat nem as views de métricas do WhatsApp
 --     (agente_metricas): as métricas do GestorGov serão refeitas sobre as tarefas e rotinas.
 -- =============================================================================
 

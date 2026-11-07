@@ -203,7 +203,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
             <div>
               <h1 className="text-xl font-bold">Chave de acesso</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                O painel mostra conversas de alunos. Informe a chave de acesso do agente (a mesma usada no
+                O painel mostra conversas de servidores. Informe a chave de acesso do agente (a mesma usada no
                 AgentOS) para continuar.
               </p>
             </div>

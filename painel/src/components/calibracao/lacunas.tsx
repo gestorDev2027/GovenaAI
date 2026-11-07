@@ -96,7 +96,7 @@ export function Lacunas() {
         Respostas das conversas reais em que o agente <strong className="text-foreground">transferiu</strong>,{" "}
         <strong className="text-foreground">disse que não tinha a informação</strong> ou <strong className="text-foreground">não achou a aula</strong>.
         Escreva como deveria ser: a resposta entra em <em>Aguardando curadoria</em> e, aprovada, vira gabarito e exemplo para o agente. Quando
-        a resposta depende de uma regra que vale para muitos alunos (benefício da campanha, prazo, procedimento), cadastre também na{" "}
+        a resposta depende de uma regra que vale para muitos servidores (norma, prazo, procedimento), cadastre também na{" "}
         <Link to="/base" className="font-semibold text-primary hover:underline">
           base de conhecimento
         </Link>{" "}
@@ -104,7 +104,7 @@ export function Lacunas() {
         <Link to="/fabrica" className="font-semibold text-primary hover:underline">
           fábrica
         </Link>
-        . Transferência certa (o aluno pediu um atendente, cancelamento) se ignora.
+        . Transferência certa (o servidor pediu uma pessoa, a decisão era do responsável) se ignora.
       </p>
 
       {t && (
@@ -196,7 +196,7 @@ export function Lacunas() {
             <tr>
               <TableHead icone={Calendar}>Quando</TableHead>
               <TableHead icone={Tag}>Assunto</TableHead>
-              <TableHead icone={MessageSquare}>Mensagem do aluno</TableHead>
+              <TableHead icone={MessageSquare}>Mensagem do servidor</TableHead>
               <TableHead icone={Bot}>O que o agente fez</TableHead>
               <TableHead>Situação</TableHead>
             </tr>
@@ -210,7 +210,7 @@ export function Lacunas() {
             {visiveis.map((l) => (
               <TableRow key={l.id} onClick={() => setAberta(l)} className="cursor-pointer">
                 <TableCell className="text-xs whitespace-nowrap text-muted-foreground" title={l.quando ? fmtDataHora(l.quando) : undefined}>
-                  <div className="font-medium text-foreground">{l.nome || "Aluno sem nome"}</div>
+                  <div className="font-medium text-foreground">{l.nome || "Servidor sem nome"}</div>
                   {l.quando && <div>{fmtRelativo(l.quando)}</div>}
                   <div className="font-mono text-[11px]">{nomeAgente(l.agente)}</div>
                 </TableCell>
@@ -334,7 +334,7 @@ function DetalheLacuna({
       rotulo="Lacuna"
       icone={<Lightbulb />}
       titulo={l ? l.assunto || l.categoria_rotulo || "Sem assunto ainda" : ""}
-      descricao={l ? `${l.nome || "Aluno sem nome"} · ${nomeAgente(l.agente)}${l.quando ? ` · ${fmtDataHora(l.quando)}` : ""}` : undefined}
+      descricao={l ? `${l.nome || "Servidor sem nome"} · ${nomeAgente(l.agente)}${l.quando ? ` · ${fmtDataHora(l.quando)}` : ""}` : undefined}
       largura="xl"
       rodape={rodape}
     >
@@ -356,7 +356,7 @@ function DetalheLacuna({
             </Link>
           </div>
 
-          <Campo rotulo={<span className="inline-flex items-center gap-1.5"><User className="size-4" /> Mensagem do aluno</span>}>
+          <Campo rotulo={<span className="inline-flex items-center gap-1.5"><User className="size-4" /> Mensagem do servidor</span>}>
             <div className="rounded-lg bg-secondary px-3 py-2 text-sm whitespace-pre-wrap">{l.mensagem || "(sem texto)"}</div>
           </Campo>
           <Campo rotulo={<span className="inline-flex items-center gap-1.5"><Bot className="size-4" /> O que o agente respondeu</span>}>
@@ -379,7 +379,7 @@ function DetalheLacuna({
                 )}
                 {l.dificuldade && (
                   <div>
-                    <dt className="inline text-muted-foreground">Relato do aluno: </dt>
+                    <dt className="inline text-muted-foreground">Relato do servidor: </dt>
                     <dd className="inline">{l.dificuldade}</dd>
                   </div>
                 )}
@@ -391,7 +391,7 @@ function DetalheLacuna({
             <>
               <Campo
                 rotulo="Como o agente deveria responder"
-                ajuda="Pronto para o aluno no WhatsApp, com a regra oficial (prazo, link, passo a passo). Vai para a curadoria antes de valer."
+                ajuda="Pronto para o servidor no WhatsApp, com a regra oficial (prazo, link, passo a passo). Vai para a curadoria antes de valer."
               >
                 <Textarea rows={6} value={ideal} onChange={(e) => setIdeal(e.target.value)} placeholder="Ex.: O sorteio é para quem…" />
               </Campo>

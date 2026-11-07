@@ -1,52 +1,42 @@
-"""Qualidade do atendimento com a régua do Supervisor: o agente julgado como os consultores humanos.
+"""Qualidade das conversas dos agentes com a régua de cinco critérios do GestorGov.
 
-O Supervisor de atendimento avalia os consultores do CS com uma régua de cinco critérios julgados por IA
-(compreensão do problema, qualidade da resposta, clareza da orientação, desfecho e português), cada um em
-abaixo / dentro / acima / não avaliável, e classifica o tema de cada atendimento. Este módulo aplica a MESMA
-régua e o MESMO modelo às conversas concluídas dos agentes, para a Visão geral comparar agente e humanos.
+A régua (agente/regua_qualidade.json) julga por IA cinco critérios (compreensão do pedido, qualidade da
+resposta, clareza da orientação, desfecho e português), cada um em abaixo / dentro / acima / não avaliável,
+e classifica o tema de cada conversa. Este módulo a aplica às conversas concluídas dos agentes, para a Visão
+geral mostrar como cada agente está indo.
 
-- A régua é uma cópia versionada (agente/regua_supervisor_cs.json). Mudou lá, copie de novo e troque a versão:
-  avaliações de versões diferentes não se comparam.
+- A régua é versionada: mudou o JSON, troque a versão (avaliações de versões diferentes não se comparam).
 - Uma linha por conversa em `qualidade_supervisor`. A rotina diária (app.py, "avaliar-qualidade") avalia as
   concluídas que ainda não têm linha.
-- O lado humano vem do Data Gateway (recurso DATAG_RECURSO_QUALIDADE, padrão supervisor_qualidade_cs): só o
-  agregado por dia, tema, critério e nível, sem texto de conversa.
-- Revisão humana: o coordenador do CS confere uma amostra; a concordância mede se a régua está sendo aplicada
-  ao agente com o mesmo rigor (no Supervisor isso é feito em monitoria.human_reviews).
+- Ainda não há lado humano para comparar: `agregado_humanos` responde indisponível e a Visão geral mostra
+  só o agente.
+- Revisão humana: o responsável confere uma amostra; a concordância mede se a régua está sendo aplicada ao
+  agente com o rigor esperado.
 """
 
 import json
 import os
-import time
 from collections import Counter, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import requests
 from agno.db.base import SessionType
 from agno.utils.log import log_info, log_warning
 from sqlalchemy import JSON, Column, DateTime, Integer, MetaData, String, Table, select, update
 
-REGUA = json.loads((Path(__file__).parent / "regua_supervisor_cs.json").read_text(encoding="utf-8"))
+REGUA = json.loads((Path(__file__).parent / "regua_qualidade.json").read_text(encoding="utf-8"))
 CRITERIOS = [d["dimensao"] for d in REGUA["dimensoes"]]
 ROTULOS = {d["dimensao"]: d["rotulo"] for d in REGUA["dimensoes"]}
 NIVEIS = ("abaixo", "dentro", "acima", "nao_avaliavel")
 TEMAS = {c["motivo"]: c.get("rotulo_motivo") or c["motivo"] for c in REGUA["catalogo"]}
-ROTULO_TEMA = {
-    "acesso": "Acesso", "campanha": "Campanha e oferta", "financeiro": "Financeiro", "documentos": "Documentos",
-    "livro_apostila": "Livro e apostila", "academico": "Aulas e curso", "matricula_cadastro": "Matrícula e cadastro",
-    "demora": "Demora como assunto", "regras_academicas": "Regras acadêmicas", "compra_preco": "Compra ou preço",
-    "app_grupos": "App e grupos", "troca_curso": "Troca de curso", "duvida_contabil": "Dúvida de contabilidade",
-    "sem_pedido": "Sem pedido", "outro": "Outro",
-}
+ROTULO_TEMA = TEMAS
 TABELA = "qualidade_supervisor"
 DIAS_PENDENTES = 30  # a rotina olha as conversas concluídas destes últimos dias
-CACHE_HUMANOS_S = 30 * 60
 
 
 def modelo() -> str:
-    """O mesmo modelo do avaliador do Supervisor (avaliacao-v14)."""
+    """O modelo do avaliador."""
     return os.getenv("QUALIDADE_MODELO", "gemini-2.5-flash")
 
 
@@ -87,10 +77,9 @@ def _instrucoes() -> str:
         )
     catalogo = "\n".join(f"- {c['motivo']} / {c['subcausa']}: {c['rotulo_subcausa']} — {c['descricao']}" for c in REGUA["catalogo"])
     return (
-        "Você é o avaliador de qualidade do Supervisor de atendimento do time de Sucesso do Aluno (CS) da Contabilidade "
-        "Facilitada. Avalie a pessoa que atende, que aqui é o AGENTE (assistente virtual no WhatsApp), com a MESMA régua "
-        "usada para os consultores humanos. Julgue só as mensagens do [Agente]; as do [Aluno] e do [Sistema] são contexto. "
-        "Transferir para a equipe humana avisando o aluno não é promessa descumprida.\n\n"
+        "Você é o avaliador de qualidade do GestorGov. Avalie o AGENTE de IA de um setor da Secretaria Municipal de "
+        "Saúde, que trabalha com os servidores pelo painel. Julgue só as mensagens do [Agente]; as do [Servidor] e do "
+        "[Sistema] são contexto. Transferir para uma pessoa avisando o servidor não é promessa descumprida.\n\n"
         "Para cada critério, escolha o nível: abaixo, dentro, acima ou nao_avaliavel, e cite a evidência em uma frase.\n\n"
         + "\n\n".join(blocos)
         + f"\n\nClassifique também o assunto do atendimento num motivo e numa subcausa do catálogo (use os códigos):\n{catalogo}\n"
@@ -114,14 +103,14 @@ def _esquema():
 
 
 def transcricao(sessao) -> str:
-    """A conversa como o avaliador lê: as mensagens do aluno e do agente, as consultas e as ações registradas."""
+    """A conversa como o avaliador lê: as mensagens do servidor e do agente, as consultas e as ações registradas."""
     estado = (getattr(sessao, "session_data", None) or {}).get("session_state") or {}
-    linhas = ["[Agente] (mensagem de boas-vindas automática do onboarding)"]
+    linhas = ["[Agente] (mensagem de boas-vindas automática)"]
     for run in getattr(sessao, "runs", None) or []:
         entrada = getattr(run, "input", None)
         texto = getattr(entrada, "input_content", entrada)
         if isinstance(texto, str) and texto.strip():
-            linhas.append(f"[Aluno] {texto.strip()}")
+            linhas.append(f"[Servidor] {texto.strip()}")
         nomes = [f.tool_name for f in (run.tools or []) if getattr(f, "tool_name", None)]
         if nomes:
             linhas.append(f"[Sistema] o agente consultou: {', '.join(nomes)}")
@@ -129,11 +118,11 @@ def transcricao(sessao) -> str:
             linhas.append(f"[Agente] {run.content.strip()}")
     for acao in estado.get("acoes") or []:
         if acao.get("tipo") == "transferencia":
-            linhas.append(f"[Sistema] o agente transferiu para a equipe humana (categoria: {acao.get('categoria')}; motivo: {acao.get('motivo')})")
+            linhas.append(f"[Sistema] o agente transferiu para uma pessoa (categoria: {acao.get('categoria')}; motivo: {acao.get('motivo')})")
         elif acao.get("tipo") == "encerramento":
             linhas.append("[Sistema] o agente encerrou o atendimento")
         elif acao.get("tipo") == "inatividade":
-            linhas.append("[Sistema] o atendimento foi encerrado por falta de resposta do aluno")
+            linhas.append("[Sistema] a conversa foi encerrada por falta de resposta do servidor")
     return "\n".join(linhas)
 
 
@@ -145,7 +134,6 @@ class Qualidade:
         self.engine = getattr(db, "db_engine", None)
         self.tabela = _tabela(schema)
         self._cliente = None
-        self._humanos: dict[int, tuple[float, dict]] = {}
         self._rodando = False
         try:
             self.tabela.metadata.create_all(self.engine, tables=[self.tabela])
@@ -275,51 +263,8 @@ class Qualidade:
                 "revisadas": len(revisadas), "concordancia": concordancia}
 
     def agregado_humanos(self, dias: int) -> dict:
-        """O lado humano: o agregado do Supervisor pelo Data Gateway, guardado por meia hora."""
-        guardado = self._humanos.get(dias)
-        if guardado and time.monotonic() - guardado[0] < CACHE_HUMANOS_S:
-            return guardado[1]
-        base, chave = os.getenv("DATAG_BASE_URL", "").strip(), os.getenv("DATAG_API_KEY", "").strip()
-        recurso = os.getenv("DATAG_RECURSO_QUALIDADE", "supervisor_qualidade_cs")
-        if not (base and chave):
-            return {"disponivel": False, "motivo": "Data Gateway não configurado (DATAG_BASE_URL e DATAG_API_KEY)."}
-        desde = (datetime.now(timezone.utc) - timedelta(days=dias)).date().isoformat()
-        linhas, cursor = [], None
-        try:
-            for _ in range(50):  # paginação do DG: segue o proximo_cursor
-                parametros = {"dia_gte": desde, "limite": 1000, **({"depois_de": cursor} if cursor else {})}
-                resposta = requests.get(f"{base.rstrip('/')}/v1/recursos/{recurso}", params=parametros,
-                                        headers={"X-API-Key": chave}, timeout=20)
-                if resposta.status_code == 404:
-                    return {"disponivel": False, "motivo": f"O recurso {recurso} ainda não existe no Data Gateway."}
-                resposta.raise_for_status()
-                corpo = resposta.json()
-                linhas += corpo.get("dados") or corpo.get("linhas") or corpo.get("items") or []
-                cursor = corpo.get("proximo_cursor")
-                if not cursor:
-                    break
-        except Exception as erro:
-            return {"disponivel": False, "motivo": f"Não deu para ler o Data Gateway: {type(erro).__name__}."}
-        por_criterio = {c: Counter() for c in CRITERIOS}
-        por_tema = defaultdict(lambda: {"atendimentos": 0, "avaliaveis": 0, "abaixo": 0})
-        atendimentos_por_tema = Counter()
-        for l in linhas:
-            c, nivel, n = l.get("dimensao"), l.get("nivel"), int(l.get("atendimentos") or 0)
-            if c not in por_criterio:
-                continue
-            por_criterio[c][nivel] += n
-            tema = por_tema[l.get("motivo") or "outro"]
-            if nivel in ("abaixo", "dentro", "acima"):
-                tema["avaliaveis"] += n
-                tema["abaixo"] += n if nivel == "abaixo" else 0
-            if c == CRITERIOS[0]:  # cada atendimento tem uma linha por critério: conta pelo primeiro
-                atendimentos_por_tema[l.get("motivo") or "outro"] += n
-        for motivo, n in atendimentos_por_tema.items():
-            por_tema[motivo]["atendimentos"] = n
-        resultado = {"disponivel": True, "atendimentos": sum(atendimentos_por_tema.values()),
-                     "por_criterio": por_criterio, "por_tema": dict(por_tema)}
-        self._humanos[dias] = (time.monotonic(), resultado)
-        return resultado
+        """O lado humano da comparação. O GestorGov ainda não tem avaliações humanas com esta régua."""
+        return {"disponivel": False, "motivo": "Ainda não há avaliações humanas com esta régua no GestorGov."}
 
     def avaliacoes(self, dias: int, agentes: set[str] | None, criterio: str | None, nivel: str | None,
                    so_sem_revisao: bool, limite: int) -> list[dict]:

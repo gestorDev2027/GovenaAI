@@ -400,7 +400,7 @@ function FormEquipe({
                     <Input
                       value={r.nome}
                       maxLength={80}
-                      placeholder="Ex.: Atendimento ao aluno"
+                      placeholder="Ex.: Atendimento ao servidor"
                       onChange={(e) => setR({ ...r, nome: e.target.value })}
                     />
                   </Campo>

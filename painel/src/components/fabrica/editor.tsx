@@ -552,7 +552,7 @@ function Publicacao({
     <>
       <SecaoPainel titulo="1. Testar">
         <p className="text-xs text-muted-foreground">
-          O chat de teste conversa com o agente como um aluno faria, já com o que está salvo, publicado ou não.
+          O chat de teste conversa com o agente como um servidor faria, já com o que está salvo, publicado ou não.
         </p>
         <Button variant="outline" asChild>
           <Link to="/chat" search={{ agente: agente.id }}>

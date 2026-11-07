@@ -7,10 +7,10 @@ aprovada por um curador ela passa a valer:
   "humanas"): a resposta ideal aprovada é o gabarito, a resposta original de um 👎 é o erro que não
   pode voltar, e qualquer mudança nas instruções ou na base é medida contra os dois;
 - vira exemplo com embedding (agente/conhecimento.py), com os dados pessoais mascarados: o agente
-  o recebe nas instruções quando um aluno manda uma mensagem parecida.
+  o recebe nas instruções quando um contato manda uma mensagem parecida.
 
 Nada entra no comportamento do agente sem a aprovação: uma avaliação errada, uma resposta mal
-escrita ou um dado de aluno não se espalham para outras conversas.
+escrita ou um dado de contato não se espalham para outras conversas.
 
 Lacunas (/lacunas): as respostas das conversas reais em que o agente transferiu, disse que não tinha a
 informação ou não achou a aula (agente/lacunas.py), agrupadas por assunto. A resposta que o time escreve
@@ -46,7 +46,7 @@ PROBLEMAS = {
     "nao_deveria_transferir": "Transferiu sem precisar",
     "tom": "Tom inadequado",
     "longa_ou_repetitiva": "Longa ou repetitiva",
-    "nao_entendeu": "Não entendeu o aluno",
+    "nao_entendeu": "Não entendeu o contato",
     "faltou_informacao": "Faltou informação para responder",
     "outro": "Outro",
 }
@@ -129,7 +129,7 @@ def criar_rotas_calibracao(agentes: dict[str, Agent]) -> APIRouter:
         Column("session_id", String(120), nullable=False, index=True),
         Column("run_id", String(120), nullable=False, index=True),
         Column("historico", JSON, nullable=False),  # a conversa até a resposta avaliada (inclusive)
-        Column("mensagem_aluno", Text, nullable=False),
+        Column("mensagem_contato", Text, nullable=False),
         Column("resposta_agente", Text, nullable=False),
         Column("telefone", String(30), nullable=True),
         Column("nota", Integer, nullable=False),
@@ -174,7 +174,7 @@ def criar_rotas_calibracao(agentes: dict[str, Agent]) -> APIRouter:
             raise HTTPException(status_code=404, detail="Conversa não encontrada.")
         historico, alvo = [], None
         for run in sessao.runs or []:
-            historico.append({"papel": "aluno", "texto": _texto_entrada(run), "quando": _iso(run.created_at)})
+            historico.append({"papel": "contato", "texto": _texto_entrada(run), "quando": _iso(run.created_at)})
             historico.append({"papel": "agente", "texto": run.content or "", "quando": _iso(run.created_at)})
             if run.run_id == run_id:
                 alvo = run
@@ -185,7 +185,7 @@ def criar_rotas_calibracao(agentes: dict[str, Agent]) -> APIRouter:
         return {
             "agente": getattr(alvo, "agent_id", None) or getattr(sessao, "agent_id", None) or next(iter(agentes)),
             "historico": historico,
-            "mensagem_aluno": historico[-2]["texto"],
+            "mensagem_contato": historico[-2]["texto"],
             "resposta_agente": historico[-1]["texto"],
             "telefone": estado.get("telefone") or None,
         }
@@ -291,7 +291,7 @@ def criar_rotas_calibracao(agentes: dict[str, Agent]) -> APIRouter:
                 sessao = qualquer.db.get_session(session_id=atual["session_id"], session_type=SessionType.AGENT)
                 estado = ((sessao.session_data or {}).get("session_state") or {}) if sessao else {}
                 resultado["exemplo_id"] = conhecimento.criar_exemplo(
-                    {**dict(atual), "resposta_ideal": ideal or None}, quem, [estado.get("nome_aluno") or ""])
+                    {**dict(atual), "resposta_ideal": ideal or None}, quem, [estado.get("nome_contato") or ""])
             except Exception as erro:
                 log_warning(f"Calibração: aprovação {avaliacao_id} sem exemplo: {type(erro).__name__}: {erro}")
                 resultado["exemplo_erro"] = str(erro)[:300]
@@ -363,7 +363,7 @@ def criar_rotas_calibracao(agentes: dict[str, Agent]) -> APIRouter:
                     "id": run.run_id,
                     "session_id": sessao.session_id,
                     "agente": getattr(run, "agent_id", None) or getattr(sessao, "agent_id", None) or perfis.PADRAO,
-                    "nome": estado.get("nome_aluno") or "",
+                    "nome": estado.get("nome_contato") or "",
                     "quando": _iso(run.created_at),
                     "mensagem": _texto_entrada(run),
                     "resposta": run.content or "",
@@ -450,7 +450,7 @@ def criar_rotas_calibracao(agentes: dict[str, Agent]) -> APIRouter:
 
     @rotas.post("/lacunas/{run_id}/situacao")
     def situacao_da_lacuna(run_id: str, pedido: PedidoSituacaoLacuna, painel_sessao: str | None = Cookie(default=None)) -> dict:
-        """Ignorar (não faltou conhecimento: o aluno pediu um atendente, transferir era o certo) ou reabrir."""
+        """Ignorar (não faltou conhecimento: o contato pediu um atendente, transferir era o certo) ou reabrir."""
         quem = _quem(painel_sessao)
         if not _pode_aprovar(quem):
             raise _negado("aprovar_calibracao")

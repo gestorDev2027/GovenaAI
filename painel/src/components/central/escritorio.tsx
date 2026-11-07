@@ -42,14 +42,14 @@ import {
 
 /*
  * A Central ao vivo como um escritório de verdade, em vista isométrica, com setores em volta da baia de
- * atendimento: recepção (onde chegam as mensagens), cadastro e matrículas, biblioteca de aulas, base de
- * conhecimento, expedição de apostilas, financeiro, equipe humana e a copa. Cada agente é um robô na sua mesa, com o rosto numa
+ * atendimento: recepção (onde chegam os pedidos), cadastro da secretaria, fontes públicas, base de
+ * conhecimento, implantação, catálogo de atividades, equipe humana e a copa. Cada agente é um robô na sua mesa, com o rosto numa
  * tela que mostra o que ele está fazendo. Quando ele usa uma ferramenta (aviso "ferramenta" do /central/eventos), levanta, anda pelos corredores até o setor
  * dela, busca e volta; na transferência, leva a pasta até a equipe humana. Mensagem que chega e resposta
  * que sai voam como envelopes entre a recepção e a mesa. As conversas ativas são balões sobre a mesa do
  * agente. Clicar num setor abre o painel dele; num agente ou num balão, o painel do agente ou da conversa.
  *
- * O escritório é o segundo andar do prédio do CF, numa maquete de quarteirão (exterior.tsx). A tela começa
+ * O escritório é o segundo andar do prédio da Secretaria de Saúde, numa maquete de quarteirão (exterior.tsx). A tela começa
  * com o prédio fechado, visto de fora; ele abre pelo botão da barra, por um clique nele ou ao selecionar algo
  * de dentro, e a cobertura sobe mostrando o escritório.
  */
@@ -146,7 +146,7 @@ function montarPlanta(baias: number) {
   const salas: Sala[] = [];
   // Fundo: 3 salas entre as colunas, porta para o corredor do fundo; móveis na parede do fundo.
   const larguraFundo = (xDir0 - xEsq1) / 3;
-  (["cadastro", "biblioteca", "base"] as const).forEach((id, i) => {
+  (["secretaria", "fontes", "base"] as const).forEach((id, i) => {
     const x0 = xEsq1 + i * larguraFundo;
     const cx = x0 + larguraFundo / 2;
     salas.push({
@@ -160,12 +160,12 @@ function montarPlanta(baias: number) {
     });
   });
   // Colunas: salas dos dois lados, porta para o corredor lateral; móveis na parede de fora. À esquerda, a
-  // expedição ocupa o canto do fundo (a porta dá para o trecho do corredor ao lado da baia) e a copa fica
+  // implantação ocupa o canto do fundo (a porta dá para o trecho do corredor ao lado da baia) e a copa fica
   // entre ela e a recepção. Cada trecho: sala, início e fim no eixo z e onde fica a porta.
   const zCopa = zFundo1 + 3.3;
   const colunas: [Sala["lado"], [SetorId | "copa", number, number, number][], number, number, number][] = [
-    ["esquerda", [["expedicao", zFundo0, zCopa, (zFundo1 + zCopa) / 2], ["copa", zCopa, 0, zCopa / 2], ["recepcao", 0, zFrente, bz1 / 2]], xEsq0, xEsq1, corredor.esq],
-    ["direita", [["financeiro", zFundo0, 0, zFundo1 / 2], ["equipe", 0, zFrente, bz1 / 2]], xDir0, xDir1, corredor.dir],
+    ["esquerda", [["implantacao", zFundo0, zCopa, (zFundo1 + zCopa) / 2], ["copa", zCopa, 0, zCopa / 2], ["recepcao", 0, zFrente, bz1 / 2]], xEsq0, xEsq1, corredor.esq],
+    ["direita", [["catalogo", zFundo0, 0, zFundo1 / 2], ["equipe", 0, zFrente, bz1 / 2]], xDir0, xDir1, corredor.dir],
   ];
   for (const [lado, trechos, x0, x1, xCorredor] of colunas) {
     trechos.forEach(([id, z0, z1, zPorta]) => {
@@ -260,12 +260,12 @@ function CartaoPessoa({ c }: { c: ConversaCentral }) {
     <div className="w-60 -translate-y-2 rounded-xl border border-border bg-card/95 px-3 py-2 text-left shadow-xl backdrop-blur">
       <div className="flex items-center gap-1.5">
         <span className="size-2 shrink-0 rounded-full" style={{ background: conversando ? VERDE : AMBAR }} />
-        <span className="truncate text-xs font-semibold text-foreground">{c.nome || "Aluno sem nome"}</span>
+        <span className="truncate text-xs font-semibold text-foreground">{c.nome || "Servidor sem nome"}</span>
         <span className="ml-auto shrink-0 font-mono text-[10px] text-muted-foreground">{c.origem}</span>
       </div>
       <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">{c.ultima_mensagem || "—"}</p>
       <p className="mt-1 font-mono text-[10px] text-muted-foreground">
-        {conversando ? "conversando agora" : "esperando o aluno"} · clique para abrir
+        {conversando ? "conversando agora" : "esperando o servidor"} · clique para abrir
       </p>
     </div>
   );
@@ -396,14 +396,14 @@ function MoveisDaSala({ sala, p, transferidasAguardando }: { sala: Sala; p: Pale
     );
   };
   switch (sala.id) {
-    case "cadastro":
+    case "secretaria":
       return (
         <group>
           {[-1.4, -0.7, 0].map((d) => colocar(d, <Arquivo />, 0.4))}
           {colocar(1.3, <Rack />, 0.45)}
         </group>
       );
-    case "biblioteca":
+    case "fontes":
       return (
         <group>
           {colocar(-1.1, <Estante p={p} largura={1.9} />, 0.3)}
@@ -418,7 +418,7 @@ function MoveisDaSala({ sala, p, transferidasAguardando }: { sala: Sala; p: Pale
           <Planta p={p} posicao={[ret.x0 + 0.7, 0, ret.z1 - 0.8]} escala={0.8} />
         </group>
       );
-    case "financeiro":
+    case "catalogo":
       return (
         <group>
           {colocar(0, <Cofre />, 0.55)}
@@ -465,16 +465,16 @@ function MoveisDaSala({ sala, p, transferidasAguardando }: { sala: Sala; p: Pale
           <Planta p={p} posicao={[ret.x0 + 0.8, 0, ret.z1 - 0.8]} escala={1} />
         </group>
       );
-    case "expedicao":
+    case "implantacao":
       // Bancada de embalagem de frente para a porta (onde o agente consulta), estantes de aço na parede de
       // fora e na do fundo, o palete pronto para a postagem e o carrinho.
       return (
         <group>
           {colocar(0, <BancadaExpedicao p={p} />, 0.55)}
-          {colocar(-3.6, <EstanteAco cor={SETORES.expedicao.cor} />, 0.35)}
+          {colocar(-3.6, <EstanteAco cor={SETORES.implantacao.cor} />, 0.35)}
           {[-1, 1.6].map((d) => (
             <group key={d} position={[cx + d, 0, ret.z0 + 0.35]}>
-              <EstanteAco cor={SETORES.expedicao.cor} />
+              <EstanteAco cor={SETORES.implantacao.cor} />
             </group>
           ))}
           <group position={[cx + 1.3, 0, ret.z0 + 3.3]} rotation={[0, 0.12, 0]}>
@@ -1217,7 +1217,7 @@ export default function Escritorio({
           scale={[1, 1, profundidade / Math.ceil(larguraPiso)]}
         />
 
-        {/* Paredes de fora: fundo (com o quadro do CF) e a lateral de ripas de madeira */}
+        {/* Paredes de fora: fundo (com o quadro do GestorGov) e a lateral de ripas de madeira */}
         <mesh position={[centro.x, 1.45, planta.zFundo0 - 0.12]} castShadow receiveShadow>
           <boxGeometry args={[larguraPiso, 2.9, 0.24]} />
           <meshStandardMaterial color={p.parede} roughness={0.9} />

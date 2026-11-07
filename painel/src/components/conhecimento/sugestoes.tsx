@@ -22,7 +22,7 @@ import { chaveBase, useGravarBase } from "./roteiro";
  * Os exemplos aprovados na Calibração que contradizem o documento aparecem à parte, com o botão para tirar de uso.
  *
  * Modo "Atualizar com IA" (modoAjuste): no lugar do documento, a pessoa escreve a informação nova numa caixa (ex.: "na
- * promoção, o aluno pode escolher qualquer pós") e a IA acha onde ela entra; a revisão e a aplicação são as mesmas.
+ * prazo do pedido de compra agora é de 15 dias") e a IA acha onde ela entra; a revisão e a aplicação são as mesmas.
  */
 
 const MINIMO_AJUSTE = 10;
@@ -205,7 +205,7 @@ export function PainelSugestoes({
             <Textarea
               rows={4}
               autoFocus
-              placeholder="Ex.: Na promoção Compre 1, Ganhe outra, o aluno pode escolher qualquer pós-graduação, sem restrição."
+              placeholder="Ex.: O prazo para as unidades enviarem o pedido de compra passou a ser de 15 dias antes do fim do mês."
               value={textoAjuste}
               maxLength={4000}
               onChange={(e) => setTextoAjuste(e.target.value)}
@@ -300,7 +300,7 @@ function ExemplosConflitantes({ exemplos }: { exemplos: SugestoesRoteiro["exempl
   return (
     <SecaoPainel titulo="Exemplos da Calibração que contradizem o documento" contagem={exemplos.length}>
       <p className="mb-2 text-xs text-muted-foreground">
-        O agente imita estes exemplos quando o aluno pergunta algo parecido, e eles não mudam com o roteiro. Tirar de uso não apaga.
+        O agente imita estes exemplos quando o servidor pergunta algo parecido, e eles não mudam com o roteiro. Tirar de uso não apaga.
       </p>
       <ul className="space-y-2">
         {exemplos.map((e) => {
@@ -314,7 +314,7 @@ function ExemplosConflitantes({ exemplos }: { exemplos: SugestoesRoteiro["exempl
                     <span className="font-semibold">Exemplo #{e.id}</span>
                     {desativado && <Chip>fora de uso</Chip>}
                   </div>
-                  <p className="text-xs text-muted-foreground">Aluno: “{e.mensagem}”</p>
+                  <p className="text-xs text-muted-foreground">Servidor: “{e.mensagem}”</p>
                   <p className="line-clamp-3 text-xs text-muted-foreground">Resposta aprovada: “{e.resposta}”</p>
                   <Aviso>{e.motivo}</Aviso>
                 </div>
