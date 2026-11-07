@@ -1,0 +1,281 @@
+{
+  "versao": "supervisor-cs-avaliacao-v14",
+  "copiada_em": "2026-11-05",
+  "fonte": "Supervisor (projeto xgoacfloehiwrzhmkysg): monitoria.dimensoes (time=cs, critérios julgados pela IA) e monitoria.assunto_catalogo (time=cs). Mudou a régua lá: copie de novo e troque a versão.",
+  "dimensoes": [
+    {
+      "dimensao": "compreensao_necessidade",
+      "rotulo": "Compreensão do problema",
+      "pergunta": "Entendeu o problema antes de agir -- e confirmou esse entendimento?",
+      "criterio_abaixo": "saiu respondendo sobre outra coisa, pediu informação que o cliente já tinha dado, ou agiu supondo o problema errado. OU leu errado uma palavra-chave do pedido (ex.: \"pagar\" entendido como \"pegar\"); OU respondeu sobre um recurso parecido, mas não o que o aluno pediu (ex.: falou das aulas ao vivo gerais quando ele pediu as aulas do exame).",
+      "criterio_dentro": "entendeu o que estava acontecendo e agiu sobre o problema certo. Também é dentro: explicar por que o pedido não é possível, ou informar que não temos aquilo, mostrando que entendeu o que foi pedido.",
+      "criterio_acima": "devolveu o entendimento em palavras próprias antes de agir (\"então o que aconteceu foi X, correto?\"), ou fez a pergunta que faltava e que mudou o rumo do atendimento.",
+      "criterio_nao_avaliavel": "o pedido do cliente era direto e não havia nada a interpretar.",
+      "nota_extra": "Medido em 6.587 atendimentos de suporte: confirmar o entendimento e o comportamento que MAIS separa consultores -- de 9% a 91% entre pessoas do mesmo time. Preste atenção especial a isto. FRONTEIRA: compreender é identificar o problema; qualidade_resposta é responder de forma correta e suficiente. Uma única falha não deve virar duas marcações abaixo."
+    },
+    {
+      "dimensao": "qualidade_resposta",
+      "rotulo": "Qualidade da resposta",
+      "pergunta": "A informação estava correta e completa para o problema apresentado?",
+      "criterio_abaixo": "deixou pergunta sem resposta, respondeu pela metade (ex.: só uma de duas perguntas), ou passou informação que não resolvia o caso do cliente; OU respondeu de forma vaga ou insegura sobre informação oficial (\"se não me engano\") em vez de dizer com precisão -- quais e quantos; OU recomendou algo de fora (ex.: consultoria individual) quando a casa tem o recurso para o aluno (Comunidade, Área do Aluno); OU abriu com saudação de modelo sem o nome do aluno (\"Olá, .!\") quando o nome já era conhecido.",
+      "criterio_dentro": "respondeu o que foi perguntado, de forma correta e suficiente. Devolver uma pergunta para entender o caso -- por exemplo, o motivo de um cancelamento, para tentar reter o aluno -- é resposta, não omissão. Informação correta que o aluno não aceitou ou não entendeu continua sendo resposta correta.",
+      "criterio_acima": "respondeu e já cobriu a dúvida seguinte de forma visível, ou corrigiu uma premissa errada do cliente com cuidado. É raro: resposta completa e correta é dentro, não acima.",
+      "criterio_nao_avaliavel": "o cliente não fez pergunta que exigisse resposta de conteudo.",
+      "nota_extra": "FRONTEIRA: informação errada ou incompleta fica aqui; instrução correta, porém impossível de executar, pertence a clareza_orientacao. Não desconte o mesmo fato duas vezes. REGRAS DA CASA, informadas pelo coordenador do CS (18/09) -- são base oficial, pode usá-las: (1) as aulas do YouTube também ficam na Área do Aluno, e o aluno deve ser direcionado para lá; (2) para aluno, a Comunidade é a primeira recomendação, antes de qualquer serviço de fora; (3) extensão de matrícula nunca é oferecida por iniciativa nossa -- informar que ela existe, quando o aluno pergunta, é dentro. Fora dessas regras, sem base oficial na conversa, não invente política, regra ou funcionamento. ANTES de marcar abaixo por pergunta sem resposta, leia as mensagens seguintes desta pessoa. Medido nas revisões do coordenador (18/09): em 6 das 13 discordâncias desta dimensão a IA apontou a pergunta do aluno como omissão, e a pessoa tinha respondido."
+    },
+    {
+      "dimensao": "clareza_orientacao",
+      "rotulo": "Clareza da orientação",
+      "pergunta": "As orientacoes DESTA pessoa deixaram o cliente sabendo exatamente o que fazer?",
+      "criterio_abaixo": "mandou \"verificar no sistema\", \"acessar o portal\" ou \"aguardar\" sem dizer onde clicar, o que enviar ou em quanto tempo; OU enviou material, link ou arquivo errado; OU transferiu o aluno sem passar nenhuma informação básica que ela mesma podia dar.",
+      "criterio_dentro": "deu a orientação de forma executável: o caminho, o documento, o prazo. Citar pelo nome um lugar conhecido da plataforma (Secretaria de Alunos, Área do Aluno, trilha de estudos) conta como caminho. Contato ativo com objetivo claro (ex.: confirmar se o aluno recebeu a apostila) também é dentro. O aluno não conseguir executar uma orientação completa não torna a orientação ruim.",
+      "criterio_acima": "orientou passo a passo e antecipou o tropeco comum, ou confirmou depois que o cliente conseguiu. Também é acima: mostrar ao aluno onde ele encontra aquilo sozinho da próxima vez (ex.: o material fica na própria aula).",
+      "criterio_nao_avaliavel": "esta pessoa não deu nenhuma orientação que exigisse ação do cliente nem fez contato ativo. Se ela orientou qualquer coisa, julgue.",
+      "nota_extra": "Vale para pedido operacional -- acesso, senha, certificado, segunda via -- que e a maior parte do suporte aqui: 35% dos atendimentos falam de acesso e 24% de documento. FRONTEIRA: esta dimensão mede se a orientação é executável -- passo, caminho, documento, prazo e responsável. Não mede domínio do produto. Correção e completude da informação pertencem a qualidade_resposta."
+    },
+    {
+      "dimensao": "encaminhamento",
+      "rotulo": "Desfecho do atendimento",
+      "pergunta": "O atendimento terminou em algum lugar, ou no vazio? (nao e sobre mandar para outro setor)",
+      "criterio_abaixo": "a conversa morreu com o cliente falando por último e sem retorno; OU o consultor prometeu verificar, voltar ou enviar algo e isso não aconteceu; OU encerrou por falta de resposta sem ter dado resposta clara ao que o aluno já tinha pedido.",
+      "criterio_dentro": "entregou a solução, OU deixou claro o próximo passo e de quem é a vez. Também é dentro: encerrar por falta de resposta do aluno, avisando, DEPOIS de ter respondido o que ele pediu; transferir para o setor certo (ex.: comercial, quando o assunto é venda) avisando o aluno; levar o atendimento até a pesquisa de satisfação.",
+      "criterio_acima": "fechou dizendo o que, quem e quando -- e o que foi combinado aconteceu dentro da conversa.",
+      "criterio_nao_avaliavel": "o atendimento se encerrou resolvido na hora, sem nada pendente.",
+      "nota_extra": "Medido: 32% das conversas terminam com o cliente falando por último. Antes de marcar abaixo, veja nos FATOS se o prazo prometido já venceu. PROMESSA: só conte promessa não cumprida quando a pessoa disse que ia verificar, voltar ou enviar algo e a conversa terminou sem isso. Transferir e avisar não é promessa. Medido nas revisões do coordenador (18/09): nas discordâncias desta dimensão a IA foi sempre mais dura -- encerramento por inatividade e transferência correta marcados como abaixo."
+    },
+    {
+      "dimensao": "portugues_correto",
+      "rotulo": "Português correto",
+      "pergunta": "O consultor escreveu em português correto, sem erros que atrapalhem ou passem descuido?",
+      "criterio_abaixo": "qualquer erro que um revisor corrigiria numa mensagem oficial: concordância ou regência (\"as aulas ao vivo é um complemento\"), palavra trocada que muda o sentido (\"deu certificado\" no lugar de \"seu certificado\"), frase ambígua ou mal construída que obriga a reler, pergunta escrita sem forma de pergunta, ou mensagens sem pontuação -- frases emendadas sem ponto nem vírgula. Um único caso claro já é abaixo. Aponte a mensagem com o erro mais claro.",
+      "criterio_dentro": "escrita correta e pontuada. Abreviação comum do WhatsApp (vc, pq, tb) e emoji não contam como erro. Letra trocada por digitação, que não muda o sentido, também não.",
+      "criterio_acima": "conversa com explicação de verdade -- mensagens longas ou passo a passo -- escrita sem nenhum erro, com frases bem construídas e vocabulário adequado ao aluno.",
+      "criterio_nao_avaliavel": "o consultor escreveu pouco demais para julgar: só saudação, só link ou arquivo, ou só mensagens prontas.",
+      "nota_extra": "Julgue a LÍNGUA, não o conteúdo: resposta errada ou incompleta já é qualidade_resposta, e orientação confusa já é clareza_orientacao -- não conte a mesma falha duas vezes. Não é erro: nome próprio, termo técnico, sigla, link, texto colado de sistema. Mensagens do Bot e do aluno não contam. No CS a régua de português é mais exigente que no comercial, a pedido do coordenador: nas revisões dele (18/09), 5 das 6 discordâncias foram a IA aceitando como dentro um erro que ele marcou como abaixo -- falta de pontuação, concordância, frase ambígua."
+    }
+  ],
+  "catalogo": [
+    {
+      "motivo": "acesso",
+      "subcausa": "nao_consegue_entrar",
+      "rotulo_subcausa": "Não consegue entrar",
+      "descricao": "só diz que não consegue acessar, sem detalhe"
+    },
+    {
+      "motivo": "acesso",
+      "subcausa": "senha_login_email",
+      "rotulo_subcausa": "Senha, login ou e-mail",
+      "descricao": "senha, login, e-mail de acesso, conta em outro e-mail"
+    },
+    {
+      "motivo": "acesso",
+      "subcausa": "curso_nao_liberado",
+      "rotulo_subcausa": "Curso não liberado",
+      "descricao": "curso, pós ou produto comprado não aparece, bloqueado ou não liberado"
+    },
+    {
+      "motivo": "acesso",
+      "subcausa": "erro_app_navegador",
+      "rotulo_subcausa": "Erro no app ou navegador",
+      "descricao": "erro de app, navegador, tela, vídeo que não carrega, instabilidade"
+    },
+    {
+      "motivo": "acesso",
+      "subcausa": "outro",
+      "rotulo_subcausa": "Outro de acesso",
+      "descricao": "titularidade, acesso simultâneo, outro problema de acesso"
+    },
+    {
+      "motivo": "campanha",
+      "subcausa": "escolha_liberacao_beneficio",
+      "rotulo_subcausa": "Escolher ou liberar benefício",
+      "descricao": "escolher ou liberar benefício da compra, como a segunda pós"
+    },
+    {
+      "motivo": "campanha",
+      "subcausa": "regras_da_oferta",
+      "rotulo_subcausa": "Regras da oferta",
+      "descricao": "como funciona a oferta: acesso vitalício, bônus, condições da promoção"
+    },
+    {
+      "motivo": "campanha",
+      "subcausa": "sorteio_desconto",
+      "rotulo_subcausa": "Sorteio e desconto",
+      "descricao": "sorteio, contemplação, desconto para aluno"
+    },
+    {
+      "motivo": "campanha",
+      "subcausa": "renovacao_upgrade",
+      "rotulo_subcausa": "Renovação ou upgrade",
+      "descricao": "renovar, migrar, fazer upgrade"
+    },
+    {
+      "motivo": "campanha",
+      "subcausa": "outro",
+      "rotulo_subcausa": "Outro da oferta",
+      "descricao": "outro detalhe da oferta ou campanha"
+    },
+    {
+      "motivo": "financeiro",
+      "subcausa": "cancelamento_reembolso",
+      "rotulo_subcausa": "Cancelamento ou reembolso",
+      "descricao": "cancelar, reembolso, estorno, arrependimento"
+    },
+    {
+      "motivo": "financeiro",
+      "subcausa": "forma_pagamento",
+      "rotulo_subcausa": "Forma de pagamento",
+      "descricao": "forma de pagamento, parcelamento, boleto, cartão"
+    },
+    {
+      "motivo": "financeiro",
+      "subcausa": "nota_fiscal_comprovante",
+      "rotulo_subcausa": "Nota fiscal ou comprovante",
+      "descricao": "nota fiscal, recibo, comprovante"
+    },
+    {
+      "motivo": "financeiro",
+      "subcausa": "pagamento_nao_confirmado",
+      "rotulo_subcausa": "Pagamento não confirmado",
+      "descricao": "pagamento que não confirmou ou falhou"
+    },
+    {
+      "motivo": "financeiro",
+      "subcausa": "cobranca_duplicada",
+      "rotulo_subcausa": "Cobrança duplicada ou indevida",
+      "descricao": "cobrança duplicada, indevida ou valor errado"
+    },
+    {
+      "motivo": "financeiro",
+      "subcausa": "outro",
+      "rotulo_subcausa": "Outro financeiro",
+      "descricao": "outro assunto financeiro"
+    },
+    {
+      "motivo": "documentos",
+      "subcausa": "certificado",
+      "rotulo_subcausa": "Certificado",
+      "descricao": "certificado, conclusão, pendência para emitir"
+    },
+    {
+      "motivo": "documentos",
+      "subcausa": "declaracao_carteirinha",
+      "rotulo_subcausa": "Declaração ou carteirinha",
+      "descricao": "declaração de matrícula, carteirinha de estudante"
+    },
+    {
+      "motivo": "documentos",
+      "subcausa": "historico_diploma",
+      "rotulo_subcausa": "Histórico ou diploma",
+      "descricao": "histórico escolar, diploma"
+    },
+    {
+      "motivo": "documentos",
+      "subcausa": "outro",
+      "rotulo_subcausa": "Outro documento",
+      "descricao": "outro documento acadêmico"
+    },
+    {
+      "motivo": "livro_apostila",
+      "subcausa": "livro",
+      "rotulo_subcausa": "Livro",
+      "descricao": "livro físico ou digital, envio, rastreio"
+    },
+    {
+      "motivo": "livro_apostila",
+      "subcausa": "apostila",
+      "rotulo_subcausa": "Apostila",
+      "descricao": "apostila, caderno de estudo"
+    },
+    {
+      "motivo": "livro_apostila",
+      "subcausa": "outro_brinde",
+      "rotulo_subcausa": "Outro brinde",
+      "descricao": "outro brinde ou material físico"
+    },
+    {
+      "motivo": "academico",
+      "subcausa": "aulas_materiais",
+      "rotulo_subcausa": "Aulas e materiais",
+      "descricao": "aulas, módulos, vídeos, materiais"
+    },
+    {
+      "motivo": "academico",
+      "subcausa": "prazo_prorrogacao",
+      "rotulo_subcausa": "Prazo ou prorrogação",
+      "descricao": "prazo, duração, prorrogação do curso"
+    },
+    {
+      "motivo": "academico",
+      "subcausa": "prova_nota_tcc",
+      "rotulo_subcausa": "Prova, nota ou TCC",
+      "descricao": "prova, avaliação, nota, TCC"
+    },
+    {
+      "motivo": "academico",
+      "subcausa": "mentoria_professor",
+      "rotulo_subcausa": "Mentoria ou professor",
+      "descricao": "trilha, conteúdo, professor, mentoria"
+    },
+    {
+      "motivo": "academico",
+      "subcausa": "outro",
+      "rotulo_subcausa": "Outro acadêmico",
+      "descricao": "outro assunto acadêmico"
+    },
+    {
+      "motivo": "matricula_cadastro",
+      "subcausa": "geral",
+      "rotulo_subcausa": "Matrícula e cadastro",
+      "descricao": "matrícula, contrato, dados cadastrais"
+    },
+    {
+      "motivo": "demora",
+      "subcausa": "geral",
+      "rotulo_subcausa": "Demora como assunto",
+      "descricao": "só cobra retorno ou reclama da espera, sem outro assunto identificável"
+    },
+    {
+      "motivo": "regras_academicas",
+      "subcausa": "geral",
+      "rotulo_subcausa": "Regras acadêmicas",
+      "descricao": "regras, requisitos, elegibilidade, reconhecimento"
+    },
+    {
+      "motivo": "compra_preco",
+      "subcausa": "geral",
+      "rotulo_subcausa": "Compra ou preço",
+      "descricao": "quer comprar, saber preço ou falar com vendas"
+    },
+    {
+      "motivo": "app_grupos",
+      "subcausa": "geral",
+      "rotulo_subcausa": "App e grupos",
+      "descricao": "ferramentas, comunidade, aplicativo, grupos"
+    },
+    {
+      "motivo": "troca_curso",
+      "subcausa": "geral",
+      "rotulo_subcausa": "Troca de curso",
+      "descricao": "trocar ou transferir de curso"
+    },
+    {
+      "motivo": "duvida_contabil",
+      "subcausa": "geral",
+      "rotulo_subcausa": "Dúvida de contabilidade",
+      "descricao": "dúvida técnica de contabilidade enviada ao suporte"
+    },
+    {
+      "motivo": "sem_pedido",
+      "subcausa": "geral",
+      "rotulo_subcausa": "Sem pedido",
+      "descricao": "cliente não fez pedido: só menu, saudação, nota da pesquisa, resposta curta"
+    },
+    {
+      "motivo": "outro",
+      "subcausa": "geral",
+      "rotulo_subcausa": "Outro",
+      "descricao": "pedido claro que não cabe em nenhum motivo acima"
+    }
+  ]
+}

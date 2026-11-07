@@ -1,0 +1,56 @@
+# Render Blueprint do GestorGov (Render → New → Blueprint → este repositório).
+# Variáveis com "sync: false" são preenchidas no painel do Render na primeira vez (segredos não ficam no código).
+services:
+  - type: web
+    name: gestorgov
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    # Sem região no Brasil no Render: Virginia é a mais próxima do Supabase em São Paulo.
+    region: virginia
+    # O plano gratuito "dorme" sem acesso e para as rotinas (Scheduler e CompanyOS): use no mínimo o Starter.
+    plan: starter
+    autoDeploy: true
+    envVars:
+      # ── Modelo (Gemini) ──
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: AGENTE_MODELO
+        value: gemini-3.6-flash
+      - key: AGENTE_RACIOCINIO
+        value: livre
+
+      # ── Banco (Supabase do GestorGov) ──
+      # Pooler em modo SESSÃO (porta 5432): o Render não alcança a conexão direta do Supabase (só IPv6).
+      # postgresql://gestorgov_app.<id-do-projeto>:<senha>@aws-0-sa-east-1.pooler.supabase.com:5432/postgres
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SCHEMA
+        value: gestorgov
+      # Storage (documentos do Conhecimento): Project Settings → API.
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET_AGENTES
+        value: agentes
+
+      # ── Acesso ao painel ──
+      - key: OS_SECURITY_KEY
+        generateValue: true
+      - key: PAINEL_GOOGLE_CLIENT_ID
+        sync: false
+      # O seu e-mail: vira o dono no primeiro login e aprova os demais.
+      - key: PAINEL_DONO
+        sync: false
+      # Opcional: só estes domínios entram (separados por vírgula). Vazio: qualquer e-mail, pendente de aprovação.
+      - key: PAINEL_DOMINIOS
+        sync: false
+
+      # ── GestorGov ──
+      # CompanyOS: as atividades de rotina dos setores viram Rotinas do Agno (agente/companyos.py).
+      - key: GESTORGOV_COMPANYOS
+        value: sim
+      - key: INATIVIDADE_MINUTOS
+        value: "480"
+      - key: AVALIACOES_DIARIAS
+        value: sim

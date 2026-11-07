@@ -1,0 +1,22 @@
+agno[os]==3.1.12  # CompanyOS (Products, Routines e fila durável)
+# Fixadas para a produção usar as mesmas versões testadas aqui: o agno[os] as puxa sem versão, e
+# app.py usa a opção `telemetry` do FastAPI.
+fastapi>=0.149.0
+opentelemetry-sdk==1.45.1
+openinference-instrumentation-agno==1.0.15
+google-genai==2.31.0
+google-auth
+requests
+httpx
+sqlalchemy[asyncio]
+aiosqlite
+psycopg[binary]
+python-dotenv
+pgvector
+pypdf
+python-docx
+# Leitura de planilhas, apresentações e RTF na base de conhecimento (agente/leitura_arquivos.py)
+openpyxl
+python-pptx
+striprtf
+tzdata

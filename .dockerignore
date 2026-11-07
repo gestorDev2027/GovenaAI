@@ -1,0 +1,8 @@
+.git
+.venv
+.env
+dados
+__pycache__
+**/__pycache__
+painel/node_modules
+painel/dist
