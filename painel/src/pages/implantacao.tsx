@@ -162,14 +162,16 @@ export function PaginaImplantacao() {
   const aprovado = acesso.data?.usuario?.situacao === "ativo";
   const conta = dados.data?.conta;
   const ultima = mensagens.at(-1);
-  // Respostas rápidas quando o assistente termina numa pergunta (como os cartões do Replit). Antes do registro, as
-  // primeiras dizem o segmento (Secretaria de Saúde ou empresa).
+  // Respostas rápidas quando o assistente termina numa pergunta (como os cartões do Replit). Só na abertura, antes da
+  // primeira resposta da pessoa, elas dizem o segmento (Secretaria de Saúde ou empresa); depois que o segmento foi
+  // respondido e enquanto a organização não está registrada, o assistente pede dados (cidade, CEP): sem botões.
+  const jaRespondeu = mensagens.some((m) => m.papel !== "agente");
   const rapidas =
     enviando || ultima?.papel !== "agente"
       ? []
-      : !panorama
+      : !jaRespondeu
         ? RESPOSTAS_INICIAIS
-        : ultima.texto.trim().endsWith("?")
+        : panorama?.organizacao && ultima.texto.trim().endsWith("?")
           ? RESPOSTAS_RAPIDAS
           : [];
   const org = panorama?.organizacao;
