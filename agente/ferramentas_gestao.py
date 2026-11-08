@@ -16,7 +16,7 @@ import re
 
 from agno.run import RunContext
 
-from agente import gestao, segmentos
+from agente import gestao, segmentos, segundo_plano
 
 FREQUENCIAS = ("a_cada_hora", "diaria", "semanal", "mensal", "sob_demanda")
 CRON_PADRAO = {"a_cada_hora": "0 * * * *", "diaria": "0 7 * * 1-5", "semanal": "0 7 * * 1", "mensal": "0 7 1 * *"}
@@ -63,6 +63,17 @@ def _sem_organizacao() -> str:
             "registrar_organizacao.")
 
 
+# Conversas dos casos de teste da Fábrica (agente/fabrica_recursos.py): as ferramentas que gravam não gravam.
+PREFIXO_TESTE = "aval-"
+
+
+def _simulado(run_context: RunContext | None) -> str | None:
+    if (_sessao(run_context) or "").startswith(PREFIXO_TESTE):
+        return ("(Caso de teste da Fábrica: nada foi gravado no cadastro.) Siga a conversa como se a gravação "
+                "tivesse dado certo.")
+    return None
+
+
 def _area(oid: str, chave: str) -> tuple[dict | None, str]:
     """A área pelo tipo ou nome, e a mensagem para o assistente quando ela não existe."""
     alvo = gestao.area_por_tipo_ou_nome(oid, chave)
@@ -76,7 +87,9 @@ def _bloqueada(run_context: RunContext, oid: str, fase: str) -> str | None:
     """Mensagem para o assistente quando ainda falta algo nas fases antes de `fase` (cada fase é obrigatória), ou
     quando `fase` vem depois da fase em que esta mensagem começou: uma fase por resposta (o responsável confirma
     antes de a próxima ser gravada)."""
-    da_vez = (_estado(run_context).get("fase_da_vez") or "") if run_context else ""
+    if aviso := _simulado(run_context):
+        return aviso
+    da_vez =(_estado(run_context).get("fase_da_vez") or "") if run_context else ""
     if da_vez in gestao.FASES and gestao.FASES.index(fase) > gestao.FASES.index(da_vez):
         return (f"Pare aqui: a fase '{da_vez}' acabou de ser concluída nesta resposta. Apresente a próxima fase "
                 f"('{fase}') e ESPERE a resposta antes de gravar qualquer coisa dela.")
@@ -144,7 +157,7 @@ def registrar_organizacao(run_context: RunContext, segmento: str, nome: str = ""
         latitude: latitude do centro da cidade (de buscar_municipio).
         longitude: longitude do centro da cidade (de buscar_municipio).
     """
-    if erro := _sem_banco():
+    if erro := _sem_banco() or _simulado(run_context):
         return erro
     if segmento not in segmentos.SEGMENTOS:
         return f"Segmento inválido. Use: {', '.join(segmentos.SEGMENTOS)}."
@@ -227,7 +240,7 @@ def salvar_dados_prefeitura(run_context: RunContext, cnpj: str = "", cep: str = 
         site: site da prefeitura (opcional).
         populacao: população do município (opcional).
     """
-    if erro := _sem_banco():
+    if erro := _sem_banco() or _simulado(run_context):
         return erro
     oid = _organizacao(run_context)
     if not oid:
@@ -263,7 +276,7 @@ def salvar_dados_secretaria(run_context: RunContext, nome: str = "", cnpj_fundo:
         secretario_email: e-mail do(a) secretário(a).
         secretario_telefone: telefone do(a) secretário(a), com DDD.
     """
-    if erro := _sem_banco():
+    if erro := _sem_banco() or _simulado(run_context):
         return erro
     oid = _organizacao(run_context)
     if not oid:
@@ -307,7 +320,7 @@ def salvar_dados_empresa(run_context: RunContext, razao_social: str = "", nome_f
         responsavel_email: e-mail do(a) responsável.
         responsavel_telefone: telefone do(a) responsável, com DDD.
     """
-    if erro := _sem_banco():
+    if erro := _sem_banco() or _simulado(run_context):
         return erro
     oid = _organizacao(run_context)
     if not oid:
@@ -640,10 +653,38 @@ def _agente_das_unidades(run_context: RunContext, oid: str) -> str | None:
     return agente_id
 
 
+# Quanto a ferramenta espera a importação do CNES terminar antes de responder "ainda importando".
+ESPERA_CNES_SEGUNDOS = 45
+
+
+def _resultado_cnes(run_context: RunContext, oid: str, execucao: dict | None) -> str:
+    """A resposta das ferramentas do CNES conforme a situação da importação (agente/segundo_plano.py)."""
+    if execucao is None:
+        return "Nenhuma importação do CNES nesta implantação. Use importar_unidades_cnes."
+    if execucao["situacao"] in segundo_plano.ATIVAS:
+        feitas = (execucao.get("progresso") or {}).get("gravadas")
+        return _json({"importacao": "em andamento", "unidades_gravadas_ate_agora": feitas or 0,
+                      "orientacao": "Diga que a importação do CNES está rodando e que os pinos aparecem no mapa conforme "
+                                    "chegam. Na próxima mensagem, use acompanhar_importacao (nunca importe de novo)."})
+    resultado = execucao.get("resultado") or {}
+    if execucao["situacao"] == "erro" or not resultado.get("importadas"):
+        motivo = "erro na fonte" if execucao["situacao"] == "erro" else resultado.get("motivo") or "sem resultados"
+        return (f"O CNES não respondeu ({motivo}). Pergunte quantas e quais unidades a rede tem "
+                "(UBS, UPA, CAPS, hospital...) e cadastre com cadastrar_unidade.")
+    agente_unidades = _agente_das_unidades(run_context, oid)
+    return _feito(oid, {"importadas": resultado["importadas"], "por_tipo": resultado.get("por_tipo") or {},
+                        "particulares_fora": resultado.get("particulares_fora") or 0,
+                        "agente_das_unidades": agente_unidades,
+                        "orientacao": "Mostre o resumo por tipo (são as unidades públicas e as conveniadas ao SUS; os "
+                                      "consultórios particulares ficaram de fora) e pergunte se está certo e se falta "
+                                      "alguma."})
+
+
 def importar_unidades_cnes(run_context: RunContext) -> str:
     """(Saúde pública) Traz do CNES (dados abertos do Ministério da Saúde) as unidades públicas e as conveniadas ao SUS
-    do município e grava como "a conferir". Mostre o resumo por tipo e peça para conferir. Se a fonte não responder,
-    siga com cadastrar_unidade, uma por uma."""
+    do município e grava como "a conferir". Mostre o resumo por tipo e peça para conferir. Se a importação ainda
+    estiver rodando, avise e use acompanhar_importacao na próxima mensagem. Se a fonte não responder, siga com
+    cadastrar_unidade, uma por uma."""
     if erro := _sem_banco():
         return erro
     oid = _organizacao(run_context)
@@ -653,44 +694,30 @@ def importar_unidades_cnes(run_context: RunContext) -> str:
         return "O CNES é só das unidades de saúde. Cadastre as unidades com cadastrar_unidade (pelo CEP)."
     if erro := _bloqueada(run_context, oid, "unidades"):
         return erro
-    org = gestao.organizacao(oid)
-    try:
-        brutas = gestao.unidades_cnes(org["codigo_ibge"])
-    except Exception as erro:
-        brutas = []
-        motivo = type(erro).__name__
-    else:
-        motivo = "sem resultados"
-    if not brutas:
-        return (f"O CNES não respondeu ({motivo}). Pergunte quantas e quais unidades a rede tem "
-                "(UBS, UPA, CAPS, hospital...) e cadastre com cadastrar_unidade.")
-    por_codigo = {}
-    for tipo in gestao.tipos_unidade(org["segmento_id"]):
-        for codigo in tipo.get("codigos_cnes") or []:
-            por_codigo[str(codigo).zfill(2)] = tipo["id"]
-    contagem: dict[str, int] = {}
-    # Só as unidades públicas e as conveniadas ao SUS: consultórios e clínicas particulares ficam de fora.
-    particulares = sum(1 for u in brutas if gestao.vinculo_cnes(u) is None)
-    brutas = [u for u in brutas if gestao.vinculo_cnes(u) is not None]
-    for u in brutas:
-        codigo_tipo = str(u.get("codigo_tipo_unidade") or u.get("tipo_unidade") or "").zfill(2)
-        tipo_id = por_codigo.get(codigo_tipo, "outro")
-        lat, lng = u.get("latitude_estabelecimento_decimo_grau") or u.get("latitude"), \
-            u.get("longitude_estabelecimento_decimo_grau") or u.get("longitude")
-        endereco = " ".join(str(x) for x in (u.get("endereco_estabelecimento"), u.get("numero_estabelecimento")) if x)
-        gestao.salvar_unidade(
-            oid, nome=u.get("nome_fantasia") or u.get("nome_razao_social") or "Unidade sem nome", tipo_id=tipo_id,
-            cnes=str(u.get("codigo_cnes") or ""), endereco=endereco, bairro=u.get("bairro_estabelecimento") or "",
-            cep=str(u.get("codigo_cep_estabelecimento") or ""),
-            latitude=float(lat) if lat not in (None, "") else None, longitude=float(lng) if lng not in (None, "") else None,
-            origem="cnes", dados_cnes=u, confirmada=False, gestao=gestao.vinculo_cnes(u), quem=_quem(run_context),
-            session_id=_sessao(run_context))
-        contagem[tipo_id] = contagem.get(tipo_id, 0) + 1
-    agente_unidades = _agente_das_unidades(run_context, oid)
-    return _feito(oid, {"importadas": len(brutas), "por_tipo": contagem, "particulares_fora": particulares,
-                        "agente_das_unidades": agente_unidades,
-                        "orientacao": "Mostre o resumo por tipo (são as unidades públicas e as conveniadas ao SUS; os "
-                                      "consultórios particulares ficaram de fora) e pergunte se está certo e se falta alguma."})
+    atual = segundo_plano.ultima("importar_cnes", organizacao_id=oid)
+    if atual and atual["situacao"] in segundo_plano.ATIVAS:  # já há uma rodando: acompanha a mesma
+        return _resultado_cnes(run_context, oid, segundo_plano.esperar(atual["id"], ESPERA_CNES_SEGUNDOS))
+    from tarefas import cnes
+
+    execucao_id = segundo_plano.disparar(
+        "importar_cnes", [oid], organizacao_id=oid, referencia=f"cnes:{oid}", criado_por=_quem(run_context),
+        contexto={"quem": _quem(run_context), "session_id": _sessao(run_context)},
+        local=lambda eid: cnes.importar_cnes(eid, oid))
+    return _resultado_cnes(run_context, oid, segundo_plano.esperar(execucao_id, ESPERA_CNES_SEGUNDOS))
+
+
+def acompanhar_importacao(run_context: RunContext) -> str:
+    """(Saúde pública) A situação da importação do CNES que está rodando (ou da última): quantas unidades já chegaram
+    e, no fim, o resumo por tipo para conferir."""
+    if erro := _sem_banco():
+        return erro
+    oid = _organizacao(run_context)
+    if not oid:
+        return _sem_organizacao()
+    if erro := _bloqueada(run_context, oid, "unidades"):
+        return erro
+    atual = segundo_plano.ultima("importar_cnes", organizacao_id=oid)
+    return _resultado_cnes(run_context, oid, segundo_plano.esperar(atual["id"], 10) if atual else None)
 
 
 def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, cep: str = "", numero: str = "",
@@ -796,7 +823,7 @@ FERRAMENTAS_IMPLANTACAO = [
     buscar_municipio, registrar_organizacao, salvar_dados_prefeitura, salvar_dados_secretaria, salvar_dados_empresa,
     buscar_endereco, pesquisar_na_web, listar_tipos_area, salvar_areas, sugerir_atividades, salvar_atividades,
     nova_atividade, sugerir_cargos, salvar_cargos, criar_cargo, cadastrar_responsavel, montar_agentes, dar_acesso,
-    importar_unidades_cnes, cadastrar_unidade, situacao_implantacao, concluir_implantacao,
+    importar_unidades_cnes, acompanhar_importacao, cadastrar_unidade, situacao_implantacao, concluir_implantacao,
 ]
 
 

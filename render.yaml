@@ -57,3 +57,37 @@ services:
       # Sem demonstração: cada organização é montada na implantação.
       - key: INATIVIDADE_MINUTOS
         value: "480"
+      # ── Tarefas demoradas (agente/segundo_plano.py) ──
+      # Padrão: documentos, importação do CNES e testes da Fábrica rodam numa thread deste servidor (serve no
+      # plano grátis). Para levá-los ao Render Workflows: crie o serviço gestorgov-tarefas (modelo comentado abaixo),
+      # troque para "sim" e acrescente RENDER_API_KEY (Account Settings → API Keys) só neste serviço.
+      - key: GESTORGOV_WORKFLOWS
+        value: nao
+
+  # Render Workflows (opcional, pago por segundo de uso): cada tarefa numa máquina própria, com novas tentativas
+  # (tarefas/main.py). Não recebe conexões: lê e grava no mesmo Supabase. Fica comentado porque o deploy atual é um
+  # Web Service criado à mão, no plano grátis; para usar, descomente (ou crie em New → Workflow com os mesmos campos).
+  # - type: workflow
+  #   name: gestorgov-tarefas
+  #   runtime: python
+  #   region: virginia
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python -m tarefas.main
+  #   envVars:
+  #     - key: PYTHON_VERSION
+  #       value: 3.13.5
+  #     # Os mesmos do serviço web (os segredos são preenchidos uma vez só, lá):
+  #     - key: GOOGLE_API_KEY
+  #       fromService: {type: web, name: gestorgov, envVarKey: GOOGLE_API_KEY}
+  #     - key: AGENTE_MODELO
+  #       fromService: {type: web, name: gestorgov, envVarKey: AGENTE_MODELO}
+  #     - key: DATABASE_URL
+  #       fromService: {type: web, name: gestorgov, envVarKey: DATABASE_URL}
+  #     - key: DATABASE_SCHEMA
+  #       fromService: {type: web, name: gestorgov, envVarKey: DATABASE_SCHEMA}
+  #     - key: SUPABASE_URL
+  #       fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_URL}
+  #     - key: SUPABASE_SERVICE_ROLE_KEY
+  #       fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_SERVICE_ROLE_KEY}
+  #     - key: SUPABASE_BUCKET_AGENTES
+  #       fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_BUCKET_AGENTES}

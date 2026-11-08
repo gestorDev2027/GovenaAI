@@ -1,13 +1,13 @@
 """Documentos de referência e exemplos aprovados dos agentes, pelo painel (/painel/api/conhecimento).
 
-Documentos: o painel envia o arquivo, o servidor guarda no bucket privado do Supabase e processa em
-segundo plano (texto, trechos, embeddings); a versão nova passa a valer quando fica pronta.
+Documentos: o painel envia o arquivo, o servidor guarda no bucket privado do Supabase e processa fora da
+requisição (texto, trechos, embeddings; tarefa processar_documento, ver agente/segundo_plano.py); a versão nova
+passa a valer quando fica pronta.
 Bases compartilhadas (/bases): conjuntos de documentos para vários agentes. Os documentos de uma base usam
 as mesmas rotas de documentos, com agente=base_<id da base>.
 Lógica em agente/conhecimento.py.
 """
 
-import asyncio
 from urllib.parse import quote
 
 from agno.agent import Agent
@@ -15,7 +15,9 @@ from fastapi import APIRouter, Cookie, Depends, File, Form, HTTPException, Query
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from agente import armazenamento, conhecimento, leitura_arquivos, perfis
+from tarefas import conhecimento as tarefas_conhecimento
+
+from agente import armazenamento, conhecimento, leitura_arquivos, perfis, segundo_plano
 from painel_api import _negado, _pode, _quem, exigir_chave
 
 MAX_BYTES = 25 * 1024 * 1024  # o mesmo limite do bucket
@@ -42,7 +44,6 @@ def _iso(linha: dict) -> dict:
 
 def criar_rotas_conhecimento(agentes: dict[str, Agent]) -> APIRouter:
     rotas = APIRouter(prefix="/painel/api/conhecimento", tags=["Conhecimento"], dependencies=[Depends(exigir_chave)])
-    tarefas: set[asyncio.Task] = set()
 
     def _agente(agente: str) -> str:
         """O dono dos documentos: um agente ou uma base compartilhada (base_<id>)."""
@@ -141,10 +142,13 @@ def criar_rotas_conhecimento(agentes: dict[str, Agent]) -> APIRouter:
             # Storage sem configuração: 503. O Storage recusou ou não respondeu: 502, com o motivo (um 503 chegava ao
             # painel como 504 genérico, sem a mensagem).
             raise HTTPException(status_code=503 if "não configurado" in str(erro) else 502, detail=str(erro))
-        # Texto, trechos e embeddings em segundo plano: o painel acompanha o status pela listagem.
-        tarefa = asyncio.create_task(run_in_threadpool(conhecimento.processar, registro["id"], conteudo))
-        tarefas.add(tarefa)
-        tarefa.add_done_callback(tarefas.discard)
+        # Texto, trechos e embeddings fora da requisição: no Render Workflows quando ligado (o arquivo vem do bucket),
+        # senão numa thread daqui. O painel acompanha o status pela listagem.
+        documento_id = registro["id"]
+        await run_in_threadpool(
+            segundo_plano.disparar, "processar_documento", [documento_id], referencia=f"documento:{documento_id}",
+            criado_por=_quem(painel_sessao), forcar_local=not armazenamento.disponivel(),
+            local=lambda eid: tarefas_conhecimento.processar_documento(eid, documento_id, conteudo))
         return {**registro, "status": "processando"}
 
     @rotas.get("/documentos/{documento_id}/trechos")

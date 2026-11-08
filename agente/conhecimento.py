@@ -377,6 +377,8 @@ def processar(documento_id: int, conteudo: bytes | None = None) -> None:
         textos = [f"{doc['nome']} — {s}\n{c}" if s else f"{doc['nome']}\n{c}" for s, c in partes]
         vetores_trechos = vetores.embeddings(textos, "RETRIEVAL_DOCUMENT")
         with _engine().begin() as conexao:
+            # Processar de novo (nova tentativa da tarefa) troca os trechos em vez de duplicar.
+            conexao.execute(trechos.delete().where(trechos.c.documento_id == documento_id))
             conexao.execute(insert(trechos), [
                 {"documento_id": documento_id, "agente": doc["agente"], "ordem": i, "secao": s, "conteudo": c,
                  "ativo": False, "embedding": v}

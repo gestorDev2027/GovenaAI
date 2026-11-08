@@ -713,29 +713,53 @@ def conferir(caso: dict, resposta: str, acao: str, categoria: str | None, agente
     return motivos
 
 
+def casos_ativos(agente_id: str) -> list[dict]:
+    """Os casos que uma execução roda (os ativos, até MAX_CASOS_POR_EXECUCAO)."""
+    casos = [{**c, "origem": "fabrica"} for c in listar_casos(agente_id) if c["ativo"]]
+    return casos[:MAX_CASOS_POR_EXECUCAO]
+
+
+def _referencia(execucao_id: int) -> str:
+    return f"fabrica:{execucao_id}"
+
+
 def _preparar_execucao(agente, autor: str) -> tuple[list[dict], int] | None:
-    """Os casos ativos do agente e a linha da execução; None sem casos."""
-    casos = [{**c, "origem": "fabrica"} for c in listar_casos(agente.id) if c["ativo"]]
-    casos = casos[:MAX_CASOS_POR_EXECUCAO]
+    """Os casos ativos do agente e a linha da execução; None sem casos. Uma execução "rodando" cuja tarefa já parou
+    (o servidor reiniciou, a tarefa no Render terminou com erro) é marcada como falha e não trava a próxima."""
+    from agente import segundo_plano
+
+    casos = casos_ativos(agente.id)
     if not casos:
         return None
     tabela = _t("execucoes")
-    with _estado["engine"].begin() as conexao:
-        if conexao.execute(select(tabela.c.id).where(tabela.c.agente == agente.id, tabela.c.situacao == "rodando")).first():
+    with _estado["engine"].connect() as conexao:
+        rodando = [l.id for l in conexao.execute(select(tabela.c.id).where(
+            tabela.c.agente == agente.id, tabela.c.situacao == "rodando"))]
+    for antiga in rodando:
+        if segundo_plano.disponivel() and segundo_plano.ativa("executar_casos", _referencia(antiga)):
             _erro("Já há uma execução de testes rodando para este agente.", 409)
+        gravar_execucao(antiga, [], "falhou", "A execução parou no meio (o servidor reiniciou ou a tarefa falhou).")
+    with _estado["engine"].begin() as conexao:
         execucao_id = conexao.execute(insert(tabela).values(agente=agente.id, situacao="rodando", iniciada_em=_agora(),
                                                             iniciada_por=autor)).inserted_primary_key[0]
     return casos, execucao_id
 
 
 def iniciar_execucao(agente, autor: str) -> dict:
-    """Roda em segundo plano os casos de teste do agente (um caso por vez,
-    para não estourar a cota do modelo). Cada caso usa uma conversa nova, que é apagada no fim."""
+    """Roda os casos de teste do agente fora da requisição. No Render Workflows, cada caso numa máquina própria,
+    alguns por vez (tarefas/main.py); sem ele, numa thread daqui, um caso por vez (para não estourar a cota do
+    modelo). Cada caso usa uma conversa nova, que é apagada no fim, e as ferramentas que gravam no cadastro só
+    fingem (agente/ferramentas_gestao.py, PREFIXO_TESTE)."""
+    from agente import segundo_plano
+
     preparada = _preparar_execucao(agente, autor)
     if preparada is None:
         _erro("O agente não tem casos de teste ativos.")
-    threading.Thread(target=_executar, args=(agente, *preparada), daemon=True).start()
-    return obter_execucao(preparada[1])
+    casos, execucao_id = preparada
+    segundo_plano.disparar(
+        "executar_casos", [execucao_id, agente.id], referencia=_referencia(execucao_id), criado_por=autor,
+        local=lambda _eid: _executar(agente, casos, execucao_id))
+    return obter_execucao(execucao_id)
 
 
 def avaliar_em_fila(agentes: list, autor: str) -> dict:
@@ -804,22 +828,38 @@ def _rodar_caso(agente, caso: dict, avaliador) -> dict:
             log_warning(f"Fábrica: conversa de teste {session_id} não apagada: {erro}")
 
 
-def _executar(agente, casos: list[dict], execucao_id: int) -> None:
+def avaliador_de(agente):
     from agno.models.google import Gemini
 
+    return Gemini(id=agente.model.id, thinking_level="medium")
+
+
+def rodar_caso(agente, caso: dict) -> dict:
+    """Um caso, com o avaliador do agente (usado também pela tarefa do Render, um caso por máquina)."""
+    return _rodar_caso(agente, caso, avaliador_de(agente))
+
+
+def gravar_execucao(execucao_id: int, resultados: list[dict], situacao: str, erro: str | None = None) -> dict:
+    passou = sum(1 for r in resultados if r.get("passou"))
+    resultado = {"total": len(resultados), "passou": passou, "casos": resultados}
+    if erro:
+        resultado["erro"] = erro
+    with _estado["engine"].begin() as conexao:
+        conexao.execute(update(_t("execucoes")).where(_t("execucoes").c.id == execucao_id).values(
+            situacao=situacao, concluida_em=_agora(), resultado=resultado))
+    return {"total": len(resultados), "passou": passou}
+
+
+def _executar(agente, casos: list[dict], execucao_id: int) -> dict:
     resultados, situacao = [], "concluida"
     try:
-        avaliador = Gemini(id=agente.model.id, thinking_level="medium")
+        avaliador = avaliador_de(agente)
         for caso in casos:
             resultados.append(_rodar_caso(agente, caso, avaliador))
     except Exception as erro:
         situacao = "falhou"
         log_warning(f"Fábrica: execução {execucao_id} falhou: {type(erro).__name__}: {erro}")
-    passou = sum(r["passou"] for r in resultados)
-    with _estado["engine"].begin() as conexao:
-        conexao.execute(update(_t("execucoes")).where(_t("execucoes").c.id == execucao_id).values(
-            situacao=situacao, concluida_em=_agora(),
-            resultado={"total": len(resultados), "passou": passou, "casos": resultados}))
+    return gravar_execucao(execucao_id, resultados, situacao)
 
 
 def _execucao_dict(linha: dict) -> dict:

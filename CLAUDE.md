@@ -150,7 +150,7 @@ fases seguintes esperam a próxima mensagem do secretário (o modelo não encade
 | 5 | `responsaveis` | Todo setor com responsável (quem aprova) | `cadastrar_responsavel` |
 | 6 | `agentes` | Todo setor com o seu agente (criado para a prefeitura) | `montar_agentes` |
 | 7 | `equipe` | Os responsáveis com acesso; os acessos cadastrados pelo assistente aprovados pelo dono no painel | `dar_acesso` |
-| 8 | `unidades` | A lista confirmada pelo responsável, ou "fica para depois" (o CNES só na saúde) (o assistente cadastra unidades a qualquer momento, mesmo depois da implantação) | `importar_unidades_cnes`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` |
+| 8 | `unidades` | A lista confirmada pelo responsável, ou "fica para depois" (o CNES só na saúde) (o assistente cadastra unidades a qualquer momento, mesmo depois da implantação) | `importar_unidades_cnes`, `acompanhar_importacao`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` |
 | 9 | `revisao` | Resumo e "pode concluir": o município fica ativo | `situacao_implantacao`, `concluir_implantacao` |
 
 Dado achado na web é proposta: só grava depois do "sim". Nada de copiar um campo para outro (o e-mail da conta não é o
@@ -192,7 +192,7 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
 
 | id | Agente | Ferramentas | Arquivo |
 |---|---|---|---|
-| `onboarding` | Assistente de Implantação (padrão do servidor; fora das equipes) | implantação (20 ferramentas, com Google e Mapbox) | `agente/perfis/onboarding.py` |
+| `onboarding` | Assistente de Implantação (padrão do servidor; fora das equipes) | implantação (21 ferramentas, com Google e Mapbox) | `agente/perfis/onboarding.py` |
 | `compras` | Agente de Compras e Licitações | consulta | `agente/perfis/compras.py` |
 | `atencao_primaria` | Agente da Atenção Primária | consulta | `agente/perfis/atencao_primaria.py` |
 | `regulacao` | Agente de Regulação | consulta | `agente/perfis/regulacao.py` |
@@ -244,6 +244,8 @@ agente/agentes_organizacao.py os agentes de cada organização (um por área e o
 agente/dados_agente.py        a ficha de cada agente e o que ele lê dos dados
 agente/ferramentas_gestao.py  ferramentas dos agentes (implantação e consulta)
 agente/companyos.py           áreas → Products; atividades de rotina → Routines
+agente/segundo_plano.py       tarefas demoradas: dispara (thread ou Render Workflows) e guarda o andamento
+tarefas/                      as tarefas demoradas (documentos, CNES, testes da Fábrica); main.py = Render Workflows
 agente/perfis/                os agentes do código
 agente/agente.py              monta cada Agent a partir do perfil (modelo, memória, guardrails)
 supabase/gestorgov/           migrations (rodar à mão no SQL Editor)
@@ -265,7 +267,7 @@ painel/src/                   frontend
   `status_cargo`, `alertas_cargo`, `membros`, `convites`, `implantacao_links`, `onboardings`, `auditoria` (só
   inserção). Tudo separado por `organizacao_id`.
 - Tabelas que o servidor cria ao subir: as do Agno (`agno_*`, CompanyOS) e as do painel (`fabrica_*`,
-  `conhecimento_*`, `guardrail_frases`, `painel_usuarios`, `painel_contas`...). Não crie essas à mão. Num banco que
+  `conhecimento_*`, `guardrail_frases`, `painel_usuarios`, `painel_contas`, `tarefas_execucoes`...). Não crie essas à mão. Num banco que
   já rodou o NexaAgents podem sobrar `unnichat_*`, `avaliacoes_humanas`, `qualidade_supervisor` e `alertas_baixas`:
   não são mais usadas.
   `create_all` não altera tabela que já existe: coluna renomeada no código precisa de `alter table` à mão.
@@ -381,6 +383,23 @@ Dois níveis, separados:
 - Região Virginia (o Render não tem Brasil).
 - Variáveis secretas: `GOOGLE_API_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
   `PAINEL_DONO`, `PAINEL_GOOGLE_CLIENT_ID`, `PAINEL_DOMINIOS` (opcional). `OS_SECURITY_KEY` é gerada pelo Render.
+
+### Tarefas demoradas (agente/segundo_plano.py, tarefas/)
+
+Documentos do Conhecimento (texto e embeddings), importação do CNES e casos de teste da Fábrica não rodam dentro da
+requisição nem do turno do agente: `segundo_plano.disparar` grava a linha em `tarefas_execucoes` (o andamento) e
+roda a tarefa. **Padrão: numa thread do servidor web** (serve no plano grátis; ao reiniciar, `limpar_presas` marca
+as que morreram). Com `GESTORGOV_WORKFLOWS=sim` e `RENDER_API_KEY`, vão para o **Render Workflows** (serviço
+`gestorgov-tarefas`, `python -m tarefas.main`, modelo comentado no `render.yaml`): cada execução numa máquina
+própria, com novas tentativas e tempo limite; os casos da Fábrica, 5 por vez. Se o Render recusar, roda na thread.
+
+- **A entrada da tarefa só leva ids e números** (`_conferir_entrada` recusa o resto): o Render guarda os argumentos
+  e o retorno de cada execução. O que a tarefa precisa além disso (sessão, quem pediu) vai em `contexto`, no nosso
+  banco; a resposta de cada caso da Fábrica fica em `tarefas_execucoes`, não no Render.
+- Toda tarefa pode ser repetida sem duplicar (unidade pelo código CNES, trechos do documento trocados).
+- Nas conversas de teste da Fábrica (`aval-...`), as ferramentas que gravam só fingem (`ferramentas_gestao._simulado`).
+- Local com o servidor de tarefas do Render (Render CLI 2.12+): `render workflows dev -- .venv\Scripts\python -m
+  tarefas.main` e, no `.env`, `GESTORGOV_WORKFLOWS=sim` e `RENDER_USE_LOCAL_DEV=true`.
 
 ### Demonstração
 
