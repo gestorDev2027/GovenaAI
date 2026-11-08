@@ -29,6 +29,7 @@ import { Equipe } from "@/pages/equipe";
 import { AceitarConvite } from "@/pages/convite";
 import { CentralDeComando } from "@/pages/comando";
 import { Secretaria3D } from "@/pages/secretaria";
+import { Unidade3D } from "@/pages/unidade";
 import { Navigate } from "@tanstack/react-router";
 
 const queryClient = new QueryClient({
@@ -126,6 +127,8 @@ const router = createRouter({
       createRoute({ getParentRoute: () => protegido, path: "/comando", component: CentralDeComando }),
       // A Secretaria virtual: o prédio com uma sala por setor e o agente dela, em tela inteira.
       createRoute({ getParentRoute: () => protegido, path: "/secretaria", component: Secretaria3D }),
+      // Uma unidade de saúde em 3D: o prédio com as salas do tipo e o agente da unidade na gerência.
+      createRoute({ getParentRoute: () => protegido, path: "/unidade/$id", component: Unidade3D }),
     ]),
     // Páginas públicas: a landing page, entrar e cadastrar. A implantação exige conta (a própria página confere).
     createRoute({ getParentRoute: () => raiz, path: "/inicio", component: Inicio }),

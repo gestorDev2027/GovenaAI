@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bot, Camera, Check, CheckCircle2, Loader2, MapPin, MessagesSquare, Pencil, Search, Star, Trash2, TriangleAlert, Upload } from "lucide-react";
+import { Bot, Box, Camera, Check, CheckCircle2, Loader2, MapPin, MessagesSquare, Pencil, Search, Star, Trash2, TriangleAlert, Upload } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useAgentes } from "@/hooks/use-agentes";
 import { api } from "@/lib/api";
@@ -204,6 +204,15 @@ export function FichaUnidade({
             </Button>
           ))}
       </div>
+
+      <a
+        href={`/painel/unidade/${encodeURIComponent(unidade.id)}`}
+        target="_blank"
+        rel="noreferrer"
+        className="flex items-center justify-center gap-2 rounded-xl bg-[#0D1B38] px-3 py-2.5 text-sm font-medium text-white hover:bg-[#0D1B38]/90"
+      >
+        <Box className="size-4" /> Ver a unidade em 3D
+      </a>
 
       <AgenteDaUnidade agenteId={unidade.agente_id} />
 

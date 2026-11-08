@@ -6,11 +6,11 @@ import { cn } from "@/lib/utils";
 import { RoboAgente, type Humor } from "./robo-agente";
 import type { PosturaAgente } from "./agente-ia";
 import { ANDAR, CascaDoAndar, PE_DIREITO, Quarteirao, limitesDoQuarteirao } from "./exterior";
-import { Banner, Cadeira, DivisoriaVidro, Estacao, Estante, PALETAS, Planta, SalaReuniao, TvAula, type Paleta } from "./moveis";
+import { Balcao, Banner, Cadeira, DivisoriaVidro, Estacao, Estante, PALETAS, Planta, SalaReuniao, Sofa, TvAula, type Paleta } from "./moveis";
 import { ControleCamera, PisoClicavel, Projetor, useEscuro, type Alvo, type ApiCamera, type Retangulo, type Rotulo } from "./escritorio";
 
 /*
- * O prédio da Secretaria de Saúde pelo cadastro da prefeitura: cada SETOR é uma sala de vidro, com o agente do
+ * O prédio (da Secretaria de Saúde ou de uma unidade de saúde, pages/unidade.tsx) pelo cadastro da prefeitura: cada SETOR é uma sala de vidro, com o agente do
  * setor sentado na mesa dele, a placa com o nome e o responsável. No centro, o CCO (Centro de Comando e Operações),
  * de onde a secretaria acompanha tudo. As salas nascem na implantação: setor novo, sala nova; agente ligado ao
  * setor, robô na mesa. Quando um agente trabalha (ao vivo), o rosto dele muda (pensando, feliz, alerta).
@@ -21,6 +21,8 @@ export interface SetorNoPredio {
   nome: string;
   responsavel?: { nome: string } | null;
   agentes: { agente_id: string }[];
+  /** O texto da placa embaixo do nome; sem ele, "agente · responsável". */
+  detalhe?: string;
 }
 export interface AgenteNoPredio {
   id: string;
@@ -91,7 +93,15 @@ export default function PredioSecretaria({
   api,
   aberto,
   aoAbrir,
+  nomePredio = "Secretaria Municipal de Saúde",
+  totem,
+  centro: tipoCentro = "cco",
 }: {
+  /** O nome na fachada e as linhas do totem da entrada. */
+  nomePredio?: string;
+  totem?: string[];
+  /** A sala do meio: o CCO (secretaria) ou a recepção (unidade). */
+  centro?: "cco" | "recepcao";
   setores: SetorNoPredio[];
   agentes: AgenteNoPredio[];
   eventos: EventoCentral[];
@@ -171,7 +181,7 @@ export default function PredioSecretaria({
               {s.setor.nome}
             </span>
             <span className="text-[10px] leading-tight text-[#424E6B] dark:text-white/70">
-              {agente ? nomeDe(agente) : "sem agente"} · {s.setor.responsavel?.nome ?? "sem responsável"}
+              {s.setor.detalhe ?? `${agente ? nomeDe(agente) : "sem agente"} · ${s.setor.responsavel?.nome ?? "sem responsável"}`}
             </span>
           </button>
         ),
@@ -186,7 +196,7 @@ export default function PredioSecretaria({
           onClick={() => aoSelecionar({ tipo: "cco", id: "cco" })}
           className="rounded-full border border-[#F4B800]/60 bg-[#0D1B38]/90 px-3 py-1 text-[12px] font-semibold text-white shadow-md"
         >
-          CCO · Centro de Comando
+          {tipoCentro === "cco" ? "CCO · Centro de Comando" : "Recepção e acolhimento"}
         </button>
       ),
     },
@@ -213,9 +223,9 @@ export default function PredioSecretaria({
 
         <Suspense fallback={null}>
           <group position={[0, -ANDAR, 0]}>
-            <Quarteirao p={p} predio={predio} escuro={escuro} entradaX={0} />
+            <Quarteirao p={p} predio={predio} escuro={escuro} entradaX={0} totem={totem} />
           </group>
-          <CascaDoAndar predio={predio} escuro={escuro} aberto={aberto} aoAbrir={aoAbrir} />
+          <CascaDoAndar predio={predio} escuro={escuro} aberto={aberto} aoAbrir={aoAbrir} nome={nomePredio} />
         </Suspense>
 
         {/* O piso do andar */}
@@ -243,8 +253,8 @@ export default function PredioSecretaria({
           );
         })}
 
-        {/* O CCO, no centro */}
-        <CCO p={p} ativo={selecao?.tipo === "cco"} aoClicar={() => aoSelecionar({ tipo: "cco", id: "cco" })} />
+        {/* O centro: o CCO (secretaria) ou a recepção (unidade) */}
+        <CCO p={p} tipo={tipoCentro} ativo={selecao?.tipo === "cco"} aoClicar={() => aoSelecionar({ tipo: "cco", id: "cco" })} />
 
         <ControleCamera geral={geral} foco={foco} margemDireita={margemDireita} api={api} />
         <Projetor rotulos={aberto ? rotulos : []} elementos={elementos} />
@@ -350,7 +360,7 @@ function SalaDoSetor({
   );
 }
 
-function CCO({ p, ativo, aoClicar }: { p: Paleta; ativo: boolean; aoClicar: () => void }) {
+function CCO({ p, tipo, ativo, aoClicar }: { p: Paleta; tipo: "cco" | "recepcao"; ativo: boolean; aoClicar: () => void }) {
   const ret = { x0: -CCO_L / 2, x1: CCO_L / 2, z0: -CCO_P / 2, z1: CCO_P / 2 };
   return (
     <group>
@@ -359,6 +369,22 @@ function CCO({ p, ativo, aoClicar }: { p: Paleta; ativo: boolean; aoClicar: () =
       <Parede p={p} de={ret.z0} ate={ret.z1} em={ret.x0} emZ porta />
       <Parede p={p} de={ret.z0} ate={ret.z1} em={ret.x1} emZ porta />
       <Parede p={p} de={ret.x0} ate={ret.x1} em={ret.z1} porta />
+      {tipo === "recepcao" ? (
+        <Suspense fallback={null}>
+          <group position={[0, 0, -0.6]}>
+            <Balcao />
+          </group>
+          <group position={[-2.6, 0, 1.1]}>
+            <Sofa cor="#1A63D8" />
+          </group>
+          <group position={[2.6, 0, 1.1]}>
+            <Sofa cor="#1A63D8" />
+          </group>
+          <group position={[0, 1.9, ret.z0 + 0.1]}>
+            <Banner cor="#52A2FF" />
+          </group>
+        </Suspense>
+      ) : (
       <Suspense fallback={null}>
         <group position={[0, 0, 0.3]}>
           <SalaReuniao p={p} />
@@ -373,6 +399,7 @@ function CCO({ p, ativo, aoClicar }: { p: Paleta; ativo: boolean; aoClicar: () =
           <Banner cor="#F4B800" />
         </group>
       </Suspense>
+      )}
     </group>
   );
 }

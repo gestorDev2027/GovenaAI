@@ -3,7 +3,6 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
-  Box,
   Building2,
   Command,
   Eye,
@@ -83,7 +82,6 @@ export function CentralDeComando() {
   const [selecionada, setSelecionada] = useState<string | null>(null);
   const [detalhe, setDetalhe] = useState<Detalhe>(null);
   const [conferir, setConferir] = useState(false);
-  const [predios, setPredios] = useState(false);
 
   useEffect(() => {
     document.title = "Cidade · GestorGov";
@@ -128,7 +126,6 @@ export function CentralDeComando() {
           cor: tipos.get(u.tipo_id ?? "")?.cor ?? "#424E6B",
           latitude: Number(u.latitude),
           longitude: Number(u.longitude),
-          agente: !!u.agente_id,
         })),
     [unidades, tipos],
   );
@@ -148,7 +145,6 @@ export function CentralDeComando() {
         executar: () => alternar(p),
       })),
       { id: "conferir", titulo: "Conferir e cadastrar unidades", grupo: "Unidades", icone: MapPin, executar: () => setConferir(true) },
-      { id: "predios", titulo: predios ? "Ver o mapa de cima" : "Ver os prédios das unidades em 3D", grupo: "Tela", icone: Box, executar: () => setPredios((v) => !v) },
       { id: "foco", titulo: foco ? "Sair do modo foco" : "Modo foco (esconder tudo)", grupo: "Tela", icone: foco ? Eye : EyeOff, dica: "F", executar: () => setFoco((f) => !f) },
       ...unidades.map((u) => ({
         id: `unidade-${u.id}`,
@@ -162,7 +158,7 @@ export function CentralDeComando() {
       { id: "painel", titulo: "Ir para o Painel", grupo: "Navegar", icone: LayoutDashboard, executar: () => navegar({ to: "/" }) },
       { id: "chat", titulo: "Conversar com os agentes", grupo: "Navegar", icone: MessagesSquare, executar: () => navegar({ to: "/chat" }) },
     ],
-    [abertos, alternar, foco, predios, unidades, tipos, verUnidade, navegar],
+    [abertos, alternar, foco, unidades, tipos, verUnidade, navegar],
   );
 
   const centro = mun?.latitude != null && mun?.longitude != null ? ([Number(mun.latitude), Number(mun.longitude)] as [number, number]) : null;
@@ -178,7 +174,6 @@ export function CentralDeComando() {
           selecionada={selecionada}
           aoSelecionar={verUnidade}
           satelite
-          predios={predios}
           className="absolute inset-0 h-full w-full"
         />
       ) : (
@@ -230,9 +225,6 @@ export function CentralDeComando() {
                 <Command className="size-2.5" />K
               </kbd>
             </button>
-            <BotaoBarra rotulo={predios ? "Ver o mapa de cima" : "Ver os prédios em 3D"} ativo={predios} onClick={() => setPredios((v) => !v)}>
-              <Box className="size-4" />
-            </BotaoBarra>
             <BotaoBarra rotulo="Modo foco (F)" onClick={() => setFoco(true)}>
               <EyeOff className="size-4" />
             </BotaoBarra>

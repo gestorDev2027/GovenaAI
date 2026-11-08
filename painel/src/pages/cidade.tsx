@@ -1,20 +1,19 @@
 import { useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Building2, Landmark, MapPin, MapPinned, MessagesSquare, Rocket, Users, X } from "lucide-react";
+import { Building2, Landmark, MapPinned, MessagesSquare, Rocket, Users } from "lucide-react";
 import { api } from "@/lib/api";
 import { useAcesso } from "@/hooks/use-permissoes";
 import { fmtInt } from "@/lib/formato";
 import { EmptyState, PageHeader, PageLoader } from "@/components/widgets/widgets";
 import { Table, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableWrapper } from "@/components/ui/tabela";
-import { MapaCidade, type UnidadeNoMapa } from "@/components/mapa/mapa-cidade";
+import { Slideover } from "@/components/comando/slideover";
 import { cn } from "@/lib/utils";
 import { FichaUnidade, type UnidadeSaude } from "@/components/unidades/ficha-unidade";
 
 /*
- * Visão Cidade: o município com as unidades de saúde públicas e conveniadas ao SUS, a partir do cadastro
- * (GET /prefeitura/panorama ou /gestao/panorama). O mapa (Mapbox, com MAPBOX_TOKEN) mostra um pino por unidade;
- * clicar no pino ou na linha abre a ficha. A lista é a versão acessível do mapa e vale sem ele.
+ * Unidades de saúde, no painel: as unidades do município em lista (sem mapa: o mapa é a aba Cidade, /comando), com a
+ * ficha de cada uma num painel lateral (conferência, fotos, agente da unidade), os números da implantação e os setores.
  */
 
 interface TipoUnidade {
@@ -66,8 +65,8 @@ export function Cidade() {
   // Quem é de uma prefeitura vê a dela; a equipe GestorGov, o município padrão do servidor.
   const acesso = useAcesso().data;
   const daPrefeitura = !!acesso?.prefeitura;
-  const token = acesso?.mapbox_token;
   const [selecionada, setSelecionada] = useState<string | null>(null);
+  const qc = useQueryClient();
   const panorama = useQuery({
     queryKey: ["gestao-panorama", daPrefeitura],
     queryFn: () => api<Panorama>(daPrefeitura ? "/prefeitura/panorama" : "/gestao/panorama"),
@@ -86,30 +85,16 @@ export function Cidade() {
     for (const u of unidades) contagem.set(u.tipo_id ?? "outro", (contagem.get(u.tipo_id ?? "outro") ?? 0) + 1);
     return [...contagem].sort((a, b) => (tipos.get(a[0])?.ordem ?? 99) - (tipos.get(b[0])?.ordem ?? 99));
   }, [unidades, tipos]);
-  const noMapa: UnidadeNoMapa[] = useMemo(
-    () =>
-      unidades
-        .filter((u) => u.latitude != null && u.longitude != null)
-        .map((u) => ({
-          id: u.id,
-          nome: u.nome_fantasia || u.nome,
-          tipo: u.tipo_id ?? "outro",
-          cor: tipos.get(u.tipo_id ?? "")?.cor ?? "#424E6B",
-          latitude: Number(u.latitude),
-          longitude: Number(u.longitude),
-        })),
-    [unidades, tipos],
-  );
   const ficha = unidades.find((u) => u.id === selecionada);
 
   return (
     <div className="space-y-5 px-4 pb-8 sm:px-8">
       <PageHeader
-        title="Cidade"
+        title="Unidades de saúde"
         icon={MapPinned}
         description={
           mun
-            ? `${mun.nome}-${mun.uf} · as unidades de saúde do município e a situação da implantação.`
+            ? `${mun.nome}-${mun.uf} · as unidades de saúde do município, a conferência de cada uma e os setores da secretaria.`
             : "O município, as unidades de saúde e a situação de cada uma."
         }
       />
@@ -125,12 +110,11 @@ export function Cidade() {
         <div className="surface-card has-waves">
           <EmptyState icon={<Landmark className="size-5" />} title="Nenhum município implantado">
             <p>
-              A implantação é uma conversa com o Assistente de Implantação: ele pede o CEP da prefeitura, importa as unidades do CNES e
-              monta os setores, as atividades, os responsáveis e os agentes.
+              A implantação é uma conversa com o Assistente de Implantação: ele pede o CEP da prefeitura, monta os setores, as atividades,
+              os responsáveis e os agentes e, por último, traz as unidades de saúde.
             </p>
             <Link
-              to="/chat"
-              search={{ agente: "onboarding" }}
+              to="/implantacao"
               className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-[filter] outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Rocket className="size-4" />
@@ -156,24 +140,14 @@ export function Cidade() {
             />
           </div>
 
-          {token && noMapa.length > 0 && (
-            <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-              <MapaCidade
-                token={token}
-                unidades={noMapa}
-                centro={mun.latitude != null && mun.longitude != null ? [Number(mun.latitude), Number(mun.longitude)] : null}
-                selecionada={selecionada}
-                aoSelecionar={setSelecionada}
-                className="h-[460px]"
-              />
-              <FichaDaUnidade
-                unidade={ficha}
-                tipo={ficha ? tipos.get(ficha.tipo_id ?? "") : undefined}
-                tipos={[...tipos.values()]}
-                aoFechar={() => setSelecionada(null)}
-                total={noMapa.length}
-              />
-            </section>
+          {ficha && (
+            <Slideover
+              titulo={ficha.nome_fantasia || ficha.nome}
+              subtitulo={tipos.get(ficha.tipo_id ?? "")?.nome ?? "Unidade de saúde"}
+              aoFechar={() => setSelecionada(null)}
+            >
+              <FichaUnidade unidade={ficha} tipos={[...tipos.values()]} aoMudar={() => qc.invalidateQueries({ queryKey: ["gestao-panorama"] })} />
+            </Slideover>
           )}
 
           {porTipo.length > 0 && (
@@ -194,7 +168,12 @@ export function Cidade() {
           <section className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
               <h2 className="text-sm font-semibold">Unidades de saúde</h2>
-              <p className="text-xs text-muted-foreground">Públicas e conveniadas ao SUS. Clique numa linha para ver no mapa.</p>
+              <p className="text-xs text-muted-foreground">
+                Públicas e conveniadas ao SUS. Clique numa linha para abrir a ficha.{" "}
+                <a href="/painel/comando" target="_blank" rel="noreferrer" className="font-semibold text-primary-text hover:underline">
+                  Ver no mapa da cidade
+                </a>
+              </p>
             </div>
             <TableWrapper>
               <Table>
@@ -228,7 +207,7 @@ export function Cidade() {
                       </TableCell>
                       <TableCell>{u.bairro || "—"}</TableCell>
                       <TableCell className="num">{u.cnes || "—"}</TableCell>
-                      <TableCell>{u.confirmada ? "Confirmada" : "A confirmar"}</TableCell>
+                      <TableCell>{u.confirmada ? "Conferida" : "A conferir"}</TableCell>
                     </TableRow>
                   ))}
                 </tbody>
@@ -256,7 +235,7 @@ export function Cidade() {
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <MessagesSquare className="size-3.5" />
             Para corrigir ou completar o cadastro, converse com o{" "}
-            <Link to="/chat" search={{ agente: "onboarding" }} className="font-semibold text-primary-text hover:underline">
+            <Link to="/implantacao" className="font-semibold text-primary-text hover:underline">
               Assistente de Implantação
             </Link>
             .
@@ -279,49 +258,5 @@ function Numero({ icone: Icone, rotulo, valor, detalhe }: { icone: typeof Buildi
         {detalhe && <div className="text-xs text-muted-foreground">{detalhe}</div>}
       </div>
     </div>
-  );
-}
-
-function FichaDaUnidade({
-  unidade,
-  tipo,
-  tipos,
-  aoFechar,
-  total,
-}: {
-  unidade?: Unidade;
-  tipo?: TipoUnidade;
-  tipos: TipoUnidade[];
-  aoFechar: () => void;
-  total: number;
-}) {
-  const qc = useQueryClient();
-  if (!unidade) {
-    return (
-      <aside className="surface-card flex flex-col justify-center gap-2 p-5 text-sm text-muted-foreground">
-        <MapPin className="size-5 text-primary-text" />
-        <p className="font-semibold text-foreground">{total} unidades no mapa</p>
-        <p>Clique num pino (ou numa linha da tabela) para ver a ficha da unidade.</p>
-      </aside>
-    );
-  }
-  return (
-    <aside className="surface-card thin-scroll flex max-h-[460px] flex-col gap-3 overflow-y-auto p-5" aria-label={`Ficha de ${unidade.nome_fantasia || unidade.nome}`}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex items-start gap-3">
-          <span aria-hidden="true" className="mt-1 size-3 shrink-0 rounded-full" style={{ background: tipo?.cor ?? "#424E6B" }} />
-          <h2 className="text-base leading-snug font-semibold">{unidade.nome_fantasia || unidade.nome}</h2>
-        </div>
-        <button
-          type="button"
-          onClick={aoFechar}
-          aria-label="Fechar a ficha"
-          className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-secondary hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
-      </div>
-      <FichaUnidade unidade={unidade} tipos={tipos} aoMudar={() => qc.invalidateQueries({ queryKey: ["gestao-panorama"] })} />
-    </aside>
   );
 }

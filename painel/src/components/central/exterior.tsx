@@ -339,8 +339,8 @@ function CarroAndando({ c, cor, de, ate, eixo, faixa, velocidade, inicio }: { c:
 /* ───────── Térreo ───────── */
 
 /** Totem com o símbolo e o nome do GestorGov, ao lado da entrada (de frente para +z). */
-function Totem({ c }: { c: Cores }) {
-  const nome = useTextoEmTextura(["Secretaria", "de Saúde"]);
+function Totem({ c, linhas = ["Secretaria", "de Saúde"] }: { c: Cores; linhas?: string[] }) {
+  const nome = useTextoEmTextura(linhas);
   return (
     <group>
       <RoundedBox args={[1.5, 2.6, 0.35]} radius={0.06} position={[0, 1.3, 0]} castShadow>
@@ -486,7 +486,7 @@ function Terreo({ c, p, predio, entradaX }: { c: Cores; p: Paleta; predio: Retan
 
 /* ───────── Quarteirão ───────── */
 
-export function Quarteirao({ p, predio, escuro, entradaX }: { p: Paleta; predio: RetanguloPredio; escuro: boolean; entradaX: number }) {
+export function Quarteirao({ p, predio, escuro, entradaX, totem }: { p: Paleta; predio: RetanguloPredio; escuro: boolean; entradaX: number; totem?: string[] }) {
   const c = cores(escuro);
   const gradiente = useGradienteRadial();
   const { x0, x1, z0, z1 } = predio;
@@ -638,7 +638,7 @@ export function Quarteirao({ p, predio, escuro, entradaX }: { p: Paleta; predio:
         </mesh>
       </group>
       <group position={[entradaX + ENTRADA / 2 + 2.4, y + 0.08, z1 + 1.4]}>
-        <Totem c={c} />
+        <Totem c={c} linhas={totem} />
       </group>
 
       {/* Jardim: cerca viva na calçada do prédio, canteiros, árvores e a praça com chafariz */}
@@ -683,14 +683,14 @@ export function Quarteirao({ p, predio, escuro, entradaX }: { p: Paleta; predio:
  * A fachada e a cobertura do andar do escritório. Fechada, é o prédio visto de fora; `aberto` faz a cobertura
  * subir e sumir e a fachada ficar transparente. Fechada, um clique em qualquer parte dela chama `aoAbrir`.
  */
-export function CascaDoAndar({ predio, escuro, aberto, aoAbrir }: { predio: RetanguloPredio; escuro: boolean; aberto: boolean; aoAbrir: () => void }) {
+export function CascaDoAndar({ predio, escuro, aberto, aoAbrir, nome: nomeFachada = "Secretaria Municipal de Saúde" }: { predio: RetanguloPredio; escuro: boolean; aberto: boolean; aoAbrir: () => void; nome?: string }) {
   const c = cores(escuro);
   const { x0, x1, z0, z1 } = predio;
   const cx = (x0 + x1) / 2;
   const cz = (z0 + z1) / 2;
   const largura = x1 - x0;
   const profundidade = z1 - z0;
-  const nome = useTextoEmTextura(["Secretaria Municipal de Saúde"], 1024, 128);
+  const nome = useTextoEmTextura([nomeFachada], 1024, 128);
   const grupo = useRef<THREE.Group>(null);
   const cobertura = useRef<THREE.Group>(null);
   const abertura = useRef(aberto ? 1 : 0);

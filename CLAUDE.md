@@ -68,10 +68,14 @@ O catálogo padrão (27 atividades em 10 setores) está em `supabase/gestorgov/2
 
 ### As três visões da interface (o core)
 
-1. **Cidade** (`/painel/comando`, abre em outra aba) — mapa real do município (satélite visto de cima, com zoom)
-   com as unidades de saúde (UBS, UPA, CAPS, hospital, farmácia, SAMU...). O botão "Prédios 3D" põe cada unidade como
-   um prédio (na cor do tipo, altura pelo tipo) com o farol azul do agente no telhado. Só unidades: setores e agentes
-   ficam na Secretaria. A mesma informação em lista em `/painel/cidade` ("Unidades de saúde").
+1. **Cidade** (`/painel/comando`, abre em outra aba) — mapa real do município, plano (satélite visto de cima, com
+   zoom), com um pino por unidade de saúde (UBS, UPA, CAPS, hospital, farmácia, SAMU...). O mapa não é 3D. Só
+   unidades: setores e agentes ficam na Secretaria. No painel (`/painel/cidade`, "Unidades de saúde") não há mapa:
+   é a lista, com a ficha num painel lateral.
+   **Cada unidade em 3D** (`/painel/unidade/<id>`, abre pela ficha em outra aba; `pages/unidade.tsx`): o prédio da
+   unidade em Three.js, como a Secretaria, com as salas do tipo (UPA: classificação de risco, consultórios, sala
+   vermelha, observação, farmácia; UBS: consultórios, vacina, curativos, farmácia...), a recepção no centro (abre a
+   ficha) e o agente da unidade na gerência.
 2. **Secretaria virtual** (`/painel/secretaria`, abre em outra aba; `components/central/predio-secretaria.tsx`) — o
    prédio pelo cadastro: cada SETOR é uma sala de vidro com o agente do setor na mesa e a placa (setor, agente,
    responsável); no centro, o CCO (Centro de Comando e Operações). Quando um agente trabalha, o rosto dele muda
@@ -117,7 +121,7 @@ Primeiro a secretaria (o prédio vai subindo no quadro); por último, as unidade
 | 3 | `atividades` | Setor por setor: rotinas e pedidos sob demanda sugeridos; confirma, tira, cria novas | `sugerir_atividades`, `salvar_atividades`, `nova_atividade` | As atividades de cada sala (na lista) |
 | 4 | `responsaveis` | Quem coordena e aprova em cada setor (nome + e-mail institucional); pode ficar pendente | `cadastrar_responsavel` | O nome na placa da sala |
 | 5 | `agentes` | Cria o agente de IA de cada setor, da prefeitura (Fábrica), no ar na hora | `montar_agentes` | Os robôs sentam nas mesas das salas |
-| 6 | `unidades` | Importa as unidades do CNES ("14 UBS, 1 UPA... Confere?"); cadastra as que faltam pelo CEP; cada uma ganha o agente das unidades | `importar_unidades_cnes`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` | O mapa real da cidade com o prédio de cada unidade e o farol do agente |
+| 6 | `unidades` | Importa as unidades do CNES ("14 UBS, 1 UPA... Confere?"); cadastra as que faltam pelo CEP; cada uma ganha o agente das unidades | `importar_unidades_cnes`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` | O mapa real da cidade com os pinos das unidades; cada uma ganha a sua visão 3D |
 | 7 | `revisao` → `concluido` | Resumo final; com o "pode concluir", ativa o município | `situacao_implantacao`, `concluir_implantacao` | |
 
 Os agentes de cada prefeitura (`agente/agentes_prefeitura.py`): um por setor (`<município>-<uf>-<setor>`, cópia do
@@ -353,7 +357,8 @@ Reestruturação aprovada em 07/11/2026 (uma etapa por vez, cada uma com commit 
       implantação; falta: os cargos dentro das salas)
 - [x] 6. Implantação na ordem nova: prefeitura, setores, atividades, responsáveis e agentes, com a Secretaria
       virtual se montando ao lado; por último as unidades no mapa real, cada uma com o seu prédio e o agente
-- [ ] 7. Visão 3D de cada unidade com o agente dela; um agente próprio por unidade (hoje é um por prefeitura)
+- [ ] 7. Visão 3D de cada unidade com o agente dela (feito: o prédio com as salas do tipo e o agente na gerência);
+      falta: um agente próprio por unidade (hoje é um por prefeitura) e as salas com a equipe, o estoque e a produção
 
 - [ ] Primeiro deploy validado no Render (build do painel, CompanyOS agendando de verdade)
 - [ ] **Tela de onboarding**: chat à esquerda; à direita, mapa (MapLibre + OpenStreetMap, sem custo por uso) e

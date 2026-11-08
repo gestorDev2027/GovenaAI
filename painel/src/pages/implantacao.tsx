@@ -417,7 +417,6 @@ function Vista({ panorama, tipos, token, etapa }: { panorama: Panorama; tipos: T
           cor: cores.get(u.tipo_id ?? "") ?? "#424E6B",
           latitude: Number(u.latitude),
           longitude: Number(u.longitude),
-          agente: !!u.agente_id,
         })),
     [panorama.unidades, cores],
   );
@@ -428,7 +427,7 @@ function Vista({ panorama, tipos, token, etapa }: { panorama: Panorama; tipos: T
     <section className="surface-card overflow-hidden" aria-label="A secretaria sendo montada">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
-          {vista === "predio" ? "Secretaria virtual: cada setor é uma sala, com o seu agente" : "Cidade: cada unidade de saúde com o seu prédio e o agente"}
+          {vista === "predio" ? "Secretaria virtual: cada setor é uma sala, com o seu agente" : "Cidade: as unidades de saúde no mapa (cada uma ganha a sua visão 3D)"}
         </span>
         <div role="tablist" aria-label="Vista" className="flex rounded-full bg-muted p-0.5 text-xs">
           {(
@@ -471,7 +470,7 @@ function Vista({ panorama, tipos, token, etapa }: { panorama: Panorama; tipos: T
             <p className="grid h-full place-items-center px-6 text-center text-sm text-white/70">O prédio sobe quando os setores forem confirmados: cada setor, uma sala.</p>
           )
         ) : token ? (
-          <MapaCidade token={token} unidades={noMapa} centro={centro} satelite predios className="h-full w-full" />
+          <MapaCidade token={token} unidades={noMapa} centro={centro} satelite className="h-full w-full" />
         ) : (
           <p className="grid h-full place-items-center px-6 text-center text-sm text-white/70">Defina o MAPBOX_TOKEN no servidor para ver o mapa da cidade.</p>
         )}
