@@ -6,10 +6,15 @@
 --   agente (o agente faz), aceite (uma pessoa aceita a tarefa), aprovacao (uma pessoa aprova uma ação sensível no
 --   meio da execução) e revisao (uma pessoa avalia a entrega: aprova, ou ajusta e devolve para refazer).
 -- As tarefas ficam no CompanyOS do Agno (tabelas criadas pelo servidor): a área é o Product, a atividade é o
--- Project (atividades_area.projeto_id) e cada execução é uma Task.
+-- Project (atividades_area.projeto_id) e cada execução é uma Task. As tabelas entregas e pendencias saem: as
+-- Tasks são a fonte única das tarefas e das entregas.
 -- =============================================================================
 
 alter table gestorgov.atividades_area add column if not exists projeto_id text;  -- o Project no CompanyOS
+
+-- As tarefas e as entregas passam a viver no CompanyOS (Tasks): saem as tabelas próprias (estavam vazias).
+drop table if exists gestorgov.entregas;
+drop table if exists gestorgov.pendencias;
 
 create table if not exists gestorgov.processos (
   id               uuid primary key default extensions.gen_random_uuid(),

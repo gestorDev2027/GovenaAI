@@ -1,6 +1,7 @@
 """Registro dos agentes do GestorGov.
 
-- onboarding: o assistente de implantação (conversa com o secretário e monta a secretaria). É o padrão.
+- onboarding: o assistente de implantação (conversa com o responsável e monta a organização). É o padrão.
+- processos: o Assistente de Processos (desenha com o gestor as atividades e os processos dos agentes).
 - compras, atencao_primaria, regulacao: os primeiros agentes de setor (agente/perfis/setor.py).
 - unidade: o agente das unidades de saúde. Estes quatro são modelos: cada prefeitura ganha a sua cópia na
   implantação (agente/agentes_organizacao.py).
@@ -11,12 +12,14 @@ Para acrescentar um agente: crie-o pela fábrica de agentes no painel (agente/fa
 
 from agente import base
 from agente.perfil import Perfil
-from agente.perfis import atencao_primaria, compras, onboarding, regulacao, unidade
+from agente.perfis import atencao_primaria, compras, onboarding, processos, regulacao, unidade
 
 PADRAO = onboarding.PERFIL.id
 
-PERFIS: dict[str, Perfil] = {p.id: p for p in (onboarding.PERFIL, compras.PERFIL, atencao_primaria.PERFIL, regulacao.PERFIL,
-                                              unidade.PERFIL)}
+PERFIS: dict[str, Perfil] = {p.id: p for p in (onboarding.PERFIL, processos.PERFIL, compras.PERFIL, atencao_primaria.PERFIL,
+                                              regulacao.PERFIL, unidade.PERFIL)}
+# Os assistentes do sistema (implantação e processos): têm a tela deles e ficam fora da lista de agentes e das equipes.
+ASSISTENTES = frozenset({onboarding.PERFIL.id, processos.PERFIL.id})
 
 for _perfil in PERFIS.values():
     base.registrar(_perfil.id, _perfil.arquivo_base)

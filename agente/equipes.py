@@ -235,8 +235,8 @@ def _validar(dados: dict) -> dict:
     desconhecidos = [m for m in membros if not perfis.existe(m)]
     if desconhecidos:
         erro(f"Agente desconhecido: {', '.join(desconhecidos)}.")
-    if perfis.PADRAO in membros:
-        erro("O Assistente de Implantação não faz parte de equipes: ele só conduz a implantação.")
+    if perfis.ASSISTENTES & set(membros):
+        erro("Os assistentes do sistema (Implantação e Processos) não fazem parte de equipes.")
     if not 2 <= len(membros) <= MAX_MEMBROS:
         erro(f"Uma equipe tem de 2 a {MAX_MEMBROS} agentes: com um só, ligue o agente direto ao canal.")
     padrao_id = dados.get("padrao") or membros[0]

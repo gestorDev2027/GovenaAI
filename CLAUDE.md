@@ -192,7 +192,8 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
 
 | id | Agente | Ferramentas | Arquivo |
 |---|---|---|---|
-| `onboarding` | Assistente de Implantação (padrão do servidor; fora das equipes) | implantação (21 ferramentas, com Google e Mapbox) | `agente/perfis/onboarding.py` |
+| `onboarding` | Assistente de Implantação (padrão do servidor; fora das equipes) | implantação (com Google e Mapbox) | `agente/perfis/onboarding.py` |
+| `processos` | Assistente de Processos (fora da lista de agentes e das equipes) | atividades e processos (`agente/ferramentas_processos.py`) | `agente/perfis/processos.py` |
 | `compras` | Agente de Compras e Licitações | consulta | `agente/perfis/compras.py` |
 | `atencao_primaria` | Agente da Atenção Primária | consulta | `agente/perfis/atencao_primaria.py` |
 | `regulacao` | Agente de Regulação | consulta | `agente/perfis/regulacao.py` |
@@ -259,7 +260,8 @@ painel/src/                   frontend
 - Migrations (`supabase/gestorgov/`, rodar em ordem): `20261111_gestorgov_1_base.sql` (schema, papel, pgvector,
   buckets `agentes` e `organizacoes`, Vault, todas as tabelas, RLS), `..._2_saude.sql` (catálogo da saúde: 16 setores,
   14 tipos de unidade com os códigos do CNES, atividades, 38 cargos e 125 indicadores do documento da Secretaria de
-  Saúde Virtual) e `..._3_empresa.sql` (catálogo da empresa). Elas substituíram as de 06 a 10/11/2026, que nunca
+  Saúde Virtual), `..._3_empresa.sql` (catálogo da empresa) e `20261112_gestorgov_processos.sql` (os processos das
+  atividades e o vínculo com o CompanyOS; tira as tabelas `entregas` e `pendencias`). Elas substituíram as de 06 a 10/11/2026, que nunca
   rodaram em produção. No SQLite local, os catálogos são carregados das migrations a cada início.
 - Tabelas do cadastro: `segmentos`, `tipos_area`, `tipos_unidade`, `modelos_atividade`, `modelos_cargo`,
   `modelos_indicador`, `organizacoes`, `pessoas`, `areas`, `unidades`, `unidade_fotos`, `agentes_area`,
@@ -273,25 +275,46 @@ painel/src/                   frontend
   `create_all` não altera tabela que já existe: coluna renomeada no código precisa de `alter table` à mão.
 - Sem `DATABASE_URL`: SQLite local em `dados/`, com o cadastro e os catálogos carregados das migrations.
 
-## 5b. Arquitetura dos agentes (decidida em 08/11/2026; a construir)
+## 5b. Arquitetura dos agentes (decidida em 08 e 11/11/2026)
 
-O sistema gira em torno dos agentes. Os gestores de saúde definem o trabalho, os agentes (e equipes de agentes)
-executam, e os servidores aprovam ou recusam, conforme a permissão do cargo. Nada que muda dados vale sem aprovação.
+O sistema gira em torno dos agentes. Os gestores definem o trabalho, os agentes executam, e as pessoas aceitam, aprovam
+e revisam, conforme a permissão do cargo. Nada que muda dados vale sem uma pessoa.
+
+**O trabalho no CompanyOS do Agno (construído em 11/11/2026; `agente/trabalho.py`):**
+
+| GestorGov | CompanyOS | Como |
+|---|---|---|
+| Área | Product (`area-<area_id>`) | criado na implantação (montar_agentes e concluir) e quando surge atividade nova |
+| Atividade | Project (`atividades_area.projeto_id`) | um por atividade |
+| Cada execução | Task | proposta (backlog) → aceita (ready) → em execução → em revisão → concluída |
+| Agente da área | executor | o CompanyOS acha o agente no `registro.agentes` (os do ar, inclusive os criados sem reiniciar) |
+
+- **Processo** de cada atividade (tabela `processos`, versionada): passos `agente`, `aceite` (uma pessoa aceita a
+  tarefa; obrigatório), `aprovacao` (uma pessoa aprova a ação sensível do passo seguinte do agente; recusada, a ação é
+  pulada) e `revisao` (último passo: aprova, ou ajusta e devolve para o agente refazer, sem limite). Cada passo de
+  pessoa pode nomear cargos; sem cargos, decide quem tem "aprovar entregas" num cargo da área, a direção e o dono
+  (`trabalho.pode_decidir`).
+- **Proposta:** na rotina ou num pedido do chat, o agente usa `propor_tarefa`; a tarefa espera o aceite.
+- **Execução:** aceita, o processo vira um Workflow do Agno (cada passo do agente é um Step; a aprovação é
+  `HumanReview(requires_confirmation)`), que pausa e retoma pelo `run_id`. O andamento fica em `tarefas_execucao`
+  (criada pelo servidor): rodando, aguardando_aprovacao, entregue ou erro.
+- **Rotinas:** o nosso agendador (`agente/rotinas.py`, uma thread que acorda a cada minuto) roda as atividades de
+  rotina das organizações ativas no cron delas, só com `GESTORGOV_ROTINAS=sim` (cada uma chama o Gemini). Sem isso,
+  pelo botão "Rodar agora". A Routine do CompanyOS não é usada: a declarada no código recebe 403 com o login ligado.
+  `GESTORGOV_COMPANYOS` (o CompanyOS montado no AgentOS) continua desligado; o nosso uso não depende dele.
+- **Assistente de Processos** (`processos`): o gestor desenha em conversa as atividades e os processos (painel em
+  "Atividades e processos"; permissão `gerenciar_fluxos`). Ele propõe e grava só depois do "sim".
+- **Telas:** Aprovações (aceitar, aprovar ações, revisar com "ajustar e devolver"), Atividades e processos (os passos,
+  "Rodar agora" e o chat do assistente) e os selos nas salas do prédio (`/organizacao/atencao`).
+- As tabelas `entregas` e `pendencias` saíram: as Tasks são a fonte única das tarefas e das entregas.
 
 **Ficha do agente** (montada na implantação, como um personagem, no estilo do criador do Meshy: uma pergunta por
 tela, prévia ao lado; depois editável no painel por quem tem "criar agentes"):
 - características: aparência (avatar, cor) e comportamento (tom, autonomia);
 - skills: o que ele sabe fazer;
-- memória: do agente, do setor (compartilhada entre os agentes do setor) e da secretaria (geral, todos leem);
-- dados: o que ele enxerga do cadastro (por tipo de dado) e o que pode fazer (ler; criar, alterar e apagar só como
-  proposta para aprovar);
+- memória: do agente, da área (compartilhada entre os agentes da área) e da organização (geral, todos leem);
+- dados: o que ele enxerga do cadastro (por tipo de dado; `agente/dados_agente.py`);
 - integrações externas liberadas para ele (da Central de integrações).
-
-**Rotinas = Workflows do Agno** (`agno.workflow`: passos, `Condition`, `Loop`, `Parallel`, `Router`, `HumanReview`
-que pausa para aprovação e retoma com `continue_run`), agendadas pelo Scheduler do AgentOS (as Routines do CompanyOS
-deram 403 com a OS_SECURITY_KEY). Ciclo: atividade do setor → workflow → agendamento → execução → tarefa para aprovar
-(fila do setor; CompanyOS) → aprovado → o efeito acontece (grava, envia) → auditoria. Ferramentas que alteram dados
-usam `requires_confirmation`.
 
 **Memória: Mem0 auto-hospedado** (`mem0ai` 2.2.1, `Memory.from_config`; o `Mem0Tools` do Agno aceita `config`):
 vetores no pgvector do nosso Supabase em São Paulo (`DATABASE_URL`), modelo e embeddings no Gemini. Nada na nuvem do
@@ -310,8 +333,8 @@ liberados, limite de chamadas, teste de conexão e cada chamada na auditoria. O 
 para subir (banco, Supabase, Gemini). Extensões do Supabase previstas: Vault, pgvector, pg_net, pg_cron, Wrappers,
 pgmq; e Realtime para o painel ao vivo.
 
-**Ordem de construção:** 0) generalização em organizações e segmentos (feito em 11/11/2026); 1) base do CompanyOS e
-a ficha do agente; 2) Central de integrações com o Toolbox e o Vault; 3) rotinas
+**Ordem de construção:** 0) generalização em organizações e segmentos (feito em 11/11/2026); 1) o CompanyOS com os
+processos, as aprovações e o Assistente de Processos (feito em 11/11/2026); 2) Central de integrações com o Toolbox e o Vault; 3) rotinas
 como workflows, com a fila de aprovação por setor; 4) memória com o Mem0; 5) o criador de agente na implantação.
 
 ## 6. Identidade visual

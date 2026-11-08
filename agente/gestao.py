@@ -1,6 +1,6 @@
 """O cadastro de cada organização no GestorGov (uma Secretaria de Saúde, uma empresa...): a organização, as áreas
-(setores, departamentos), as unidades, as pessoas, as atividades, o organograma (cargos, indicadores, entregas,
-pendências, status e alertas), os membros e a auditoria. O que muda por segmento está em agente/segmentos.py.
+(setores, departamentos), as unidades, as pessoas, as atividades, o organograma (cargos, indicadores, medições,
+status e alertas; as tarefas e entregas ficam no CompanyOS, agente/trabalho.py), os membros e a auditoria. O que muda por segmento está em agente/segmentos.py.
 
 As tabelas são criadas pelas migrations em supabase/gestorgov/ (não pelo servidor): aqui elas são só
 descritas, com as mesmas colunas, para o SQLAlchemy ler e gravar. Sem DATABASE_URL (teste local), o
@@ -162,15 +162,6 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
         uid("organizacao_id", nullable=False), uid("indicador_id", nullable=False), Column("referencia", Date, nullable=False),
         Column("valor", Numeric, nullable=False), Column("fonte", Text), Column("registrado_por", Text, nullable=False),
         Column("registrado_em", DateTime(timezone=True), default=_agora))
-    t["entregas"] = Table("entregas", m,
-        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("cargo_id", nullable=False),
-        Column("titulo", Text, nullable=False), Column("descricao", Text), quando("prazo"),
-        Column("situacao", Text, default="prevista"), Column("documento", Text), Column("produzida_por", Text),
-        Column("aprovada_por", Text), quando("aprovada_em"), criado(), atualizado())
-    t["pendencias"] = Table("pendencias", m,
-        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("cargo_id", nullable=False),
-        Column("descricao", Text, nullable=False), Column("motivo", Text), Column("desde", DateTime(timezone=True), default=_agora),
-        quando("resolvida_em"), Column("resolvida_por", Text))
     t["status_cargo"] = Table("status_cargo", m,
         uid("cargo_id", primary_key=True), uid("organizacao_id", nullable=False), Column("situacao", Text, default="aguardando"),
         Column("tarefa", Text), Column("atualizado_em", DateTime(timezone=True), default=_agora, onupdate=_agora),

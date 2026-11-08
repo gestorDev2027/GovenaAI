@@ -37,7 +37,7 @@ from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
 from agente import acessos, gestao, usuarios
-from painel_api import _chave, _email_permitido, _gravar_sessao, exigir_sessao
+from painel_api import PedidoImplantacao, _chave, _email_permitido, _gravar_sessao, _sessao, _texto_entrada, exigir_sessao
 
 
 class PedidoCargo(BaseModel):
@@ -318,6 +318,41 @@ def criar_rotas_organizacao() -> APIRouter:
                 "processo": {"versao": proc["versao"], "passos": proc["passos"]} if proc else None,
             }))
         return {"atividades": saida}
+
+    # ───────── Assistente de Processos (agente/perfis/processos.py): desenhar os processos em conversa ─────────
+
+    def _conversa_processos(email: str) -> str:
+        import hashlib
+
+        return "processos-" + hashlib.sha256(email.encode()).hexdigest()[:16]
+
+    @rotas.get("/organizacao/processos/conversa")
+    def conversa_processos(quem: tuple = Depends(_precisa("gerenciar_fluxos"))) -> dict:
+        from agente import perfis, registro
+
+        assistente = (registro.agentes or {}).get("processos")
+        historico = []
+        conversa = _sessao(assistente.db, _conversa_processos(quem[0])) if assistente else None
+        for run in (getattr(conversa, "runs", None) or []):
+            if getattr(run, "parent_run_id", None):
+                continue
+            historico.append({"papel": "contato", "texto": _texto_entrada(run)})
+            if isinstance(run.content, str) and run.content.strip():
+                historico.append({"papel": "agente", "texto": run.content})
+        nome = (quem[1].get("nome") or "").split(" ")[0] if quem[1].get("nome") else ""
+        return {"boas_vindas": perfis.obter("processos").boas_vindas(nome), "historico": historico}
+
+    @rotas.post("/organizacao/processos/mensagem")
+    async def mensagem_processos(pedido: PedidoImplantacao, quem: tuple = Depends(_precisa("gerenciar_fluxos"))) -> dict:
+        from agente import registro
+        from agente.atendimento import responder
+
+        assistente = (registro.agentes or {}).get("processos")
+        if not assistente:
+            raise HTTPException(status_code=503, detail="O Assistente de Processos não está no ar neste servidor.")
+        return await run_in_threadpool(
+            responder, assistente, _conversa_processos(quem[0]), pedido.mensagem.strip(), "", quem[0], "", None,
+            {"conta_email": quem[0], "organizacao_id": quem[1]["organizacao_id"]})
 
     @rotas.post("/organizacao/atividades/{atividade_id}/rodar")
     def rodar_atividade(atividade_id: str, quem: tuple = Depends(_precisa("gerenciar_fluxos"))) -> dict:

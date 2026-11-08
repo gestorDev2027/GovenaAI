@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Bot, Building2, Building, Loader2, MapPin, Maximize2, MessagesSquare, Minus, Plus, Users } from "lucide-react";
+import { Bot, Building2, Building, ClipboardCheck, Loader2, MapPin, Maximize2, MessagesSquare, Minus, Plus, Users } from "lucide-react";
 import { api, type AgentePainel, type EventoCentral, type RespostaPanorama, type Rotulos } from "@/lib/api";
 import { useAcesso, useRotulos } from "@/hooks/use-permissoes";
 import { totemDe } from "@/lib/rotulos";
@@ -14,12 +14,14 @@ import { Janela } from "@/components/comando/janela";
 import { Slideover } from "@/components/comando/slideover";
 import type { ApiCamera } from "@/components/central/escritorio";
 import type { SelecaoPredio } from "@/components/central/predio-secretaria";
+import { SelosAtencao, useAtencao, type AtencaoDaArea } from "@/components/central/atencao";
 
 /*
  * O prédio virtual (Secretaria virtual na saúde, Escritório virtual na empresa) pelo cadastro da organização. Cada
  * área é uma sala, com o agente da área na mesa e o responsável na placa; no centro, o CCO (ou a sala de comando).
  * Tudo nasce na implantação. Quando um agente trabalha (ao vivo: agente/ao_vivo.py → /secretaria/eventos), o rosto
- * dele muda. A janela das áreas é a mesma informação em lista (o 3D nunca é obrigatório). O mapa (Central de
+ * dele muda. Cada placa mostra o que espera a área (para aceitar, em revisão, em execução; /organizacao/atencao).
+ * A janela das áreas é a mesma informação em lista, com os mesmos números (o 3D nunca é obrigatório). O mapa (Central de
  * comando) fica com as unidades.
  */
 
@@ -47,6 +49,7 @@ export function Secretaria3D() {
   const r = useRotulos(pan?.segmento.rotulos);
   const visiveis = useQuery({ queryKey: ["agentes-visiveis"], queryFn: () => api<{ agentes: AgentePainel[] }>("/agentes"), staleTime: 60_000 });
   const aoVivo = useCentralAoVivo();
+  const atencao = useAtencao(daOrganizacao).data;
   const camera = useRef<ApiCamera | null>(null);
   const [aberto, setAberto] = useState(false);
   const [selecao, setSelecao] = useState<SelecaoPredio>(null);
@@ -90,6 +93,7 @@ export function Secretaria3D() {
             api={camera}
             aberto={aberto}
             aoAbrir={() => setAberto(true)}
+            atencao={atencao}
           />
         </Suspense>
       ) : (
@@ -165,14 +169,14 @@ export function Secretaria3D() {
                 <li key={s.id}>
                   <button
                     type="button"
-                    disabled={!agente}
-                    onClick={() => agente && selecionar({ tipo: "agente", id: agente })}
+                    onClick={() => selecionar(agente ? { tipo: "agente", id: agente } : { tipo: "area", id: s.id })}
                     className="w-full px-4 py-2.5 text-left outline-none hover:bg-secondary focus-visible:bg-secondary disabled:cursor-default"
                   >
                     <span className="block text-sm font-medium text-foreground">{s.nome}</span>
                     <span className="block text-xs text-muted-foreground">
                       {s.responsavel?.nome ?? "sem responsável"} · {agente ? "com agente" : "sem agente"}
                     </span>
+                    <SelosAtencao atencao={atencao?.[s.id]} className="mt-1" />
                   </button>
                 </li>
               );
@@ -194,6 +198,8 @@ export function Secretaria3D() {
       {selecao?.tipo === "area" && (
         <PainelArea
           area={areas.find((s) => s.id === selecao.id)}
+          atencao={atencao?.[selecao.id]}
+          mostrarAprovacoes={daOrganizacao}
           agentes={agentes}
           eventos={aoVivo.eventos}
           aoVerAgente={(id) => selecionar({ tipo: "agente", id })}
@@ -332,12 +338,16 @@ const FREQUENCIA: Record<string, string> = {
 
 function PainelArea({
   area: setor,
+  atencao,
+  mostrarAprovacoes,
   agentes,
   eventos,
   aoVerAgente,
   aoFechar,
 }: {
   area?: Area;
+  atencao?: AtencaoDaArea;
+  mostrarAprovacoes: boolean;
   agentes: AgentePainel[];
   eventos: EventoCentral[];
   aoVerAgente: (id: string) => void;
@@ -346,8 +356,32 @@ function PainelArea({
   if (!setor) return null;
   const doSetor = new Set(setor.agentes.map((a) => a.agente_id));
   return (
-    <Slideover titulo={setor.nome} subtitulo={setor.descricao ?? undefined} aoFechar={aoFechar}>
+    <Slideover
+      titulo={setor.nome}
+      subtitulo={setor.descricao ?? undefined}
+      aoFechar={aoFechar}
+      rodape={
+        mostrarAprovacoes ? (
+          <Link
+            to="/aprovacoes"
+            className="inline-flex h-9 items-center gap-2 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground outline-none hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <ClipboardCheck className="size-4" /> Ver em Aprovações
+          </Link>
+        ) : undefined
+      }
+    >
       <div className="space-y-5">
+        {mostrarAprovacoes && (
+          <section className="space-y-2">
+            <h3 className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">Esperando</h3>
+            {atencao && atencao.aceite + atencao.execucao + atencao.revisao > 0 ? (
+              <SelosAtencao atencao={atencao} />
+            ) : (
+              <p className="text-sm text-muted-foreground">Nada esperando por uma pessoa agora.</p>
+            )}
+          </section>
+        )}
         <section className="space-y-1 text-sm">
           <h3 className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">Responsável</h3>
           <p>{setor.responsavel ? `${setor.responsavel.nome}${setor.responsavel.cargo ? ` · ${setor.responsavel.cargo}` : ""}` : "Ainda sem responsável."}</p>

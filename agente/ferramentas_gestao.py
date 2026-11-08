@@ -897,7 +897,7 @@ def consultar_dados(run_context: RunContext, dominio: str, filtro: str = "") -> 
     """Consulta os dados da organização que a sua ficha libera, no seu escopo (a sua área ou a organização).
 
     Args:
-        dominio: unidades, atividades, indicadores, entregas ou equipe.
+        dominio: unidades, atividades, indicadores, tarefas ou equipe.
         filtro: um trecho do nome para filtrar (opcional).
     """
     from agente import dados_agente

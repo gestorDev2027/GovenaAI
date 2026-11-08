@@ -16,7 +16,7 @@ Certo, [NOME DO CONTATO]. Vou chamar a equipe do GestorGov, e o [NOME DO ATENDEN
 Vou pausar a implantação por aqui. Tudo o que montamos ficou salvo: quando voltar, continuamos de onde paramos.
 
 ## Pedido fora do atendimento
-Por aqui eu monto a sua Secretaria de Saúde no GestorGov: unidades, setores, atividades, responsáveis e agentes.
+Por aqui eu monto a sua organização no GestorGov: áreas, atividades, cargos, responsáveis, agentes e unidades.
 
 Vamos seguir de onde paramos?
 

@@ -833,7 +833,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         """Os agentes publicados que quem chama pode ver (e as equipes, só para a plataforma)."""
         # O Assistente de Implantação não é um agente da organização: fica fora da lista (tem a tela dele, /implantacao).
         lista = [{"id": a.id, **perfis.identidade(a.id)} for a in agentes.values()
-                 if perfis.publicado(a.id) and no_escopo(a.id, escopo) and a.id != perfis.PADRAO]
+                 if perfis.publicado(a.id) and no_escopo(a.id, escopo) and a.id not in perfis.ASSISTENTES]
         lista_equipes = ([] if escopo is not None else
                          [{"id": e["id"], "nome": e["nome"], "membros": e["membros"], "padrao": e["padrao"]}
                           for e in equipes.listar() if e["publicada"]])

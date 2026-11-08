@@ -24,7 +24,7 @@ DOMINIOS: dict[str, tuple[str, str, tuple[str, ...]]] = {
     "unidades": ("Unidades", "As unidades da organização: endereço, tipo, situação.", ("ler", "criar", "alterar", "apagar")),
     "atividades": ("Atividades das áreas", "Rotinas e pedidos sob demanda de cada área.", ("ler", "criar", "alterar", "apagar")),
     "indicadores": ("Indicadores e medições", "Os indicadores dos cargos, as metas e cada valor medido.", ("ler", "criar")),
-    "entregas": ("Entregas e pendências", "Documentos e relatórios com prazo, e o que está parado.", ("ler",)),
+    "tarefas": ("Tarefas e entregas", "As tarefas da área no CompanyOS: propostas, em execução, em revisão e concluídas.", ("ler",)),
     "equipe": ("Cargos e responsáveis", "O organograma e quem responde por cada área.", ("ler",)),
 }
 AUTONOMIAS = {"consulta": "Só consulta (não propõe tarefas)", "propoe": "Propõe tarefas e espera a aprovação"}
@@ -153,12 +153,13 @@ def _ler_indicadores(oid: str, areas: set[str] | None, _filtro: str) -> list[dic
     return saida[:120]
 
 
-def _ler_entregas(oid: str, areas: set[str] | None, _filtro: str) -> list[dict]:
-    tc, te = gestao._t("cargos"), gestao._t("entregas")
-    cargos = {str(c["id"]): c for c in gestao._linhas(select(tc).where(tc.c.organizacao_id == oid))}
-    return [{"id": e["id"], "titulo": e["titulo"], "situacao": e["situacao"], "prazo": e["prazo"], "cargo": (cargos.get(str(e["cargo_id"])) or {}).get("nome")}
-            for e in gestao._linhas(select(te).where(te.c.organizacao_id == oid))
-            if areas is None or str((cargos.get(str(e["cargo_id"])) or {}).get("area_id")) in areas][:120]
+def _ler_tarefas(oid: str, areas: set[str] | None, filtro: str) -> list[dict]:
+    from agente import trabalho
+
+    alvo = gestao._sem_acento(filtro)
+    return [{k: t.get(k) for k in ("id", "titulo", "situacao_nome", "area", "atividade", "criada_em", "entrega")}
+            for t in trabalho.tarefas(oid, situacao="todas", limite=120)
+            if (areas is None or t["area_id"] in areas) and (not alvo or alvo in gestao._sem_acento(t["titulo"]))][:80]
 
 
 def _ler_equipe(oid: str, areas: set[str] | None, _filtro: str) -> list[dict]:
@@ -168,7 +169,7 @@ def _ler_equipe(oid: str, areas: set[str] | None, _filtro: str) -> list[dict]:
 
 
 _LEITURAS = {"unidades": _ler_unidades, "atividades": _ler_atividades, "indicadores": _ler_indicadores,
-             "entregas": _ler_entregas, "equipe": _ler_equipe}
+             "tarefas": _ler_tarefas, "equipe": _ler_equipe}
 
 
 def ler(organizacao_id: str, agente_id: str, dominio: str, filtro: str = "") -> list[dict]:

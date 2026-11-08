@@ -7,6 +7,7 @@ import { RoboAgente, type Humor } from "./robo-agente";
 import type { PosturaAgente } from "./agente-ia";
 import { ANDAR, CascaDoAndar, PE_DIREITO, Quarteirao, limitesDoQuarteirao } from "./exterior";
 import { Balcao, Banner, Cadeira, DivisoriaVidro, Estacao, Estante, PALETAS, Planta, SalaReuniao, Sofa, TvAula, type Paleta } from "./moveis";
+import { SelosAtencao, type AtencaoPorArea } from "./atencao";
 import { ControleCamera, PisoClicavel, Projetor, useEscuro, type Alvo, type ApiCamera, type Retangulo, type Rotulo } from "./escritorio";
 
 /*
@@ -14,7 +15,8 @@ import { ControleCamera, PisoClicavel, Projetor, useEscuro, type Alvo, type ApiC
  * departamento na empresa) é uma sala de vidro, com o agente da área sentado na mesa dele, a placa com o nome e o
  * responsável. No centro, o CCO (ou a sala de comando, na empresa), de onde a organização acompanha tudo. As salas
  * nascem na implantação: área nova, sala nova; agente ligado à área, robô na mesa. Quando um agente trabalha (ao
- * vivo), o rosto dele muda (pensando, feliz, alerta).
+ * vivo), o rosto dele muda (pensando, feliz, alerta). Com `atencao`, a placa mostra o que espera a área (para aceitar,
+ * em revisão, em execução) e, com tarefa em execução, o agente fica trabalhando na mesa.
  */
 
 export interface AreaNoPredio {
@@ -99,7 +101,10 @@ export default function PredioSecretaria({
   centro: tipoCentro = "cco",
   rotuloCentro,
   tetoDeVidro = false,
+  atencao,
 }: {
+  /** O que espera cada área (GET /organizacao/atencao), por id da área. */
+  atencao?: AtencaoPorArea;
   /** Aberto, mostra um teto de vidro por cima das salas (não parece inacabado; não atrapalha o clique). */
   tetoDeVidro?: boolean;
   /** O nome na fachada e as linhas do totem da entrada. */
@@ -190,6 +195,7 @@ export default function PredioSecretaria({
             <span className="text-[10px] leading-tight text-[#424E6B] dark:text-white/70">
               {s.area.detalhe ?? `${agente ? nomeDe(agente) : "sem agente"} · ${s.area.responsavel?.nome ?? "sem responsável"}`}
             </span>
+            <SelosAtencao atencao={atencao?.[s.area.id]} className="mt-1" />
           </button>
         ),
       };
@@ -253,7 +259,7 @@ export default function PredioSecretaria({
               aoSelecionar={() => aoSelecionar({ tipo: "area", id: s.area.id })}
               agente={agente ? { id: agente, cor: corDe(agente, s.cor) } : null}
               agenteDestacado={selecao?.tipo === "agente" && selecao.id === agente}
-              ocupado={!!agente && Date.now() - (ativos[agente] ?? 0) < 120_000}
+              ocupado={!!agente && (Date.now() - (ativos[agente] ?? 0) < 120_000 || (atencao?.[s.area.id]?.execucao ?? 0) > 0)}
               aoClicarAgente={() => agente && aoSelecionar({ tipo: "agente", id: agente })}
               reacao={agente ? { get current() { return reacoes.current[agente] ?? null; }, set current(v) { reacoes.current[agente] = v; } } : undefined}
             />

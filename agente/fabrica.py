@@ -53,6 +53,8 @@ FERRAMENTAS = {
                               "As áreas, os responsáveis (quem aprova) e as atividades de cada área da organização."),
     "listar_unidades": ("Listar as unidades",
                         "As unidades da organização (na saúde: UBS, UPA, CAPS...; numa empresa: filiais, lojas...), com endereço."),
+    "processos": ("Desenho dos processos",
+                  "Cria atividades e grava os processos dos agentes. Só para o Assistente de Processos."),
     "implantacao": ("Implantação da organização",
                     "Cadastra a organização, as áreas, as atividades, os responsáveis e as unidades. Só para o assistente de implantação."),
     "transferir_para_humano": ("Encaminhar para uma pessoa",
@@ -252,6 +254,10 @@ def _ferramentas(ids: list[str], categorias: dict[str, str], quando: str) -> Cal
             lista.append(ferramentas_gestao.listar_unidades)
         if "implantacao" in ids:
             lista.extend(ferramentas_gestao.FERRAMENTAS_IMPLANTACAO)
+        elif "processos" in ids:
+            from agente.ferramentas_processos import FERRAMENTAS_PROCESSOS
+
+            lista.extend(FERRAMENTAS_PROCESSOS)
         else:
             # Os dados da organização, sempre: a ficha do agente diz o que ele lê (agente/dados_agente.py).
             lista.extend(ferramentas_gestao.FERRAMENTAS_DADOS)

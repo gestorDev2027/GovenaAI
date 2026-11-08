@@ -537,7 +537,7 @@ create trigger tg_atividades_area_atualizado before update on gestorgov.atividad
   for each row execute function gestorgov.tocar_atualizado_em();
 
 
--- 5.8 Organograma: cargos, indicadores com meta, medições, entregas, pendências, status e alertas ─────
+-- 5.8 Organograma: cargos, indicadores com meta, medições, status e alertas (as tarefas e entregas ficam no CompanyOS) ─────
 
 create table if not exists gestorgov.cargos (
   id               uuid primary key default extensions.gen_random_uuid(),
@@ -605,42 +605,6 @@ create table if not exists gestorgov.medicoes (
   unique (indicador_id, referencia)
 );
 create index if not exists ix_medicoes_indicador on gestorgov.medicoes (indicador_id, referencia desc);
-
-
-create table if not exists gestorgov.entregas (
-  id               uuid primary key default extensions.gen_random_uuid(),
-  organizacao_id   uuid not null references gestorgov.organizacoes(id) on delete cascade,
-  cargo_id         uuid not null references gestorgov.cargos(id) on delete cascade,
-  titulo           text not null,
-  descricao        text,
-  prazo            timestamptz,
-  situacao         text not null default 'prevista'
-                   check (situacao in ('prevista', 'em_andamento', 'aguardando_aprovacao', 'aprovada', 'devolvida', 'cancelada')),
-  documento        text,                                      -- caminho no Storage ou link
-  produzida_por    text,                                      -- id do agente ou e-mail
-  aprovada_por     text,
-  aprovada_em      timestamptz,
-  criado_em        timestamptz not null default now(),
-  atualizado_em    timestamptz not null default now()
-);
-create index if not exists ix_entregas_cargo on gestorgov.entregas (cargo_id, prazo);
-
-drop trigger if exists tg_entregas_atualizado on gestorgov.entregas;
-create trigger tg_entregas_atualizado before update on gestorgov.entregas
-  for each row execute function gestorgov.tocar_atualizado_em();
-
-
-create table if not exists gestorgov.pendencias (
-  id               uuid primary key default extensions.gen_random_uuid(),
-  organizacao_id   uuid not null references gestorgov.organizacoes(id) on delete cascade,
-  cargo_id         uuid not null references gestorgov.cargos(id) on delete cascade,
-  descricao        text not null,
-  motivo           text,
-  desde            timestamptz not null default now(),
-  resolvida_em     timestamptz,
-  resolvida_por    text
-);
-create index if not exists ix_pendencias_cargo on gestorgov.pendencias (cargo_id) where resolvida_em is null;
 
 
 create table if not exists gestorgov.status_cargo (
@@ -780,7 +744,7 @@ grant select on gestorgov.segmentos, gestorgov.tipos_area, gestorgov.tipos_unida
 grant select, insert, update, delete on
   gestorgov.organizacoes, gestorgov.pessoas, gestorgov.areas, gestorgov.unidades, gestorgov.unidade_fotos,
   gestorgov.agentes_area, gestorgov.fichas_agente, gestorgov.atividades_area, gestorgov.cargos,
-  gestorgov.indicadores_cargo, gestorgov.medicoes, gestorgov.entregas, gestorgov.pendencias, gestorgov.status_cargo,
+  gestorgov.indicadores_cargo, gestorgov.medicoes, gestorgov.status_cargo,
   gestorgov.alertas_cargo, gestorgov.membros, gestorgov.convites, gestorgov.implantacao_links, gestorgov.onboardings
   to gestorgov_app;
 grant select, insert on gestorgov.auditoria to gestorgov_app;   -- auditoria: sem update nem delete
@@ -797,7 +761,7 @@ begin
   foreach t in array array['segmentos', 'tipos_area', 'tipos_unidade', 'modelos_atividade', 'modelos_cargo',
                            'modelos_indicador', 'organizacoes', 'pessoas', 'areas', 'unidades', 'unidade_fotos',
                            'agentes_area', 'fichas_agente', 'atividades_area', 'cargos', 'indicadores_cargo',
-                           'medicoes', 'entregas', 'pendencias', 'status_cargo', 'alertas_cargo', 'membros',
+                           'medicoes', 'status_cargo', 'alertas_cargo', 'membros',
                            'convites', 'implantacao_links', 'onboardings', 'auditoria']
   loop
     execute format('alter table gestorgov.%I enable row level security', t);

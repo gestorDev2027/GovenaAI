@@ -1,20 +1,23 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Bot, CalendarClock, Hand, Loader2, MessageSquareText, Play, ShieldCheck, FileCheck2, Workflow, type LucideIcon } from "lucide-react";
+import { Bot, CalendarClock, Hand, Loader2, MessageSquareText, MessagesSquare, Play, ShieldCheck, FileCheck2, Workflow, type LucideIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { usePodeNaOrganizacao, useRotulos } from "@/hooks/use-permissoes";
 import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader, PageLoader } from "@/components/widgets/widgets";
+import { ChatProcessos } from "@/components/processos/chat-processos";
 
 /*
  * Atividades e processos: o que cada área faz e o caminho de cada atividade. O processo é a lista de passos: o
  * agente trabalha, e uma pessoa aceita a tarefa, aprova as ações sensíveis e revisa a entrega. Quem tem
- * "gerenciar os fluxos" pode rodar uma rotina agora. Por enquanto só leitura: editar o processo vai ser em
- * conversa, com o Assistente de Processos.
+ * "gerenciar os fluxos" pode rodar uma rotina agora e conversar com o Assistente de Processos (o painel à direita;
+ * gaveta em tela estreita), que cria e altera atividades e processos e grava só o que a pessoa confirmar.
  */
+
+const TELA_LARGA = "(min-width: 1024px)";
 
 type TipoPasso = "agente" | "aceite" | "aprovacao" | "revisao";
 
@@ -59,6 +62,16 @@ export function Processos() {
   const r = useRotulos();
   const pode = usePodeNaOrganizacao();
   const podeRodar = pode("gerenciar_fluxos");
+  // O chat começa aberto em tela larga (lg) e fechado em tela estreita, onde é uma gaveta (Esc fecha).
+  const [conversaAberta, setConversaAberta] = useState(() => typeof window !== "undefined" && window.matchMedia(TELA_LARGA).matches);
+  useEffect(() => {
+    if (!conversaAberta) return;
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !window.matchMedia(TELA_LARGA).matches) setConversaAberta(false);
+    };
+    document.addEventListener("keydown", tecla);
+    return () => document.removeEventListener("keydown", tecla);
+  }, [conversaAberta]);
   // A lista de atividades traz só o id do agente; o nome vem da lista de agentes da organização.
   const agentes = useQuery({ queryKey: ["organizacao-agentes"], queryFn: () => api<{ agentes: { id: string; nome: string }[] }>("/organizacao/agentes") });
   const nomes = useMemo(() => new Map((agentes.data?.agentes ?? []).map((g) => [g.id, g.nome])), [agentes.data]);
@@ -80,45 +93,84 @@ export function Processos() {
         title="Atividades e processos"
         icon={Workflow}
         description={`O que cada ${r.area} faz e o caminho de cada atividade: onde o agente trabalha e onde uma pessoa decide.`}
+        actions={
+          podeRodar ? (
+            <Button
+              size="sm"
+              variant={conversaAberta ? "secondary" : "default"}
+              aria-expanded={conversaAberta}
+              aria-controls="conversa-processos"
+              onClick={() => setConversaAberta((a) => !a)}
+            >
+              <MessagesSquare /> Conversar com o assistente
+            </Button>
+          ) : (
+            <p className="max-w-xs text-xs text-muted-foreground">Quem tem a permissão de gerenciar os fluxos muda os processos conversando com o assistente.</p>
+          )
+        }
       />
 
-      <p className="flex items-start gap-2 text-xs text-muted-foreground">
-        <MessageSquareText aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-        Por enquanto esta tela é só de leitura. Mudar um processo vai ser em conversa, com o Assistente de Processos.
-      </p>
+      <div className="flex items-start gap-5">
+        <div className="min-w-0 flex-1 space-y-5">
+          {podeRodar && (
+            <p className="flex items-start gap-2 text-xs text-muted-foreground">
+              <MessageSquareText aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+              Quer criar uma atividade ou mudar um processo? Converse com o Assistente de Processos: ele propõe o caminho e grava só o que você confirmar.
+            </p>
+          )}
 
-      {dados.isLoading && <PageLoader className="h-[40vh]" label="Abrindo as atividades" />}
-      {dados.isError && (
-        <div className="surface-card">
-          <EmptyState title="Não foi possível abrir as atividades">{(dados.error as Error).message}</EmptyState>
-        </div>
-      )}
-      {dados.data && !porArea.length && (
-        <div className="surface-card">
-          <EmptyState icon={<Workflow className="size-5" />} title="Nenhuma atividade ainda">
-            As atividades de cada {r.area} são escolhidas na{" "}
-            <Link to="/implantacao" className="font-semibold text-primary-text hover:underline">
-              implantação
-            </Link>
-            .
-          </EmptyState>
-        </div>
-      )}
+          {dados.isLoading && <PageLoader className="h-[40vh]" label="Abrindo as atividades" />}
+          {dados.isError && (
+            <div className="surface-card">
+              <EmptyState title="Não foi possível abrir as atividades">{(dados.error as Error).message}</EmptyState>
+            </div>
+          )}
+          {dados.data && !porArea.length && (
+            <div className="surface-card">
+              <EmptyState icon={<Workflow className="size-5" />} title="Nenhuma atividade ainda">
+                As atividades de cada {r.area} são escolhidas na{" "}
+                <Link to="/implantacao" className="font-semibold text-primary-text hover:underline">
+                  implantação
+                </Link>
+                {podeRodar ? ", ou criadas aqui, conversando com o assistente." : "."}
+              </EmptyState>
+            </div>
+          )}
 
-      {porArea.map(([areaId, grupo]) => (
-        <section key={areaId} aria-labelledby={`area-${areaId}`} className="space-y-3">
-          <h2 id={`area-${areaId}`} className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
-            {grupo.area}
-          </h2>
-          <ul className="grid gap-3 lg:grid-cols-2">
-            {grupo.atividades.map((a) => (
-              <li key={a.id}>
-                <CartaoDaAtividade atividade={a} agente={a.agente_id ? nomes.get(a.agente_id) : undefined} podeRodar={podeRodar} />
-              </li>
-            ))}
-          </ul>
-        </section>
-      ))}
+          {porArea.map(([areaId, grupo]) => (
+            <section key={areaId} aria-labelledby={`area-${areaId}`} className="space-y-3">
+              <h2 id={`area-${areaId}`} className="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
+                {grupo.area}
+              </h2>
+              <ul className={cn("grid gap-3", conversaAberta && podeRodar ? "2xl:grid-cols-2" : "lg:grid-cols-2")}>
+                {grupo.atividades.map((a) => (
+                  <li key={a.id}>
+                    <CartaoDaAtividade atividade={a} agente={a.agente_id ? nomes.get(a.agente_id) : undefined} podeRodar={podeRodar} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
+
+        {podeRodar && conversaAberta && (
+          <div aria-hidden="true" className="fixed inset-0 z-40 bg-[#0D1B38]/40 lg:hidden" onClick={() => setConversaAberta(false)} />
+        )}
+        {podeRodar && (
+          // Um elemento só: gaveta (fixa) em tela estreita e coluna fixa ao rolar em tela larga. Fechado, fica escondido
+          // mas montado, para a conversa não se perder.
+          <aside
+            id="conversa-processos"
+            className={cn(
+              "max-lg:fixed max-lg:inset-y-3 max-lg:right-3 max-lg:z-50 max-lg:w-[min(380px,calc(100vw-24px))] max-lg:rounded-xl max-lg:shadow-[0_30px_80px_-20px_rgba(13,27,56,0.6)]",
+              "lg:sticky lg:top-[5.25rem] lg:h-[calc(100svh-11rem)] lg:min-h-[28rem] lg:w-[380px] lg:shrink-0",
+              !conversaAberta && "hidden",
+            )}
+          >
+            <ChatProcessos aoFechar={() => setConversaAberta(false)} />
+          </aside>
+        )}
+      </div>
     </div>
   );
 }
