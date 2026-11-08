@@ -2,6 +2,8 @@
 
 - onboarding: o assistente de implantação (conversa com o secretário e monta a secretaria). É o padrão.
 - compras, atencao_primaria, regulacao: os primeiros agentes de setor (agente/perfis/setor.py).
+- unidade: o agente das unidades de saúde. Estes quatro são modelos: cada prefeitura ganha a sua cópia na
+  implantação (agente/agentes_prefeitura.py).
 
 Para acrescentar um agente: crie-o pela fábrica de agentes no painel (agente/fabrica.py), ou crie
 `agente/perfis/<id>.py` com um PERFIL e inclua aqui. O servidor passa a servi-lo no AgentOS e no painel.
@@ -9,11 +11,12 @@ Para acrescentar um agente: crie-o pela fábrica de agentes no painel (agente/fa
 
 from agente import base
 from agente.perfil import Perfil
-from agente.perfis import atencao_primaria, compras, onboarding, regulacao
+from agente.perfis import atencao_primaria, compras, onboarding, regulacao, unidade
 
 PADRAO = onboarding.PERFIL.id
 
-PERFIS: dict[str, Perfil] = {p.id: p for p in (onboarding.PERFIL, compras.PERFIL, atencao_primaria.PERFIL, regulacao.PERFIL)}
+PERFIS: dict[str, Perfil] = {p.id: p for p in (onboarding.PERFIL, compras.PERFIL, atencao_primaria.PERFIL, regulacao.PERFIL,
+                                              unidade.PERFIL)}
 
 for _perfil in PERFIS.values():
     base.registrar(_perfil.id, _perfil.arquivo_base)

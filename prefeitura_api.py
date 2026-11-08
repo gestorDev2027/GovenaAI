@@ -5,6 +5,14 @@ cargo (o dono pode tudo).
 - GET  /painel/api/prefeitura/contexto            a prefeitura e as permissões de quem está logado
 - GET  /painel/api/prefeitura/permissoes          o catálogo de permissões e os níveis
 - GET  /painel/api/prefeitura/panorama            o município, as unidades e os setores
+- GET  /painel/api/prefeitura/cep/{cep}           o endereço do CEP (ViaCEP) e o ponto no mapa
+- POST /painel/api/prefeitura/unidades            cadastra uma unidade de saúde
+- PUT  /painel/api/prefeitura/unidades/{id}       altera a unidade e marca como conferida
+- GET  /painel/api/prefeitura/unidades/{id}/fotos as fotos da unidade
+- POST /painel/api/prefeitura/unidades/{id}/fotos envia uma foto (fachada, interior...)
+- GET  /painel/api/prefeitura/fotos/{id}          a imagem
+- POST /painel/api/prefeitura/fotos/{id}/principal  a foto que aparece na ficha
+- DELETE /painel/api/prefeitura/fotos/{id}        apaga a foto
 - GET  /painel/api/prefeitura/cargos              o organograma (cargos, hierarquia, permissões, ocupantes)
 - POST /painel/api/prefeitura/cargos/padrao       monta o organograma padrão do catálogo
 - POST /painel/api/prefeitura/cargos              cria um cargo
@@ -17,7 +25,7 @@ cargo (o dono pode tudo).
 - POST /painel/api/convite/{token}                (aberta) aceita: cria a conta com a senha e entra
 """
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from pydantic import BaseModel, Field
 
@@ -43,6 +51,25 @@ class PedidoConvite(BaseModel):
 class PedidoMembro(BaseModel):
     cargo_id: str | None = Field(default=None, max_length=40)
     ativo: bool | None = None
+
+
+class PedidoUnidade(BaseModel):
+    """Os campos da unidade; na alteração, só os que vierem mudam. `conferida` marca (ou desmarca) a conferência."""
+    nome: str | None = Field(default=None, min_length=2, max_length=200)
+    tipo_id: str | None = Field(default=None, max_length=40)
+    cnes: str | None = Field(default=None, max_length=10)
+    cep: str | None = Field(default=None, max_length=10)
+    endereco: str | None = Field(default=None, max_length=300)
+    numero: str | None = Field(default=None, max_length=20)
+    complemento: str | None = Field(default=None, max_length=120)
+    bairro: str | None = Field(default=None, max_length=120)
+    telefone: str | None = Field(default=None, max_length=40)
+    email: str | None = Field(default=None, max_length=200)
+    latitude: float | None = Field(default=None, ge=-34, le=6)  # o Brasil
+    longitude: float | None = Field(default=None, ge=-74, le=-28)
+    coordenadas_origem: str | None = Field(default=None, pattern=r"^(cnes|endereco|cep|mapa|manual)$")
+    situacao: str | None = Field(default=None, max_length=20)
+    conferida: bool | None = None
 
 
 class PedidoAceite(BaseModel):
@@ -84,6 +111,72 @@ def criar_rotas_prefeitura() -> APIRouter:
     @rotas.get("/prefeitura/panorama")
     def panorama(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
         return gestao.panorama(quem[1]["municipio_id"]) or {"municipio": None}
+
+    # ───────── Unidades de saúde ─────────
+
+    @rotas.get("/prefeitura/cep/{cep}")
+    async def cep(cep: str, numero: str = Query(default="", max_length=20),
+                  quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:
+        """O endereço do CEP e o ponto no mapa. `do_municipio` diz se o CEP é do município de quem pede."""
+        achado = await run_in_threadpool(gestao.endereco_por_cep, cep, numero)
+        if not achado:
+            raise HTTPException(status_code=404, detail="CEP não encontrado no ViaCEP. Confira os 8 dígitos.")
+        mun = gestao.municipio(quem[1]["municipio_id"]) or {}
+        return {**achado, "do_municipio": str(achado.get("codigo_ibge") or "") == str(mun.get("codigo_ibge") or "")}
+
+    def _unidade_ou_404(acao):
+        try:
+            return acao()
+        except LookupError as erro:
+            raise HTTPException(status_code=404, detail=str(erro)) from erro
+        except ValueError as erro:
+            raise HTTPException(status_code=422, detail=str(erro)) from erro
+
+    @rotas.post("/prefeitura/unidades", status_code=201)
+    def criar_unidade(pedido: PedidoUnidade, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:
+        dados = pedido.model_dump(exclude_none=True)
+        if not dados.get("nome") or not dados.get("tipo_id"):
+            raise HTTPException(status_code=422, detail="Informe o nome e o tipo da unidade.")
+        if dados["tipo_id"] not in {t["id"] for t in gestao.tipos_unidade()}:
+            raise HTTPException(status_code=422, detail="Tipo de unidade inválido.")
+        conferida = dados.pop("conferida", True)
+        dados.pop("situacao", None)
+        return gestao.salvar_unidade(quem[1]["municipio_id"], quem=quem[0], origem="manual", confirmada=conferida,
+                                     origem_auditoria="painel", **dados)
+
+    @rotas.put("/prefeitura/unidades/{unidade_id}")
+    def alterar_unidade(unidade_id: str, pedido: PedidoUnidade, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:
+        dados = pedido.model_dump(exclude_unset=True)
+        conferida = dados.pop("conferida", None)
+        return _unidade_ou_404(lambda: gestao.alterar_unidade(quem[1]["municipio_id"], unidade_id, dados, quem[0], conferida))
+
+    @rotas.get("/prefeitura/unidades/{unidade_id}/fotos")
+    def fotos(unidade_id: str, quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        return {"fotos": gestao._json(gestao.fotos(quem[1]["municipio_id"], unidade_id))}
+
+    @rotas.post("/prefeitura/unidades/{unidade_id}/fotos", status_code=201)
+    async def enviar_foto(unidade_id: str, arquivo: UploadFile = File(...), tipo: str = Form(default="fachada"),
+                          legenda: str = Form(default="", max_length=200),
+                          quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:
+        conteudo = await arquivo.read(gestao.MAX_BYTES_FOTO + 1)
+        return await run_in_threadpool(_unidade_ou_404, lambda: gestao.salvar_foto(
+            quem[1]["municipio_id"], unidade_id, conteudo, quem[0], tipo, legenda))
+
+    @rotas.get("/prefeitura/fotos/{foto_id}")
+    async def ver_foto(foto_id: str, quem: tuple = Depends(_precisa("ver_painel"))) -> Response:
+        conteudo = await run_in_threadpool(_unidade_ou_404, lambda: gestao.conteudo_foto(quem[1]["municipio_id"], foto_id))
+        # A foto não muda (uma foto nova tem outro id): pode ficar no navegador.
+        return Response(conteudo, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+    @rotas.post("/prefeitura/fotos/{foto_id}/principal", status_code=204)
+    def foto_principal(foto_id: str, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> None:
+        _unidade_ou_404(lambda: gestao.tornar_principal(quem[1]["municipio_id"], foto_id, quem[0]))
+
+    @rotas.delete("/prefeitura/fotos/{foto_id}", status_code=204)
+    def apagar_foto(foto_id: str, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> None:
+        _unidade_ou_404(lambda: gestao.apagar_foto(quem[1]["municipio_id"], foto_id, quem[0]))
+
+    # ───────── Organograma ─────────
 
     @rotas.get("/prefeitura/cargos")
     def listar_cargos(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:

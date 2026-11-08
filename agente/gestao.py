@@ -6,7 +6,7 @@ As tabelas são criadas pelas migrations em supabase/gestorgov/ (não pelo servi
 descritas, com as mesmas colunas, para o SQLAlchemy ler e gravar. Sem DATABASE_URL (teste local), o
 servidor cria as mesmas tabelas num SQLite, sem as regras de segurança do Postgres.
 
-Também ficam aqui as consultas a fontes públicas usadas no onboarding: ViaCEP (CEP → município),
+Também ficam aqui as consultas a fontes públicas usadas no onboarding: ViaCEP (CEP → município e endereço),
 IBGE (nome → código do município), Nominatim/OpenStreetMap (endereço → coordenadas) e os dados
 abertos do CNES (unidades de saúde do município).
 """
@@ -83,7 +83,17 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
         Column("latitude", Numeric(9, 6)), Column("longitude", Numeric(9, 6)), Column("telefone", Text),
         Column("horario", JSON), Column("gestao", Text), uid("responsavel_id"), Column("situacao", Text, default="ativa"),
         Column("origem", Text, default="manual"), Column("dados_cnes", JSON), Column("confirmada", Boolean, default=False),
-        criado(), atualizado())
+        criado(), atualizado(),
+        # Migration 20261108_gestorgov_unidades.sql: endereço completo, de onde veio o ponto e a conferência.
+        Column("numero", Text), Column("complemento", Text), Column("email", Text), Column("coordenadas_origem", Text),
+        Column("conferida_por", Text), Column("conferida_em", DateTime(timezone=True)), Column("criado_por", Text),
+        Column("agente_id", Text))
+    t["unidade_fotos"] = Table("unidade_fotos", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("unidade_id", nullable=False),
+        Column("tipo", Text, default="fachada"), Column("caminho", Text, nullable=False), Column("mime", Text, nullable=False),
+        Column("bytes", Integer, nullable=False), Column("largura", Integer), Column("altura", Integer), Column("legenda", Text),
+        Column("principal", Boolean, default=False), Column("enviada_por", Text, nullable=False),
+        Column("enviada_em", DateTime(timezone=True), default=_agora))
     t["servidores"] = Table("servidores", m,
         uid("id", primary_key=True, default=_id), uid("municipio_id", ForeignKey(fk("municipios.id")), nullable=False),
         Column("email", Text, nullable=False), Column("nome", Text, nullable=False), Column("cargo", Text),
@@ -288,13 +298,11 @@ def buscar_municipio_ibge(nome: str, uf: str) -> dict | None:
     return None
 
 
-def geocodificar(endereco: str) -> tuple[float, float] | None:
-    """Nominatim (OpenStreetMap): coordenadas de um endereço. Uso leve (1 por vez), como pede a política dele."""
-    if not (endereco or "").strip():
-        return None
+def _nominatim(parametros: dict) -> tuple[float, float] | None:
+    """Nominatim (OpenStreetMap). Uso leve (1 por vez), como pede a política dele."""
     try:
         r = httpx.get("https://nominatim.openstreetmap.org/search",
-                      params={"q": endereco, "format": "json", "limit": 1, "countrycodes": "br"},
+                      params={**parametros, "format": "json", "limit": 1, "countrycodes": "br"},
                       timeout=TEMPO, headers={"User-Agent": USER_AGENT})
         achados = r.json() if r.status_code == 200 else []
     except Exception:
@@ -302,6 +310,46 @@ def geocodificar(endereco: str) -> tuple[float, float] | None:
     if not achados:
         return None
     return float(achados[0]["lat"]), float(achados[0]["lon"])
+
+
+def geocodificar(endereco: str) -> tuple[float, float] | None:
+    """Coordenadas de um endereço em texto livre."""
+    if not (endereco or "").strip():
+        return None
+    return _nominatim({"q": endereco})
+
+
+def localizar(*, logradouro: str = "", numero: str = "", bairro: str = "", municipio: str = "", uf: str = "",
+              cep: str = "") -> tuple[float, float, str] | None:
+    """O ponto no mapa de um endereço: (latitude, longitude, origem). Tenta a rua com o número (origem "endereco"),
+    depois o CEP ("cep") e, por fim, a rua com o bairro em texto livre ("endereco")."""
+    if logradouro and municipio:
+        rua = f"{numero} {logradouro}".strip() if numero else logradouro
+        achado = _nominatim({"street": rua, "city": municipio, "state": uf, "country": "Brasil"})
+        if achado:
+            return (*achado, "endereco")
+    numeros = re.sub(r"\D", "", cep or "")
+    if len(numeros) == 8:
+        achado = _nominatim({"postalcode": f"{numeros[:5]}-{numeros[5:]}", "country": "Brasil"})
+        if achado:
+            return (*achado, "cep")
+    if logradouro or bairro:
+        achado = geocodificar(", ".join(x for x in (logradouro, bairro, municipio, uf, "Brasil") if x))
+        if achado:
+            return (*achado, "endereco")
+    return None
+
+
+def endereco_por_cep(cep: str, numero: str = "") -> dict | None:
+    """ViaCEP + o ponto no mapa: o endereço do CEP (rua, bairro, município e código IBGE) e as coordenadas."""
+    achado = buscar_cep(cep)
+    if not achado:
+        return None
+    ponto = localizar(logradouro=achado.get("logradouro") or "", numero=numero, bairro=achado.get("bairro") or "",
+                      municipio=achado.get("municipio") or "", uf=achado.get("uf") or "", cep=achado["cep"])
+    return {**achado, "numero": numero or None,
+            "latitude": ponto[0] if ponto else None, "longitude": ponto[1] if ponto else None,
+            "coordenadas_origem": ponto[2] if ponto else None}
 
 
 def unidades_cnes(codigo_ibge: str) -> list[dict]:
@@ -477,6 +525,18 @@ def onboarding_aberto(municipio_id: str) -> dict | None:
                 .order_by(t.c.iniciado_em.desc()))
 
 
+def _com_fotos(municipio_id: str, lista: list[dict]) -> list[dict]:
+    """As unidades com a foto principal (foto_id) e quantas fotos cada uma tem."""
+    principal: dict[str, str] = {}
+    quantas: dict[str, int] = {}
+    for f in fotos(municipio_id):
+        chave = str(f["unidade_id"])
+        quantas[chave] = quantas.get(chave, 0) + 1
+        if f["principal"]:
+            principal[chave] = str(f["id"])
+    return [{**u, "foto_id": principal.get(str(u["id"])), "fotos": quantas.get(str(u["id"]), 0)} for u in lista]
+
+
 def panorama(municipio_id: str) -> dict:
     """Tudo o que a tela precisa para desenhar a cidade e o prédio: município, secretaria, setores com
     atividades, agentes e responsáveis, unidades e a etapa do onboarding."""
@@ -499,7 +559,7 @@ def panorama(municipio_id: str) -> dict:
         "municipio": mun,
         "secretaria": secretaria_saude(municipio_id),
         "setores": lista_setores,
-        "unidades": unidades(municipio_id),
+        "unidades": _com_fotos(municipio_id, unidades(municipio_id)),
         "servidores": list(pessoas.values()),
         "onboarding": onboarding_aberto(municipio_id),
     })
@@ -534,7 +594,7 @@ def registrar_municipio(*, codigo_ibge: str, nome: str, uf: str, quem: str, cep:
                 secretario_email=(secretario_email or "").lower() or sec["secretario_email"]))
         aberto = c.execute(select(to).where(to.c.municipio_id == mid, to.c.concluido_em.is_(None))).mappings().first()
         if not aberto:
-            c.execute(insert(to).values(id=_id(), municipio_id=mid, session_id=session_id, etapa="unidades",
+            c.execute(insert(to).values(id=_id(), municipio_id=mid, session_id=session_id, etapa="setores",
                                         estado={}, iniciado_por=quem))
     return municipio(mid) or {}
 
@@ -548,14 +608,20 @@ def avancar_etapa(municipio_id: str, etapa: str) -> None:
 def salvar_unidade(municipio_id: str, *, nome: str, tipo_id: str, quem: str, endereco: str = "", bairro: str = "",
                    cep: str = "", cnes: str = "", latitude: float | None = None, longitude: float | None = None,
                    origem: str = "manual", dados_cnes: dict | None = None, confirmada: bool = True,
-                   gestao: str | None = None, session_id: str | None = None) -> dict:
+                   gestao: str | None = None, session_id: str | None = None, numero: str = "", complemento: str = "",
+                   telefone: str = "", email: str = "", coordenadas_origem: str | None = None,
+                   origem_auditoria: str = "agente") -> dict:
     tu = _t("unidades")
     sec = secretaria_saude(municipio_id)
     cnes = re.sub(r"\D", "", cnes or "")[:7] or None
     valores = {"nome": nome.strip(), "tipo_id": tipo_id, "endereco": endereco or None, "bairro": bairro or None,
                "cep": re.sub(r"\D", "", cep or "") or None, "latitude": latitude, "longitude": longitude,
                "origem": origem, "dados_cnes": dados_cnes, "confirmada": confirmada, "gestao": gestao,
-               "secretaria_id": str(sec["id"]) if sec else None}
+               "secretaria_id": str(sec["id"]) if sec else None, "numero": numero or None,
+               "complemento": complemento or None, "telefone": telefone or None, "email": email or None,
+               "coordenadas_origem": coordenadas_origem or (("cnes" if origem == "cnes" else "endereco") if latitude else None)}
+    if confirmada:
+        valores.update(conferida_por=quem, conferida_em=_agora())
     with _estado["engine"].begin() as c:
         atual = None
         if cnes:
@@ -565,10 +631,164 @@ def salvar_unidade(municipio_id: str, *, nome: str, tipo_id: str, quem: str, end
             c.execute(update(tu).where(tu.c.id == atual["id"]).values(**{k: v for k, v in valores.items() if v is not None}))
         else:
             uid = _id()
-            c.execute(insert(tu).values(id=uid, municipio_id=municipio_id, cnes=cnes, **valores))
-        auditar(c, municipio_id=municipio_id, origem="agente", quem=quem, acao="salvar", entidade="unidades",
+            c.execute(insert(tu).values(id=uid, municipio_id=municipio_id, cnes=cnes, criado_por=quem, **valores))
+        auditar(c, municipio_id=municipio_id, origem=origem_auditoria, quem=quem, acao="salvar", entidade="unidades",
                 entidade_id=uid, depois={**valores, "cnes": cnes, "dados_cnes": None}, session_id=session_id)
-    return {"id": uid, **valores, "cnes": cnes}
+    return _json({"id": uid, **valores, "cnes": cnes})
+
+
+# Campos da unidade que a secretaria edita pelo painel.
+CAMPOS_UNIDADE = ("nome", "nome_fantasia", "tipo_id", "cnes", "endereco", "numero", "complemento", "bairro", "cep",
+                  "telefone", "email", "latitude", "longitude", "coordenadas_origem", "situacao", "gestao", "horario")
+SITUACOES_UNIDADE = ("ativa", "inativa", "em_obra")
+
+
+def ligar_agente_as_unidades(municipio_id: str, agente_id: str) -> int:
+    """Põe o agente nas unidades do município que ainda não têm agente. Devolve quantas ganharam."""
+    t = _t("unidades")
+    with _estado["engine"].begin() as c:
+        return c.execute(update(t).where(t.c.municipio_id == municipio_id, t.c.agente_id.is_(None))
+                         .values(agente_id=agente_id)).rowcount
+
+
+def unidade(municipio_id: str, unidade_id: str) -> dict | None:
+    t = _t("unidades")
+    return _uma(select(t).where(t.c.municipio_id == municipio_id, t.c.id == unidade_id))
+
+
+def alterar_unidade(municipio_id: str, unidade_id: str, campos: dict, quem: str, conferir: bool | None = None) -> dict:
+    """Altera a unidade (só os campos de CAMPOS_UNIDADE que vierem) e, com `conferir`, marca como conferida (ou
+    desmarca). Vai para a auditoria com o antes e o depois. LookupError se a unidade não é do município."""
+    t = _t("unidades")
+    valores = {k: v for k, v in campos.items() if k in CAMPOS_UNIDADE}
+    for chave, tamanho in (("cep", 8), ("cnes", 7)):
+        if chave in valores:
+            valores[chave] = re.sub(r"\D", "", valores[chave] or "")[:tamanho] or None
+    if "situacao" in valores and valores["situacao"] not in SITUACOES_UNIDADE:
+        raise ValueError(f"Situação inválida. Use: {', '.join(SITUACOES_UNIDADE)}.")
+    if "tipo_id" in valores and valores["tipo_id"] not in {x["id"] for x in tipos_unidade()}:
+        raise ValueError("Tipo de unidade inválido.")
+    if "nome" in valores and not (valores["nome"] or "").strip():
+        raise ValueError("Dê um nome à unidade.")
+    if conferir is True:
+        valores.update(confirmada=True, conferida_por=quem, conferida_em=_agora())
+    elif conferir is False:
+        valores.update(confirmada=False, conferida_por=None, conferida_em=None)
+    with _estado["engine"].begin() as c:
+        atual = c.execute(select(t).where(t.c.municipio_id == municipio_id, t.c.id == unidade_id)).mappings().first()
+        if atual is None:
+            raise LookupError("Unidade não encontrada.")
+        if valores:
+            c.execute(update(t).where(t.c.id == atual["id"]).values(**valores))
+            auditar(c, municipio_id=municipio_id, origem="painel", quem=quem, acao="alterar", entidade="unidades",
+                    entidade_id=str(atual["id"]), antes={k: atual[k] for k in valores if k in atual}, depois=valores)
+    return _json(unidade(municipio_id, unidade_id))
+
+
+# ───────── Fotos das unidades (arquivo no bucket prefeituras; agente/armazenamento.py) ─────────
+
+TIPOS_FOTO = ("fachada", "interior", "outra")
+MAX_BYTES_FOTO = 10 * 1024 * 1024
+LADO_MAXIMO_FOTO = 1600  # px: a foto é reduzida e regravada em JPEG (sem os metadados, como a localização do celular)
+
+
+def fotos(municipio_id: str, unidade_id: str | None = None) -> list[dict]:
+    t = _t("unidade_fotos")
+    q = select(t).where(t.c.municipio_id == municipio_id).order_by(t.c.principal.desc(), t.c.enviada_em.desc())
+    if unidade_id:
+        q = q.where(t.c.unidade_id == unidade_id)
+    return [{k: v for k, v in f.items() if k != "caminho"} for f in _linhas(q)]
+
+
+def _preparar_foto(conteudo: bytes) -> tuple[bytes, int, int]:
+    """Reduz e regrava em JPEG, já virada conforme o celular tirou. ValueError se não for uma imagem."""
+    from io import BytesIO
+
+    from PIL import Image, ImageOps, UnidentifiedImageError
+
+    try:
+        imagem = Image.open(BytesIO(conteudo))
+        imagem = ImageOps.exif_transpose(imagem).convert("RGB")
+    except (UnidentifiedImageError, OSError) as erro:
+        raise ValueError("O arquivo não é uma imagem (envie JPG, PNG ou WEBP).") from erro
+    imagem.thumbnail((LADO_MAXIMO_FOTO, LADO_MAXIMO_FOTO))
+    saida = BytesIO()
+    imagem.save(saida, "JPEG", quality=82, optimize=True)
+    return saida.getvalue(), imagem.width, imagem.height
+
+
+def salvar_foto(municipio_id: str, unidade_id: str, conteudo: bytes, quem: str, tipo: str = "fachada",
+                legenda: str = "") -> dict:
+    from agente import armazenamento
+
+    if not unidade(municipio_id, unidade_id):
+        raise LookupError("Unidade não encontrada.")
+    if tipo not in TIPOS_FOTO:
+        raise ValueError(f"Tipo de foto inválido. Use: {', '.join(TIPOS_FOTO)}.")
+    if len(conteudo) > MAX_BYTES_FOTO:
+        raise ValueError("A foto passa de 10 MB.")
+    jpeg, largura, altura = _preparar_foto(conteudo)
+    fid = _id()
+    caminho = f"{municipio_id}/unidades/{unidade_id}/{fid}.jpg"
+    armazenamento.guardar(caminho, jpeg, "image/jpeg")
+    t = _t("unidade_fotos")
+    with _estado["engine"].begin() as c:
+        tem_principal = c.execute(select(t.c.id).where(t.c.unidade_id == unidade_id, t.c.principal.is_(True))).first()
+        valores = {"tipo": tipo, "mime": "image/jpeg", "bytes": len(jpeg), "largura": largura, "altura": altura,
+                   "legenda": legenda or None, "principal": not tem_principal}
+        c.execute(insert(t).values(id=fid, municipio_id=municipio_id, unidade_id=unidade_id, caminho=caminho,
+                                   enviada_por=quem, enviada_em=_agora(), **valores))
+        auditar(c, municipio_id=municipio_id, origem="painel", quem=quem, acao="enviar_foto", entidade="unidade_fotos",
+                entidade_id=fid, depois={**valores, "unidade_id": unidade_id})
+    return _json({"id": fid, "unidade_id": unidade_id, **valores})
+
+
+def _foto(municipio_id: str, foto_id: str) -> dict | None:
+    t = _t("unidade_fotos")
+    return _uma(select(t).where(t.c.municipio_id == municipio_id, t.c.id == foto_id))
+
+
+def conteudo_foto(municipio_id: str, foto_id: str) -> bytes:
+    from agente import armazenamento
+
+    dados = _foto(municipio_id, foto_id)
+    if not dados:
+        raise LookupError("Foto não encontrada.")
+    return armazenamento.ler(dados["caminho"])
+
+
+def tornar_principal(municipio_id: str, foto_id: str, quem: str) -> None:
+    t = _t("unidade_fotos")
+    dados = _foto(municipio_id, foto_id)
+    if not dados:
+        raise LookupError("Foto não encontrada.")
+    with _estado["engine"].begin() as c:
+        c.execute(update(t).where(t.c.unidade_id == dados["unidade_id"]).values(principal=False))
+        c.execute(update(t).where(t.c.id == foto_id).values(principal=True))
+        auditar(c, municipio_id=municipio_id, origem="painel", quem=quem, acao="foto_principal", entidade="unidade_fotos",
+                entidade_id=str(foto_id))
+
+
+def apagar_foto(municipio_id: str, foto_id: str, quem: str) -> None:
+    from agente import armazenamento
+
+    t = _t("unidade_fotos")
+    dados = _foto(municipio_id, foto_id)
+    if not dados:
+        raise LookupError("Foto não encontrada.")
+    with _estado["engine"].begin() as c:
+        c.execute(t.delete().where(t.c.id == foto_id))
+        if dados["principal"]:  # a mais recente que sobrou vira a principal
+            outra = c.execute(select(t.c.id).where(t.c.unidade_id == dados["unidade_id"])
+                              .order_by(t.c.enviada_em.desc())).first()
+            if outra:
+                c.execute(update(t).where(t.c.id == outra[0]).values(principal=True))
+        auditar(c, municipio_id=municipio_id, origem="painel", quem=quem, acao="apagar_foto", entidade="unidade_fotos",
+                entidade_id=str(foto_id), antes={"unidade_id": str(dados["unidade_id"]), "tipo": dados["tipo"]})
+    try:
+        armazenamento.remover(dados["caminho"])
+    except Exception:  # o registro já saiu; um arquivo órfão no bucket não atrapalha
+        pass
 
 
 def salvar_setor(municipio_id: str, *, nome: str, tipo_id: str | None, quem: str, descricao: str = "",

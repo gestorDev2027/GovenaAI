@@ -30,7 +30,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from agente import companyos, demo, perfis
+from agente import companyos, demo, perfis, registro
 from agente.equipes import EQUIPES
 from agente.agente import _modelo, criar_agentes, montar_agente
 from banco_api import criar_rotas_banco
@@ -93,6 +93,15 @@ def _trocar_equipe_no_agentos(nova) -> None:
 
 
 base_app.include_router(criar_rotas_fabrica(agentes, ao_mudar=_trocar_no_agentos, ao_mudar_equipe=_trocar_equipe_no_agentos))
+
+
+def _montar_agora(agente_id: str) -> None:
+    """Um agente criado na implantação (agente/agentes_prefeitura.py) entra no painel e no AgentOS sem reiniciar."""
+    agentes[agente_id] = montar_agente(perfis.PERFIS[agente_id], agente.db)
+    _trocar_no_agentos(agentes[agente_id])
+
+
+registro.montador = _montar_agora
 
 # Cache do painel. O build pode gravar os arquivos com data de 1980; sem Cache-Control, o
 # navegador calcula a validade pela idade do arquivo (anos) e continua mostrando um painel antigo

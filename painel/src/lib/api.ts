@@ -163,6 +163,7 @@ export type PermissaoPrefeitura =
   | "criar_agentes"
   | "definir_metas"
   | "registrar_dados"
+  | "gerenciar_unidades"
   | "gerenciar_cargos"
   | "gerenciar_equipe"
   | "ver_auditoria";
@@ -684,4 +685,77 @@ export interface BaseCompartilhada {
   criado_por: string | null;
   atualizado_em: string | null;
   atualizado_por: string | null;
+}
+
+/* ───────── Secretaria 3D (o escritório dos agentes e o que eles fazem ao vivo) ───────── */
+
+/** Central de atendimento em 3D (GET /central). */
+export interface ConversaCentral {
+  id: string;
+  origem: string;
+  nome: string;
+  status: Status;
+  fim: "encerramento" | "inatividade" | null;
+  criada_em?: string | null;
+  atualizada_em: string | null;
+  mensagens: number;
+  ultima_mensagem: string;
+  categoria_rotulo: string | null;
+  motivo: string | null;
+  duracao_media_s: number | null;
+  parada_ha_s: number | null;
+  /** Quando foi transferida / encerrada (ISO). */
+  transferida_em?: string | null;
+  encerrada_em?: string | null;
+  /** A regra dos números da Central: transferida / encerrada dentro do período escolhido. */
+  transferida_no_periodo?: boolean;
+  encerrada_no_periodo?: boolean;
+}
+
+export interface AgenteCentral {
+  id: string;
+  /** Nome do agente no painel (ex.: Luna). */
+  nome: string;
+  /** A cor escolhida na fábrica. */
+  cor?: string;
+  /** O que ele faz (ex.: Agente de Onboarding). */
+  funcao: string;
+  cargo?: string;
+  area?: string;
+  modelo: string | null;
+  minutos_inatividade: number;
+  conversas: ConversaCentral[];
+  /** O que a mesa mostra: agora, no período e a nota da Calibração. */
+  indicadores?: IndicadoresMesa;
+}
+
+export interface IndicadoresMesa {
+  em_atendimento: number;
+  /** Com atividade nos últimos 2 min. */
+  conversando_agora: number;
+  conversas: number;
+  /** 0 a 1. */
+  transferencia_pct: number | null;
+  tempo_medio_resposta_s: number | null;
+  calibracao_avaliadas: number;
+  calibracao_aprovacao: number | null;
+}
+
+/** Um acontecimento ao vivo de um atendimento (/central/eventos e /central/feed). */
+export interface EventoCentral {
+  id: number;
+  /** boas_vindas só vem do histórico (/central/acontecimentos). */
+  tipo: "mensagem" | "pensando" | "ferramenta" | "respondeu" | "transferiu" | "encerrou" | "guardrail" | "erro" | "boas_vindas";
+  agente: string;
+  session_id: string;
+  origem: "whatsapp" | "painel" | "outro";
+  contato: string;
+  /** ISO, UTC. */
+  quando: string;
+  texto?: string;
+  ferramenta?: string;
+  duracao_s?: number;
+  categoria?: string;
+  categoria_rotulo?: string;
+  motivo?: string;
 }

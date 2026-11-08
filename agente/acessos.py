@@ -24,6 +24,7 @@ PERMISSOES: dict[str, tuple[str, str]] = {
     "criar_agentes": ("Criar e configurar agentes", "Criar agentes de IA e ajustar as instruções e o conhecimento deles."),
     "definir_metas": ("Definir metas", "As metas dos indicadores de cada cargo."),
     "registrar_dados": ("Registrar dados", "Medições, planilhas e documentos de referência dos setores."),
+    "gerenciar_unidades": ("Cadastrar unidades", "Cadastrar e conferir as unidades de saúde: endereço, ponto no mapa e fotos."),
     "gerenciar_cargos": ("Gerenciar cargos", "Criar cargos, montar a hierarquia e definir as permissões de cada um."),
     "gerenciar_equipe": ("Gerenciar a equipe", "Convidar pessoas, definir o cargo de cada uma e bloquear acessos."),
     "ver_auditoria": ("Ver a auditoria", "Quem fez o quê e quando, com o antes e o depois."),
@@ -33,10 +34,11 @@ TODAS = tuple(PERMISSOES)
 # Permissões sugeridas ao montar o organograma padrão (o dono muda depois, cargo por cargo).
 PADRAO_POR_NIVEL: dict[str, tuple[str, ...]] = {
     "direcao": ("ver_painel", "aprovar_entregas", "gerenciar_fluxos", "criar_agentes", "definir_metas", "registrar_dados",
-                "ver_auditoria"),
-    "superintendencia": ("ver_painel", "aprovar_entregas", "gerenciar_fluxos", "definir_metas", "registrar_dados"),
+                "gerenciar_unidades", "ver_auditoria"),
+    "superintendencia": ("ver_painel", "aprovar_entregas", "gerenciar_fluxos", "definir_metas", "registrar_dados",
+                         "gerenciar_unidades"),
     "coordenacao": ("ver_painel", "aprovar_entregas", "registrar_dados"),
-    "unidade": ("ver_painel", "aprovar_entregas", "registrar_dados"),
+    "unidade": ("ver_painel", "aprovar_entregas", "registrar_dados", "gerenciar_unidades"),
     "controle": ("ver_painel", "ver_auditoria"),
 }
 NIVEIS = tuple(PADRAO_POR_NIVEL)

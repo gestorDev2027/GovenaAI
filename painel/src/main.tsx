@@ -28,6 +28,7 @@ import { Cargos } from "@/pages/cargos";
 import { Equipe } from "@/pages/equipe";
 import { AceitarConvite } from "@/pages/convite";
 import { CentralDeComando } from "@/pages/comando";
+import { Secretaria3D } from "@/pages/secretaria";
 import { Navigate } from "@tanstack/react-router";
 
 const queryClient = new QueryClient({
@@ -121,8 +122,10 @@ const router = createRouter({
   routeTree: raiz.addChildren([
     protegido.addChildren([
       painel.addChildren(rotas),
-      // A Central de comando: o mapa da cidade em tela inteira, com janelas flutuantes (fora do menu).
+      // A Cidade: o mapa das unidades em tela inteira, com janelas flutuantes (abre em outra aba).
       createRoute({ getParentRoute: () => protegido, path: "/comando", component: CentralDeComando }),
+      // A Secretaria virtual: o prédio com uma sala por setor e o agente dela, em tela inteira.
+      createRoute({ getParentRoute: () => protegido, path: "/secretaria", component: Secretaria3D }),
     ]),
     // Páginas públicas: a landing page, entrar e cadastrar. A implantação exige conta (a própria página confere).
     createRoute({ getParentRoute: () => raiz, path: "/inicio", component: Inicio }),

@@ -68,16 +68,29 @@ O catálogo padrão (27 atividades em 10 setores) está em `supabase/gestorgov/2
 
 ### As três visões da interface (o core)
 
-1. **Cidade** — mapa real do município com todas as unidades de saúde (UBS, UPA, CAPS, hospital, farmácia,
-   SAMU...) e o estado de cada uma (alertas, estoque, fila).
-2. **Secretaria** — o prédio em 3D pelo organograma, com o CCO no centro: setores nas salas, agentes
-   trabalhando nas mesas (a refazer; ver §10).
+1. **Cidade** (`/painel/comando`, abre em outra aba) — mapa real do município (satélite visto de cima, com zoom)
+   com as unidades de saúde (UBS, UPA, CAPS, hospital, farmácia, SAMU...). O botão "Prédios 3D" põe cada unidade como
+   um prédio (na cor do tipo, altura pelo tipo) com o farol azul do agente no telhado. Só unidades: setores e agentes
+   ficam na Secretaria. A mesma informação em lista em `/painel/cidade` ("Unidades de saúde").
+2. **Secretaria virtual** (`/painel/secretaria`, abre em outra aba; `components/central/predio-secretaria.tsx`) — o
+   prédio pelo cadastro: cada SETOR é uma sala de vidro com o agente do setor na mesa e a placa (setor, agente,
+   responsável); no centro, o CCO (Centro de Comando e Operações). Quando um agente trabalha, o rosto dele muda
+   (`agente/ao_vivo.py` → `/secretaria/eventos`). Um botão leva à Cidade e outro volta.
 3. **Painel** — tabelas, aprovações, relatórios: onde o servidor trabalha no dia a dia.
 
 Mais o **conversacional** presente em todas as visões: o chat com o agente do setor (ou com a recepção, numa
-equipe). E a **Central de comando** (`/painel/comando`): o mapa da cidade em tela inteira, com janelas flutuantes
-arrastáveis (unidades, setores, agentes, alertas), painéis laterais de detalhe, paleta de comandos (Ctrl+K) e
-modo foco (F).
+equipe). A **Central de comando** tem janelas flutuantes arrastáveis (unidades, alertas), painéis laterais de
+detalhe, paleta de comandos (Ctrl+K) e modo foco (F).
+
+### Ficha da unidade (`painel/src/components/unidades/`)
+
+A mesma na Central de comando, na Cidade e na implantação: a foto principal ou, sem ela, a vista de satélite do
+Mapbox (Static Images, pelo ponto no mapa; nada é guardado), os dados, a conferência ("a conferir" → conferida
+por quem e quando) e as fotos (fachada, interior; enviadas do computador ou do celular, reduzidas para JPEG de até
+1600 px, sem os metadados, no bucket privado `prefeituras`; sem Supabase, em `dados/arquivos/`). O cadastro e a
+edição usam o CEP: o ViaCEP traz a rua e o bairro, e o Nominatim põe o ponto pela rua e número (ou pelo CEP).
+Unidade importada do CNES chega "a conferir". Quem cadastra e confere precisa da permissão de cargo
+`gerenciar_unidades`. Rotas em `prefeitura_api.py` (`/prefeitura/cep`, `/prefeitura/unidades`, `/prefeitura/fotos`).
 
 ## 3. O onboarding conversacional (a primeira experiência do cliente)
 
@@ -93,17 +106,24 @@ chat à esquerda e, à direita, o quadro que se monta ao vivo — o mapa da cida
 andares, os robôs sentando nas mesas. No fim, a câmera sai do prédio e mostra a cidade inteira funcionando.
 Referência visual: o estúdio de páginas "Forminho" (chat + canvas, montagem seção por seção).
 
-### Etapas (estado em `onboardings.etapa`)
+### Etapas (estado em `onboardings.etapa`) — a ordem pedida em 07/11/2026
+
+Primeiro a secretaria (o prédio vai subindo no quadro); por último, as unidades no mapa real da cidade.
 
 | # | Etapa | O que o assistente faz | Ferramentas | O que aparece no quadro |
 |---|---|---|---|---|
-| 1 | `municipio` | Pede o CEP da prefeitura (ou cidade + UF), mostra o que achou, confirma. Pede nome e e-mail do secretário | `buscar_municipio` (ViaCEP → IBGE → OpenStreetMap), `registrar_municipio` | Mapa centraliza na cidade |
-| 2 | `unidades` | Importa as unidades do CNES e mostra o total por tipo ("14 UBS, 1 UPA, 2 CAPS. Confere?"). Corrige e completa à mão | `importar_unidades_cnes`, `cadastrar_unidade` | Pinos caem no mapa, por tipo e cor |
-| 3 | `setores` | Propõe os setores padrão; o secretário tira, acrescenta, renomeia | `listar_tipos_setor`, `salvar_setores` | Andares sobem no prédio (3 salas por andar) |
-| 4 | `atividades` | Setor por setor: mostra rotinas e pedidos sob demanda sugeridos; confirma, tira, cria novas | `sugerir_atividades`, `salvar_atividades`, `nova_atividade` | Itens aparecem em cada sala |
-| 5 | `responsaveis` | Quem coordena e aprova em cada setor (nome + e-mail institucional) | `cadastrar_responsavel` | Placa com o nome na porta da sala |
-| 6 | `agentes` | Põe um agente em cada setor; lista os setores que ainda precisam de agente da Fábrica | `montar_agentes` | Robôs sentam nas mesas |
-| 7 | `revisao` → `concluido` | Resumo final; com o "pode concluir", ativa o município | `situacao_implantacao`, `concluir_implantacao` | Câmera sai do prédio: a cidade inteira |
+| 1 | `municipio` | Pede o CEP da prefeitura (ou cidade + UF), mostra o que achou, confirma | `buscar_municipio` (ViaCEP → IBGE → OpenStreetMap), `registrar_municipio` | O município |
+| 2 | `setores` | Propõe os setores padrão; o secretário tira, acrescenta, renomeia | `listar_tipos_setor`, `salvar_setores` | Cada setor vira uma sala do prédio |
+| 3 | `atividades` | Setor por setor: rotinas e pedidos sob demanda sugeridos; confirma, tira, cria novas | `sugerir_atividades`, `salvar_atividades`, `nova_atividade` | As atividades de cada sala (na lista) |
+| 4 | `responsaveis` | Quem coordena e aprova em cada setor (nome + e-mail institucional); pode ficar pendente | `cadastrar_responsavel` | O nome na placa da sala |
+| 5 | `agentes` | Cria o agente de IA de cada setor, da prefeitura (Fábrica), no ar na hora | `montar_agentes` | Os robôs sentam nas mesas das salas |
+| 6 | `unidades` | Importa as unidades do CNES ("14 UBS, 1 UPA... Confere?"); cadastra as que faltam pelo CEP; cada uma ganha o agente das unidades | `importar_unidades_cnes`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` | O mapa real da cidade com o prédio de cada unidade e o farol do agente |
+| 7 | `revisao` → `concluido` | Resumo final; com o "pode concluir", ativa o município | `situacao_implantacao`, `concluir_implantacao` | |
+
+Os agentes de cada prefeitura (`agente/agentes_prefeitura.py`): um por setor (`<município>-<uf>-<setor>`, cópia do
+modelo do código para Compras, Atenção Primária e Regulação; os demais criados na Fábrica) e o das unidades
+(`<município>-<uf>-unidades`, cópia do modelo `unidade`). Todos publicados e marcados com o município; entram no
+AgentOS sem reiniciar (`agente/registro.py`, ligado em app.py).
 
 Regras do assistente: uma etapa por vez; propõe em vez de perguntar do zero; grava só o que foi confirmado; nunca
 inventa unidades, nomes ou e-mails; preço/contrato vão para a equipe (`transferir_para_humano`). Retomada:
@@ -120,7 +140,8 @@ inventa unidades, nomes ou e-mails; preço/contrato vão para a equipe (`transfe
 ### Status
 
 - Backend pronto (ferramentas, rotas, banco).
-- Tela de implantação: chat e quadro em listas; o mapa e o prédio 3D entram nela (ver §10).
+- Tela de implantação: chat à esquerda; à direita, o prédio (até a etapa dos agentes) ou a cidade (das unidades em
+  diante), com um seletor para trocar, e as listas embaixo. O quadro só aparece em tela larga (lg).
 
 ## 4. Agentes
 
@@ -132,10 +153,13 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
 | `compras` | Agente de Compras e Licitações | consulta | `agente/perfis/compras.py` |
 | `atencao_primaria` | Agente da Atenção Primária | consulta | `agente/perfis/atencao_primaria.py` |
 | `regulacao` | Agente de Regulação | consulta | `agente/perfis/regulacao.py` |
+| `unidade` | Agente das Unidades de Saúde | consulta | `agente/perfis/unidade.py` |
+
+Os de setor e o das unidades são **modelos**: cada prefeitura ganha a sua cópia na implantação (§3).
 
 - Agentes de setor seguem um molde único: `agente/perfis/setor.py` (`perfil_de_setor`). Novo setor no código =
   um arquivo de 20 linhas + registrar em `agente/perfis/__init__.py` + `agente/base_conhecimento_<id>.md` +
-  incluir em `AGENTE_DO_SETOR` (`agente/ferramentas_gestao.py`).
+  incluir em `MODELO_DO_SETOR` (`agente/agentes_prefeitura.py`).
 - Os demais setores ganham agente pela **Fábrica de agentes** no painel (sem código), com o modelo
   `INSTRUCOES_MODELO` de `agente/fabrica.py`.
 - Nas instruções, `{nome_contato}` é o nome de quem conversa; nos roteiros, `[NOME DO CONTATO]` é trocado pelo
@@ -185,11 +209,12 @@ painel/src/                   frontend
 - Migrations (`supabase/gestorgov/`, rodar em ordem): `..._inicial.sql` (schema, papel, pgvector, bucket
   `agentes`, Vault, cadastro), `..._atividades.sql` (catálogo e atividades) e `..._organograma.sql` (membros,
   catálogo de 38 cargos e 125 indicadores do documento da Secretaria de Saúde Virtual, cargos, indicadores com meta,
-  medições, entregas, pendências, status e alertas). No SQLite local, os catálogos são carregados das migrations a cada início.
+  medições, entregas, pendências, status e alertas) e `..._unidades.sql` (endereço completo e conferência da
+  unidade, `unidade_fotos` e o bucket `prefeituras`). No SQLite local, os catálogos são carregados das migrations a cada início.
 - Tabelas do cadastro (migrations): `municipios`, `secretarias`, `setores`, `unidades`, `servidores`,
   `agentes_setor`, `atividades_setor`, `onboardings`, `auditoria` (só inserção), `tipos_setor`, `tipos_unidade`,
   `modelos_atividade`, e as do organograma: `membros`, `modelos_cargo`, `modelos_indicador`, `cargos`,
-  `indicadores_cargo`, `medicoes`, `entregas`, `pendencias`, `status_cargo`, `alertas_cargo`. Tudo separado por
+  `indicadores_cargo`, `medicoes`, `entregas`, `pendencias`, `status_cargo`, `alertas_cargo`, e `unidade_fotos`. Tudo separado por
   `municipio_id` (multi-prefeitura).
 - Tabelas que o servidor cria ao subir: as do Agno (`agno_*`, CompanyOS) e as do painel (`fabrica_*`,
   `conhecimento_*`, `guardrail_frases`, `painel_usuarios`, `painel_contas`...). Não crie essas à mão. Num banco que
@@ -265,7 +290,8 @@ Dois níveis, separados:
 
 ### Demonstração (Itatiaia-RJ)
 
-Com `GESTORGOV_DEMO=itatiaia` (já no `render.yaml`), o servidor monta ao subir a Secretaria de Saúde de Itatiaia
+Desligada desde 07/11/2026 (pedido: nada de dados de mentira; tudo nasce na implantação). Com
+`GESTORGOV_DEMO=itatiaia` no `.env`, o servidor monta ao subir a Secretaria de Saúde de Itatiaia
 (agente/demo.py): as unidades do CNES, os 16 setores com as atividades, o organograma de 38 cargos, pessoas
 fictícias (@itatiaia.exemplo.gov.br, sem login) como responsáveis, um agente de IA por setor (`itatiaia-<setor>`,
 publicados, marcados com o município) e a implantação concluída. Com `GESTORGOV_COMPANYOS=sim`, as 20 atividades
@@ -321,8 +347,13 @@ Reestruturação aprovada em 07/11/2026 (uma etapa por vez, cada uma com commit 
       Routines do CompanyOS declaradas no código recebem 403 com a OS_SECURITY_KEY ligada); tabelas da operação da
       unidade (estoque, movimentos, produção, ocorrências); migrations consolidadas num esquema limpo
 - [ ] 3. Central de comando completa: Fluxos, Aprovações e Execuções ligados ao Agno; alertas dos cargos
-- [ ] 4. Unidades: equipe, estoque, produção e o agente da unidade reportando à superintendência
-- [ ] 5. Secretaria 3D pelo organograma, com o CCO no centro, montada durante a implantação
+- [ ] 4. Unidades: equipe, estoque, produção e o agente da unidade reportando à superintendência (feito: cadastro
+      por CEP, conferência, fotos e a vista de satélite na ficha)
+- [ ] 5. Secretaria pelo organograma (feito: uma sala por setor com o agente e o CCO no centro, montada na
+      implantação; falta: os cargos dentro das salas)
+- [x] 6. Implantação na ordem nova: prefeitura, setores, atividades, responsáveis e agentes, com a Secretaria
+      virtual se montando ao lado; por último as unidades no mapa real, cada uma com o seu prédio e o agente
+- [ ] 7. Visão 3D de cada unidade com o agente dela; um agente próprio por unidade (hoje é um por prefeitura)
 
 - [ ] Primeiro deploy validado no Render (build do painel, CompanyOS agendando de verdade)
 - [ ] **Tela de onboarding**: chat à esquerda; à direita, mapa (MapLibre + OpenStreetMap, sem custo por uso) e

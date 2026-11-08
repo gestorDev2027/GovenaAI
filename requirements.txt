@@ -20,3 +20,4 @@ openpyxl
 python-pptx
 striprtf
 tzdata
+pillow>=11

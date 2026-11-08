@@ -7,6 +7,7 @@ Acesso: com OS_SECURITY_KEY definida (produção), toda rota exige uma destas cr
 Sem OS_SECURITY_KEY (teste local), o painel fica aberto. Em produção, sempre defina a chave.
 """
 
+import asyncio
 import base64
 import hashlib
 import hmac
@@ -27,7 +28,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
-from agente import acessos, base, conhecimento, equipes, fabrica, gestao, listas, perfis, usuarios
+from agente import acessos, ao_vivo, base, conhecimento, equipes, fabrica, gestao, listas, perfis, usuarios
 from agente.atendimento import responder, responder_em_etapas
 from agente.ferramentas import STATUS_EM_ATENDIMENTO
 
@@ -830,6 +831,41 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
                          [{"id": e["id"], "nome": e["nome"], "membros": e["membros"], "padrao": e["padrao"]}
                           for e in equipes.listar() if e["publicada"]])
         return {"agentes": lista, "equipes": lista_equipes}
+
+    # ───────── Secretaria 3D: o que os agentes fazem ao vivo (agente/ao_vivo.py) ─────────
+
+    @rotas.get("/secretaria/feed")
+    def feed(
+        limite: int = Query(default=50, ge=1, le=300),
+        depois_de: int = Query(default=0, ge=0),
+        agente_id: str | None = Query(default=None, max_length=60, alias="agente"),
+        escopo: Escopo = Depends(escopo_painel),
+    ) -> dict:
+        """Os últimos acontecimentos (o mais novo por último), para a tela abrir preenchida. Ficam na memória do
+        servidor: um reinício começa vazio."""
+        return {"eventos": [e for e in ao_vivo.recentes(limite, depois_de, agente_id) if no_escopo(e.get("agente"), escopo)]}
+
+    @rotas.get("/secretaria/eventos")
+    async def eventos_ao_vivo(escopo: Escopo = Depends(escopo_painel)) -> StreamingResponse:
+        """Os acontecimentos em tempo real, uma linha JSON por evento. Tipos: mensagem, pensando, ferramenta,
+        respondeu, transferiu, encerrou, guardrail, erro; a cada 15 s sem nada, {"tipo": "ping"} mantém a conexão."""
+        async def linhas():
+            yield json.dumps({"tipo": "conectado", "ultimo_id": (ao_vivo.recentes(1) or [{"id": 0}])[-1]["id"]}) + "\n"
+            chave = ao_vivo.inscrever()
+            try:
+                while True:
+                    try:
+                        evento = await asyncio.wait_for(chave[1].get(), timeout=15)
+                    except TimeoutError:
+                        yield json.dumps({"tipo": "ping"}) + "\n"
+                        continue
+                    if no_escopo(evento.get("agente"), escopo):
+                        yield json.dumps(evento, ensure_ascii=False) + "\n"
+            finally:
+                ao_vivo.cancelar(chave)
+
+        return StreamingResponse(linhas(), media_type="application/x-ndjson",
+                                 headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
     @rotas.post("/manutencao/limpeza", dependencies=[*protegido, Depends(so_sistema)])
     def limpeza() -> dict:

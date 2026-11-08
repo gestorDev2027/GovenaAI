@@ -25,7 +25,7 @@ from types import SimpleNamespace
 
 from agno.utils.log import log_info, log_warning
 
-from agente import acessos, fabrica, gestao, perfis
+from agente import acessos, fabrica, gestao
 from agente import ferramentas_gestao as ferramentas
 
 QUEM = "demonstracao"
@@ -33,9 +33,6 @@ CODIGO_IBGE = "3302254"
 COORDENADAS_ITATIAIA = (-22.4964, -44.5636)
 DOMINIO = "itatiaia.exemplo.gov.br"
 
-# Os agentes do código que servem de modelo (cópia por prefeitura); os demais setores ganham agente na Fábrica.
-MODELO_DO_SETOR = {"compras": "compras", "atencao_primaria": "atencao_primaria", "regulacao": "regulacao"}
-CORES = ("#1A63D8", "#52A2FF", "#1BAF7A", "#F4B800", "#8B5CF6", "#14C4D4", "#E83E8C", "#0D1B38")
 
 # Pessoas fictícias: modelo do cargo → nome. Os superintendentes respondem pelo setor da sala do cargo.
 PESSOAS = {
@@ -174,29 +171,9 @@ def _pessoas_nos_cargos(municipio_id: str) -> None:
 
 
 def _agentes_por_setor(municipio_id: str) -> list[str]:
-    criados: list[str] = []
-    ligados = {str(a["setor_id"]) for a in gestao.agentes_setor(municipio_id)}
-    for i, setor in enumerate(gestao.setores(municipio_id)):
-        tipo = setor.get("tipo_id")
-        if not tipo or str(setor["id"]) in ligados:
-            continue
-        agente_id = f"itatiaia-{tipo.replace('_', '-')}"[:30]
-        if not perfis.existe(agente_id):
-            dados = {"nome": f"Agente de {setor['nome']}"[:60], "area": setor["nome"][:60],
-                     "cargo": f"Agente do setor de {setor['nome']}"[:60],
-                     "descricao": (f"Faz as rotinas e prepara os documentos do setor de {setor['nome']} da Secretaria "
-                                   f"de Saúde de Itatiaia-RJ.")[:200],
-                     "cor": CORES[i % len(CORES)]}
-            modelo = MODELO_DO_SETOR.get(tipo)
-            if modelo and perfis.existe(modelo):
-                fabrica.duplicar(modelo, agente_id, {"nome": dados["nome"], "descricao": dados["descricao"], "cor": dados["cor"]}, QUEM)
-            else:
-                fabrica.criar(agente_id, {**dados, "minutos_inatividade": 480,
-                                          "ferramentas": ["consultar_secretaria", "listar_unidades"]}, QUEM)
-            fabrica.publicar(agente_id, True, QUEM)
-            fabrica.definir_municipio(agente_id, municipio_id)
-            criados.append(agente_id)
-        gestao.ligar_agente_ao_setor(municipio_id, str(setor["id"]), agente_id, f"Agente do setor {setor['nome']}", quem=QUEM)
+    from agente import agentes_prefeitura
+
+    criados = agentes_prefeitura.criar_agentes_dos_setores(municipio_id, QUEM, prefixo_id="itatiaia")["criados"]
     # Os cargos de cada sala (superintendência, coordenações) passam a ter o agente do setor.
     tc = gestao._t("cargos")
     with gestao._estado["engine"].begin() as c:

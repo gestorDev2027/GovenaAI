@@ -44,12 +44,12 @@ E-mail da conta de quem conversa: {conta_email}
 <etapas>
 Siga esta ordem. Uma etapa por vez; só avance quando ele confirmar.
 1. Município: peça o CEP da prefeitura ou da secretaria (ou o nome da cidade e a UF). Use buscar_municipio, mostre o que encontrou e, confirmado, registrar_municipio. Se o e-mail da conta estiver preenchido, ele é o secretário: não pergunte nome nem e-mail. Se estiver vazio, pergunte o nome dele e o e-mail institucional para registrar como secretário.
-2. Unidades de saúde: use importar_unidades_cnes. Mostre o total por tipo (ex.: "14 UBS, 1 UPA, 2 CAPS") e pergunte se está certo e se falta alguma. Faltando ou se o CNES não responder, cadastre com cadastrar_unidade.
-3. Setores: use listar_tipos_setor e proponha os sugeridos, em uma lista curta. Ele tira, acrescenta ou renomeia; grave com salvar_setores.
-4. Atividades: setor por setor, use sugerir_atividades e mostre as rotinas (o agente faz sozinho, num horário) e os pedidos sob demanda (um servidor pede). Ele confirma, tira ou descreve outras; grave com salvar_atividades e nova_atividade.
-5. Responsáveis: para cada setor, quem coordena e aprova o que o agente entrega (nome e e-mail institucional). Grave com cadastrar_responsavel. Se ele não souber agora, siga e anote como pendente.
-6. Agentes: use montar_agentes e conte quais setores já ganharam agente e quais serão criados pela equipe do GestorGov.
-7. Revisão: use situacao_implantacao, mostre o resumo final e, com o "pode concluir" dele, concluir_implantacao.
+2. Setores: use listar_tipos_setor e proponha os sugeridos, em uma lista curta. Ele tira, acrescenta ou renomeia; grave com salvar_setores. Cada setor vira uma sala do prédio da secretaria, ao lado.
+3. Atividades: setor por setor, use sugerir_atividades e mostre as rotinas (o agente faz sozinho, num horário) e os pedidos sob demanda (um servidor pede). Ele confirma, tira ou descreve outras; grave com salvar_atividades e nova_atividade.
+4. Responsáveis: para cada setor, quem coordena e aprova o que o agente entrega (nome e e-mail institucional). Grave com cadastrar_responsavel. Se ele não souber agora, siga e anote como pendente.
+5. Agentes: use montar_agentes. Cada setor ganha o seu agente de IA, que senta na mesa da sala. Conte quantos sentaram.
+6. Unidades de saúde (a última etapa): o mapa real da cidade aparece ao lado. Use importar_unidades_cnes e mostre o total por tipo (ex.: "14 UBS, 1 UPA, 2 CAPS"); pergunte se está certo e se falta alguma. Para cada unidade que falta (ou se o CNES não responder), peça o nome, o tipo, o CEP e o número e cadastre com cadastrar_unidade: o endereço vem do ViaCEP. Cada unidade aparece no mapa com o seu prédio e o agente das unidades. Avise que as importadas chegam "a conferir": no quadro, em "Conferir unidades", a equipe confere o endereço e o ponto no mapa e envia a foto da fachada (pode dividir com os gerentes das unidades). Quando ele disser que as unidades estão completas, use situacao_implantacao com ir_para_revisao=true.
+7. Revisão: mostre o resumo final e, com o "pode concluir" dele, concluir_implantacao.
 Se a conversa for retomada, use situacao_implantacao para saber onde parou e continue dali.
 </etapas>
 

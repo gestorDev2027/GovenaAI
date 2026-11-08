@@ -17,6 +17,39 @@ export interface UnidadeNoMapa {
   cor: string;
   latitude: number;
   longitude: number;
+  /** A unidade tem agente de IA (o farol no telhado do prédio, no modo `predios`). */
+  agente?: boolean;
+}
+
+// Modo prédios: a altura (m) de cada tipo de unidade e o tamanho do prédio (meia largura, em metros).
+const ALTURA_DO_TIPO: Record<string, number> = { hospital: 40, upa: 24, pronto_socorro: 24, policlinica: 20, gestao: 20, caps: 16 };
+const MEIA_LARGURA = 22;
+const COR_AGENTE = "#14C4D4";
+
+/** Um quadrado de `meia` metros em volta do ponto, em coordenadas do mapa. */
+function quadrado(lon: number, lat: number, meia: number): [number, number][][] {
+  const dLat = meia / 111_320;
+  const dLon = meia / (111_320 * Math.cos((lat * Math.PI) / 180));
+  return [[[lon - dLon, lat - dLat], [lon + dLon, lat - dLat], [lon + dLon, lat + dLat], [lon - dLon, lat + dLat], [lon - dLon, lat - dLat]]];
+}
+
+function dadosDosPredios(unidades: UnidadeNoMapa[], selecionada?: string | null) {
+  const features = [];
+  for (const u of unidades) {
+    const altura = ALTURA_DO_TIPO[u.tipo] ?? 14;
+    features.push({
+      type: "Feature" as const,
+      geometry: { type: "Polygon" as const, coordinates: quadrado(u.longitude, u.latitude, MEIA_LARGURA) },
+      properties: { id: u.id, cor: u.id === selecionada ? "#F4B800" : u.cor, base: 0, altura },
+    });
+    if (u.agente)
+      features.push({
+        type: "Feature" as const,
+        geometry: { type: "Polygon" as const, coordinates: quadrado(u.longitude, u.latitude, 7) },
+        properties: { id: u.id, cor: COR_AGENTE, base: altura, altura: altura + 10 },
+      });
+  }
+  return { type: "FeatureCollection" as const, features };
 }
 
 /** O que o Mapbox devolve de um pino (só o que usamos; os tipos do GeoJSON não vêm no pacote). */
@@ -33,6 +66,8 @@ export function MapaCidade({
   className,
   imersivo = false,
   luz = "day",
+  satelite = false,
+  predios = false,
 }: {
   token: string;
   unidades: UnidadeNoMapa[];
@@ -44,6 +79,10 @@ export function MapaCidade({
   imersivo?: boolean;
   /** Luz do estilo 3D: dia, entardecer ou noite. */
   luz?: "day" | "dusk" | "night";
+  /** Central de comando: satélite com ruas, visto de cima, com zoom livre (sem o 3D inclinado). */
+  satelite?: boolean;
+  /** Cada unidade vira um prédio em 3D (na cor do tipo, com o farol do agente) e o mapa inclina para mostrar. */
+  predios?: boolean;
 }) {
   const caixa = useRef<HTMLDivElement>(null);
   const mapa = useRef<mapboxgl.Map | null>(null);
@@ -61,20 +100,22 @@ export function MapaCidade({
     try {
       m = new mapboxgl.Map({
         container: caixa.current,
-        style: imersivo ? "mapbox://styles/mapbox/standard" : ESTILOS[theme],
+        style: satelite ? "mapbox://styles/mapbox/satellite-streets-v12" : imersivo ? "mapbox://styles/mapbox/standard" : ESTILOS[theme],
         center: centro ? [centro[1], centro[0]] : [-47.9, -15.8],
         zoom: centro ? 12 : 3.5,
         pitch: imersivo ? 55 : 0,
         bearing: imersivo ? -18 : 0,
         attributionControl: true,
-        cooperativeGestures: !imersivo,
+        cooperativeGestures: !imersivo && !satelite,
+        maxZoom: 20,
         ...(imersivo ? { config: { basemap: { lightPreset: luz, showPointOfInterestLabels: false, showTransitLabels: false } } } : {}),
       });
     } catch (e) {
       setErro(e instanceof Error ? e.message : "O mapa não pôde ser aberto neste navegador.");
       return;
     }
-    m.addControl(new mapboxgl.NavigationControl({ showCompass: imersivo, visualizePitch: imersivo }), imersivo ? "bottom-right" : "top-right");
+    m.addControl(new mapboxgl.NavigationControl({ showCompass: imersivo, visualizePitch: imersivo }), imersivo || satelite ? "bottom-right" : "top-right");
+    if (satelite) m.addControl(new mapboxgl.ScaleControl({ unit: "metric" }), "bottom-right");
     m.on("error", (ev) => {
       const texto = (ev.error as Error | undefined)?.message ?? "";
       if (/token|401|403/i.test(texto)) setErro("O token do Mapbox foi recusado. Confira o MAPBOX_TOKEN e o domínio liberado na conta.");
@@ -82,6 +123,23 @@ export function MapaCidade({
     // "style.load" e não "load": o "load" espera um quadro desenhado com tudo pronto e, em aba em segundo plano
     // ou painel escondido, pode demorar ou não vir; as camadas só precisam do estilo carregado.
     m.once("style.load", () => {
+      m.addSource("predios", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({
+        id: "predios",
+        type: "fill-extrusion",
+        source: "predios",
+        layout: { visibility: predios ? "visible" : "none" },
+        paint: {
+          "fill-extrusion-color": ["get", "cor"],
+          "fill-extrusion-base": ["get", "base"],
+          "fill-extrusion-height": ["get", "altura"],
+          "fill-extrusion-opacity": 0.92,
+        },
+      });
+      m.on("click", "predios", (ev) => {
+        const id = (ev.features?.[0] as Pino | undefined)?.properties?.id;
+        if (typeof id === "string") aoSelecionarRef.current?.(id);
+      });
       m.addSource("unidades", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       m.addLayer({
         id: "unidades-halo",
@@ -98,7 +156,7 @@ export function MapaCidade({
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 9, 4, 13, 7, 16, 10],
           "circle-color": ["get", "cor"],
-          "circle-stroke-color": theme === "dark" || luz === "night" ? "#0A1530" : "#FFFFFF",
+          "circle-stroke-color": !satelite && (theme === "dark" || luz === "night") ? "#0A1530" : "#FFFFFF",
           "circle-stroke-width": 2,
           "circle-emissive-strength": 1,
         },
@@ -111,8 +169,8 @@ export function MapaCidade({
         minzoom: 13.5,
         layout: { "text-field": ["get", "nome"], "text-size": 11, "text-offset": [0, 1.3], "text-anchor": "top", "text-max-width": 12 },
         paint: {
-          "text-color": theme === "dark" || luz === "night" ? "#EEF3FB" : "#0D1B38",
-          "text-halo-color": theme === "dark" || luz === "night" ? "#0A1530" : "#FFFFFF",
+          "text-color": (theme === "dark" || luz === "night" || satelite) ? "#EEF3FB" : "#0D1B38",
+          "text-halo-color": (theme === "dark" || luz === "night" || satelite) ? "#0A1530" : "#FFFFFF",
           "text-halo-width": 1.5,
           "text-emissive-strength": 1,
         },
@@ -145,7 +203,7 @@ export function MapaCidade({
     };
     // O centro inicial vale só na criação; depois o enquadramento vem das unidades.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, theme, imersivo]);
+  }, [token, theme, imersivo, satelite]);
 
   // A luz do estilo 3D muda sem recriar o mapa.
   useEffect(() => {
@@ -158,6 +216,15 @@ export function MapaCidade({
       }
     }
   }, [luz, pronto, imersivo]);
+
+  // Modo prédios: liga os prédios, esconde os pinos (ficariam dentro deles) e inclina o mapa.
+  useEffect(() => {
+    const m = mapa.current;
+    if (!m || !pronto) return;
+    m.setLayoutProperty("predios", "visibility", predios ? "visible" : "none");
+    for (const camada of ["unidades", "unidades-halo"]) if (m.getLayer(camada)) m.setLayoutProperty(camada, "visibility", predios ? "none" : "visible");
+    m.easeTo({ pitch: predios ? 58 : imersivo ? 55 : 0, bearing: predios ? -20 : imersivo ? -18 : 0, duration: 900 });
+  }, [predios, pronto, imersivo]);
 
   // Os pinos (e o enquadramento) a cada mudança das unidades ou da seleção.
   useEffect(() => {
@@ -172,6 +239,7 @@ export function MapaCidade({
         properties: { id: u.id, nome: u.nome, cor: u.cor, selecionada: u.id === selecionada },
       })),
     });
+    (m.getSource("predios") as mapboxgl.GeoJSONSource | undefined)?.setData(dadosDosPredios(unidades, selecionada));
   }, [unidades, selecionada, pronto]);
 
   const enquadrado = useRef(false);

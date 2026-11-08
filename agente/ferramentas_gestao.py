@@ -21,11 +21,6 @@ CRON_PADRAO = {"a_cada_hora": "0 * * * *", "diaria": "0 7 * * 1-5", "semanal": "
 
 # Agentes que já existem no código para um tipo de setor (agente/perfis/). Os demais setores ganham o
 # agente pela Fábrica de agentes, a partir do modelo de agente de setor.
-AGENTE_DO_SETOR = {
-    "compras": "compras",
-    "atencao_primaria": "atencao_primaria",
-    "regulacao": "regulacao",
-}
 
 
 def _json(dados) -> str:
@@ -131,7 +126,16 @@ def registrar_municipio(run_context: RunContext, codigo_ibge: str, nome: str, uf
     _estado(run_context)["municipio_id"] = str(mun["id"])
     if conta:  # quem cadastrou a prefeitura é o dono dela: convida a equipe e define os cargos e as permissões
         gestao.adicionar_membro(str(mun["id"]), conta, "dono", conta, nome=_estado(run_context).get("conta_nome") or "")
-    return _json({"registrado": True, "municipio": mun, "proxima_etapa": "unidades"})
+    return _json({"registrado": True, "municipio": mun, "proxima_etapa": "setores"})
+
+
+def _agente_das_unidades(run_context: RunContext, mid: str) -> str | None:
+    """O agente das unidades da prefeitura (criado na primeira unidade) passa a cuidar das unidades novas."""
+    from agente import agentes_prefeitura
+
+    agente_id = agentes_prefeitura.agente_das_unidades(mid, _quem(run_context))
+    gestao.avancar_etapa(mid, "unidades")
+    return agente_id
 
 
 def importar_unidades_cnes(run_context: RunContext) -> str:
@@ -176,21 +180,26 @@ def importar_unidades_cnes(run_context: RunContext) -> str:
             origem="cnes", dados_cnes=u, confirmada=False, gestao=gestao.vinculo_cnes(u), quem=_quem(run_context),
             session_id=_sessao(run_context))
         contagem[tipo_id] = contagem.get(tipo_id, 0) + 1
+    agente_unidades = _agente_das_unidades(run_context, mid)
     return _json({"importadas": len(brutas), "por_tipo": contagem, "particulares_fora": particulares,
+                  "agente_das_unidades": agente_unidades,
                   "orientacao": "Mostre o resumo por tipo (são as unidades públicas e as conveniadas ao SUS; os "
                                 "consultórios particulares ficaram de fora) e pergunte se está certo e se falta alguma."})
 
 
-def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, endereco: str = "", bairro: str = "",
-                      cnes: str = "") -> str:
-    """Cadastra (ou corrige) uma unidade de saúde do município. O endereço é usado para pôr o pino no mapa.
+def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, cep: str = "", numero: str = "",
+                      endereco: str = "", bairro: str = "", cnes: str = "") -> str:
+    """Cadastra (ou corrige) uma unidade de saúde do município. Com o CEP, o endereço vem do ViaCEP e o número põe
+    o pino no lugar certo do mapa. Sem CEP, use a rua e o bairro.
 
     Args:
         nome: nome da unidade (ex.: UBS Jardim Primavera).
         tipo: ubs, upa, pronto_socorro, hospital, policlinica, caps, farmacia, laboratorio, samu, vigilancia,
             imunizacao, academia, gestao, regulacao ou outro.
-        endereco: rua e número, se o secretário souber.
-        bairro: bairro da unidade.
+        cep: CEP da unidade (8 dígitos). O jeito preferido: peça sempre.
+        numero: número do prédio na rua.
+        endereco: rua, só se não houver CEP (ou se o CEP for de uma cidade inteira, sem rua).
+        bairro: bairro, só se não houver CEP.
         cnes: código CNES da unidade, se ele souber.
     """
     if erro := _sem_banco():
@@ -202,13 +211,27 @@ def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, endereco: s
     if tipo not in tipos:
         return f"Tipo inválido. Use um destes: {', '.join(sorted(tipos))}."
     mun = gestao.municipio(mid)
-    coordenadas = gestao.geocodificar(", ".join(x for x in (endereco, bairro, mun["nome"], mun["uf"], "Brasil") if x)) \
-        if (endereco or bairro) else None
-    unidade = gestao.salvar_unidade(mid, nome=nome, tipo_id=tipo, endereco=endereco, bairro=bairro, cnes=cnes,
-                                    latitude=coordenadas[0] if coordenadas else None,
-                                    longitude=coordenadas[1] if coordenadas else None,
+    achado = gestao.endereco_por_cep(cep, numero) if cep else None
+    if cep and not achado:
+        return "CEP não encontrado no ViaCEP. Confira os 8 dígitos com o secretário ou cadastre pela rua e bairro."
+    if achado and str(achado.get("codigo_ibge") or "") != str(mun.get("codigo_ibge") or ""):
+        return (f"Esse CEP é de {achado.get('municipio')}-{achado.get('uf')}, não de {mun['nome']}-{mun['uf']}. "
+                "Confira o CEP com o secretário.")
+    if achado:
+        rua, bairro_final = (achado.get("logradouro") or endereco), (achado.get("bairro") or bairro)
+        ponto = (achado["latitude"], achado["longitude"], achado["coordenadas_origem"]) if achado.get("latitude") else None
+    else:
+        rua, bairro_final = endereco, bairro
+        ponto = gestao.localizar(logradouro=endereco, numero=numero, bairro=bairro, municipio=mun["nome"], uf=mun["uf"]) \
+            if (endereco or bairro) else None
+    unidade = gestao.salvar_unidade(mid, nome=nome, tipo_id=tipo, endereco=rua, numero=numero, bairro=bairro_final,
+                                    cep=cep, cnes=cnes, latitude=ponto[0] if ponto else None,
+                                    longitude=ponto[1] if ponto else None, coordenadas_origem=ponto[2] if ponto else None,
                                     quem=_quem(run_context), session_id=_sessao(run_context))
-    return _json({"salva": True, "unidade": unidade, "no_mapa": bool(coordenadas)})
+    _agente_das_unidades(run_context, mid)
+    return _json({"salva": True, "unidade": {k: unidade.get(k) for k in ("id", "nome", "tipo_id", "endereco", "numero",
+                                                                         "bairro", "cep")},
+                  "no_mapa": bool(ponto), "ponto_pelo": ponto[2] if ponto else None})
 
 
 def listar_tipos_setor() -> str:
@@ -357,37 +380,35 @@ def cadastrar_responsavel(run_context: RunContext, setor: str, nome: str, email:
 
 
 def montar_agentes(run_context: RunContext) -> str:
-    """Põe um agente em cada setor (os robôs nas mesas do prédio) e liga a ele as atividades do setor. Setores
-    sem agente pronto ficam marcados para criar na Fábrica de agentes."""
+    """Cria o agente de IA de cada setor (os robôs que sentam nas salas do prédio), da prefeitura, e liga a ele as
+    atividades do setor. Pode rodar de novo: só cria o que falta. Depois, a etapa das unidades."""
     if erro := _sem_banco():
         return erro
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
-    from agente import perfis
+    from agente import agentes_prefeitura
 
-    com_agente, sem_agente = [], []
-    for s in gestao.setores(mid):
-        agente_id = AGENTE_DO_SETOR.get(s["tipo_id"] or "")
-        if agente_id and perfis.existe(agente_id):
-            gestao.ligar_agente_ao_setor(mid, str(s["id"]), agente_id, f"Agente do setor {s['nome']}",
-                                         quem=_quem(run_context), session_id=_sessao(run_context))
-            com_agente.append({"setor": s["nome"], "agente": perfis.identidade(agente_id)["nome"]})
-        else:
-            sem_agente.append(s["nome"])
-    gestao.avancar_etapa(mid, "revisao")
-    return _json({"com_agente": com_agente, "sem_agente": sem_agente,
-                  "orientacao": "Os setores sem agente ganham um pela Fábrica de agentes (a equipe do GestorGov cria)."})
+    resultado = agentes_prefeitura.criar_agentes_dos_setores(mid, _quem(run_context))
+    gestao.avancar_etapa(mid, "unidades")
+    return _json({**resultado, "proxima_etapa": "unidades",
+                  "orientacao": "Conte quantos agentes sentaram nas salas. Depois, passe para as unidades de saúde."})
 
 
-def situacao_implantacao(run_context: RunContext) -> str:
+def situacao_implantacao(run_context: RunContext, ir_para_revisao: bool = False) -> str:
     """O que já foi cadastrado neste município: setores, atividades, responsáveis, agentes e unidades. Use para
-    resumir para o secretário e decidir a próxima etapa."""
+    resumir para o secretário e decidir a próxima etapa.
+
+    Args:
+        ir_para_revisao: true quando o secretário disser que as unidades estão completas (abre a revisão final).
+    """
     if erro := _sem_banco():
         return erro
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if ir_para_revisao:
+        gestao.avancar_etapa(mid, "revisao")
     p = gestao.panorama(mid)
     unidades = p.get("unidades", [])
     por_tipo: dict[str, int] = {}
