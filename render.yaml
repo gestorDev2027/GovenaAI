@@ -54,43 +54,40 @@ services:
       # CompanyOS: as atividades de rotina dos setores viram Rotinas do Agno (agente/companyos.py).
       - key: GESTORGOV_COMPANYOS
         value: sim
-      # Sem demonstração: cada prefeitura é montada na implantação (GESTORGOV_DEMO=itatiaia liga a de Itatiaia-RJ).
+      # Sem demonstração: cada organização é montada na implantação.
       - key: INATIVIDADE_MINUTOS
         value: "480"
-      # ── Tarefas demoradas (Render Workflows, serviço gestorgov-tarefas abaixo; agente/segundo_plano.py) ──
-      # Com a chave da API do Render (Account Settings → API Keys), documentos, importação do CNES e testes da
-      # Fábrica rodam fora deste servidor. Sem ela, rodam numa thread daqui, como antes.
+      # ── Tarefas demoradas (agente/segundo_plano.py) ──
+      # Padrão: documentos, importação do CNES e testes da Fábrica rodam numa thread deste servidor (serve no
+      # plano grátis). Para levá-los ao Render Workflows: crie o serviço gestorgov-tarefas (modelo comentado abaixo),
+      # troque para "sim" e acrescente RENDER_API_KEY (Account Settings → API Keys) só neste serviço.
       - key: GESTORGOV_WORKFLOWS
-        value: sim
-      - key: RENDER_API_KEY
-        sync: false
+        value: nao
 
-  # As tarefas demoradas: cada execução numa máquina própria, com novas tentativas (tarefas/main.py). Não recebe
-  # conexões: lê e grava no mesmo Supabase. Os segredos vêm do serviço web (preenchidos uma vez só, lá).
-  - type: workflow
-    name: gestorgov-tarefas
-    runtime: python
-    region: virginia
-    buildCommand: pip install -r requirements.txt
-    startCommand: python -m tarefas.main
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.13.5
-      - key: GOOGLE_API_KEY
-        fromService: {type: web, name: gestorgov, envVarKey: GOOGLE_API_KEY}
-      - key: AGENTE_MODELO
-        fromService: {type: web, name: gestorgov, envVarKey: AGENTE_MODELO}
-      - key: AGENTE_RACIOCINIO
-        fromService: {type: web, name: gestorgov, envVarKey: AGENTE_RACIOCINIO}
-      - key: DATABASE_URL
-        fromService: {type: web, name: gestorgov, envVarKey: DATABASE_URL}
-      - key: DATABASE_SCHEMA
-        fromService: {type: web, name: gestorgov, envVarKey: DATABASE_SCHEMA}
-      - key: SUPABASE_URL
-        fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_URL}
-      - key: SUPABASE_SERVICE_ROLE_KEY
-        fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_SERVICE_ROLE_KEY}
-      - key: SUPABASE_BUCKET_AGENTES
-        fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_BUCKET_AGENTES}
-      - key: MAPBOX_TOKEN
-        fromService: {type: web, name: gestorgov, envVarKey: MAPBOX_TOKEN}
+  # Render Workflows (opcional, pago por segundo de uso): cada tarefa numa máquina própria, com novas tentativas
+  # (tarefas/main.py). Não recebe conexões: lê e grava no mesmo Supabase. Fica comentado porque o deploy atual é um
+  # Web Service criado à mão, no plano grátis; para usar, descomente (ou crie em New → Workflow com os mesmos campos).
+  # - type: workflow
+  #   name: gestorgov-tarefas
+  #   runtime: python
+  #   region: virginia
+  #   buildCommand: pip install -r requirements.txt
+  #   startCommand: python -m tarefas.main
+  #   envVars:
+  #     - key: PYTHON_VERSION
+  #       value: 3.13.5
+  #     # Os mesmos do serviço web (os segredos são preenchidos uma vez só, lá):
+  #     - key: GOOGLE_API_KEY
+  #       fromService: {type: web, name: gestorgov, envVarKey: GOOGLE_API_KEY}
+  #     - key: AGENTE_MODELO
+  #       fromService: {type: web, name: gestorgov, envVarKey: AGENTE_MODELO}
+  #     - key: DATABASE_URL
+  #       fromService: {type: web, name: gestorgov, envVarKey: DATABASE_URL}
+  #     - key: DATABASE_SCHEMA
+  #       fromService: {type: web, name: gestorgov, envVarKey: DATABASE_SCHEMA}
+  #     - key: SUPABASE_URL
+  #       fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_URL}
+  #     - key: SUPABASE_SERVICE_ROLE_KEY
+  #       fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_SERVICE_ROLE_KEY}
+  #     - key: SUPABASE_BUCKET_AGENTES
+  #       fromService: {type: web, name: gestorgov, envVarKey: SUPABASE_BUCKET_AGENTES}

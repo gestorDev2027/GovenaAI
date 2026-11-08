@@ -5,7 +5,7 @@ import { MapPinOff } from "lucide-react";
 import { useTheme } from "@/hooks/use-theme";
 
 /*
- * O mapa da cidade (Mapbox): um pino por unidade de saúde, na cor do tipo, enquadrado no município. Clicar
+ * O mapa (Mapbox): um pino por unidade da organização, na cor do tipo, enquadrado na cidade ou nas unidades. Clicar
  * num pino seleciona a unidade (a tela mostra a ficha). Sem token ou sem coordenadas, a tela usa só a lista
  * (o mapa nunca é obrigatório).
  */
@@ -29,6 +29,7 @@ export function MapaCidade({
   token,
   unidades,
   centro,
+  zoom,
   selecionada,
   aoSelecionar,
   className,
@@ -39,6 +40,8 @@ export function MapaCidade({
   token: string;
   unidades: UnidadeNoMapa[];
   centro?: [number, number] | null;
+  /** O zoom inicial (organizacao.zoom_mapa); sem ele, 12 com centro e 3,5 sem. */
+  zoom?: number | null;
   selecionada?: string | null;
   aoSelecionar?: (id: string) => void;
   className?: string;
@@ -67,7 +70,7 @@ export function MapaCidade({
         container: caixa.current,
         style: satelite ? "mapbox://styles/mapbox/satellite-streets-v12" : imersivo ? "mapbox://styles/mapbox/standard" : ESTILOS[theme],
         center: centro ? [centro[1], centro[0]] : [-47.9, -15.8],
-        zoom: centro ? 12 : 3.5,
+        zoom: centro ? (zoom ?? 12) : 3.5,
         pitch: imersivo ? 55 : 0,
         bearing: imersivo ? -18 : 0,
         attributionControl: true,
@@ -211,7 +214,7 @@ export function MapaCidade({
     <div
       ref={caixa}
       className={`overflow-hidden ${imersivo ? "" : "rounded-xl border border-border"} ${className ?? ""}`}
-      aria-label="Mapa das unidades de saúde"
+      aria-label="Mapa das unidades"
       role="region"
     />
   );

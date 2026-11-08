@@ -14,7 +14,7 @@ export function TelaDeAcesso({ titulo, descricao, children }: { titulo: string; 
       <div className="thin-scroll flex min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 py-8 sm:px-8">
           <Link to="/inicio" aria-label="GestorGov — início" className="w-fit rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Logo subtitulo />
+            <Logo tamanho="lg" subtitulo />
           </Link>
           <div className="my-auto space-y-6 py-10">
             <div>
@@ -23,7 +23,7 @@ export function TelaDeAcesso({ titulo, descricao, children }: { titulo: string; 
             </div>
             {children}
           </div>
-          <p className="text-xs text-muted-foreground">Dados de saúde tratados conforme a LGPD.</p>
+          <p className="text-xs text-muted-foreground">Dados tratados conforme a LGPD, guardados no Brasil.</p>
         </div>
       </div>
       <PainelDaMarca />
@@ -41,9 +41,9 @@ function PainelDaMarca() {
       <div className="relative flex h-full flex-col justify-between p-12">
         <div className="space-y-3">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide">
-            <span className="size-1.5 rounded-full bg-[#F4B800]" /> Secretarias Municipais de Saúde
+            <span className="size-1.5 rounded-full bg-[#F4B800]" /> Secretarias de Saúde e empresas
           </span>
-          <p className="max-w-md text-3xl leading-tight font-bold">Cada cargo com um agente de IA. Cada entrega aprovada por um servidor.</p>
+          <p className="max-w-md text-3xl leading-tight font-bold">Agentes de IA que trabalham com a sua equipe. <span className="text-[#52A2FF]">Você aprova.</span></p>
         </div>
 
         <Colagem />

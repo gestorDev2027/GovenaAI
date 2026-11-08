@@ -22,4 +22,4 @@ striprtf
 tzdata
 pillow>=11
 # SDK do Render Workflows: o servidor dispara as tarefas e o serviço gestorgov-tarefas as roda (tarefas/main.py)
-render
+render==1.8.0

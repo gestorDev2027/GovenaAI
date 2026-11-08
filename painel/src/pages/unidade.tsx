@@ -2,8 +2,8 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bot, Building, Building2, Loader2, MapPin, Maximize2, MessagesSquare, Minus, Plus } from "lucide-react";
-import { api } from "@/lib/api";
-import { useAcesso } from "@/hooks/use-permissoes";
+import { api, type RespostaPanorama } from "@/lib/api";
+import { useAcesso, useRotulos } from "@/hooks/use-permissoes";
 import { useAgentes } from "@/hooks/use-agentes";
 import { useCentralAoVivo } from "@/hooks/use-central-ao-vivo";
 import { cn } from "@/lib/utils";
@@ -11,10 +11,10 @@ import { SimboloGestorGov } from "@/components/layout/logo";
 import { Slideover } from "@/components/comando/slideover";
 import { FichaUnidade, type TipoUnidadeSaude, type UnidadeSaude } from "@/components/unidades/ficha-unidade";
 import type { ApiCamera } from "@/components/central/escritorio";
-import type { SelecaoPredio, SetorNoPredio } from "@/components/central/predio-secretaria";
+import type { SelecaoPredio, AreaNoPredio } from "@/components/central/predio-secretaria";
 
 /*
- * A unidade de saúde em 3D (Three.js), como a Secretaria virtual: o prédio da unidade com as salas que aquele tipo
+ * A unidade em 3D (Three.js), como o prédio virtual da organização: o prédio da unidade com as salas que aquele tipo
  * de unidade tem (recepção no centro; consultórios, sala de vacina, farmácia...) e o agente da unidade na sala da
  * gerência. Abre pela ficha da unidade, em outra aba (/painel/unidade/<id>); o seletor do topo troca de unidade.
  * As salas são o modelo do tipo; o que cada unidade tem de verdade (equipe, estoque, produção) entra na etapa 4.
@@ -93,11 +93,14 @@ export function Unidade3D() {
   const navegar = useNavigate();
   const qc = useQueryClient();
   const acesso = useAcesso().data;
-  const daPrefeitura = !!acesso?.prefeitura;
+  const daOrganizacao = !!acesso?.organizacao;
   const panorama = useQuery({
-    queryKey: ["gestao-panorama", daPrefeitura],
-    queryFn: () => api<{ municipio: { nome: string; uf: string } | null; unidades?: UnidadeSaude[] }>(daPrefeitura ? "/prefeitura/panorama" : "/gestao/panorama"),
+    queryKey: ["gestao-panorama", daOrganizacao],
+    queryFn: () => api<RespostaPanorama<UnidadeSaude>>(daOrganizacao ? "/organizacao/panorama" : "/gestao/panorama"),
   });
+  const pan = panorama.data?.organizacao ? panorama.data : null;
+  const r = useRotulos(pan?.segmento.rotulos);
+  const daSaude = (pan?.organizacao.segmento_id ?? acesso?.organizacao?.segmento_id ?? "saude_publica") === "saude_publica";
   const catalogo = useQuery({
     queryKey: ["gestao-catalogo"],
     queryFn: () => api<{ tipos_unidade: TipoUnidadeSaude[] }>("/implantacao/catalogo"),
@@ -109,7 +112,7 @@ export function Unidade3D() {
   const [aberto, setAberto] = useState(true);
   const [selecao, setSelecao] = useState<SelecaoPredio>(null);
 
-  const unidades = useMemo(() => panorama.data?.unidades ?? [], [panorama.data]);
+  const unidades = useMemo(() => pan?.unidades ?? [], [pan]);
   const unidade = unidades.find((u) => u.id === id);
   const tipos = catalogo.data?.tipos_unidade ?? [];
   const tipo = tipos.find((t) => t.id === unidade?.tipo_id);
@@ -122,7 +125,7 @@ export function Unidade3D() {
   useEffect(() => setSelecao(null), [id]);
 
   // As salas da unidade, no formato do prédio: a gerência tem o agente da unidade.
-  const salas: SetorNoPredio[] = useMemo(
+  const salas: AreaNoPredio[] = useMemo(
     () =>
       salasDaUnidade(unidade?.tipo_id ?? null).map((s) => ({
         id: s.id,
@@ -134,7 +137,7 @@ export function Unidade3D() {
   );
   // O nome na fachada: curto (cabe no letreiro).
   const fachada = nome.length > 34 ? `${nome.slice(0, 32)}…` : nome;
-  const salaEscolhida = selecao?.tipo === "setor" ? salasDaUnidade(unidade?.tipo_id ?? null).find((s) => s.id === selecao.id) : undefined;
+  const salaEscolhida = selecao?.tipo === "area" ? salasDaUnidade(unidade?.tipo_id ?? null).find((s) => s.id === selecao.id) : undefined;
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#0D1B38] text-white">
@@ -148,7 +151,7 @@ export function Unidade3D() {
         >
           <Predio
             key={unidade.id}
-            setores={salas}
+            areas={salas}
             agentes={agentes}
             eventos={aoVivo.eventos}
             inicio={aoVivo.inicio}
@@ -162,18 +165,18 @@ export function Unidade3D() {
             aberto={aberto}
             aoAbrir={() => setAberto(true)}
             nomePredio={fachada}
-            totem={[tipo?.nome.split(" / ")[0] ?? "Unidade", "de Saúde"]}
+            totem={daSaude ? [tipo?.nome.split(" / ")[0] ?? "Unidade", "de Saúde"] : [tipo?.nome.split(" / ")[0] ?? "Unidade"]}
             centro="recepcao"
           />
         </Suspense>
       ) : (
         <div className="grid h-full place-items-center text-sm text-white/70">
-          {panorama.isLoading ? <Loader2 className="size-5 animate-spin" /> : "Unidade não encontrada nesta prefeitura."}
+          {panorama.isLoading ? <Loader2 className="size-5 animate-spin" /> : `Unidade não encontrada nesta ${r.organizacao_curta}.`}
         </div>
       )}
 
       <nav
-        aria-label="Unidade de saúde"
+        aria-label={r.Unidade}
         className="absolute top-4 left-1/2 z-[100] flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-[#0D1B38]/85 p-1.5 pl-3 shadow-[0_18px_50px_-15px_rgba(0,0,0,0.6)] backdrop-blur-md"
       >
         <Link to="/" aria-label="Voltar ao painel" className="flex items-center rounded-full pr-1 outline-none focus-visible:ring-2 focus-visible:ring-white">
@@ -212,13 +215,13 @@ export function Unidade3D() {
           to="/comando"
           className="flex h-9 items-center gap-2 rounded-full bg-white/10 px-3 text-xs text-white/85 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
         >
-          <MapPin className="size-3.5" /> Cidade
+          <MapPin className="size-3.5" /> {r.mapa}
         </Link>
       </nav>
 
       {/* Recepção: a ficha da unidade (dados, conferência, fotos) */}
       {unidade && selecao?.tipo === "cco" && (
-        <Slideover titulo={nome} subtitulo={tipo?.nome ?? "Unidade de saúde"} aoFechar={() => setSelecao(null)}>
+        <Slideover titulo={nome} subtitulo={tipo?.nome ?? r.Unidade} aoFechar={() => setSelecao(null)}>
           <FichaUnidade unidade={unidade} tipos={tipos} aoMudar={() => qc.invalidateQueries({ queryKey: ["gestao-panorama"] })} />
         </Slideover>
       )}
@@ -228,8 +231,9 @@ export function Unidade3D() {
           <div className="space-y-4 text-sm">
             <p className="flex items-start gap-2">
               <Bot className="mt-0.5 size-4 shrink-0" />
-              Conversa com a equipe da unidade (gerente, enfermagem, farmácia), organiza o estoque, a produção do dia e as ocorrências e leva o
-              resumo à coordenação e à superintendência.
+              {daSaude
+                ? "Conversa com a equipe da unidade (gerente, enfermagem, farmácia), organiza o estoque, a produção do dia e as ocorrências e leva o resumo à coordenação e à superintendência."
+                : "Conversa com a equipe da unidade, organiza o estoque, a produção do dia e as ocorrências e leva o resumo à direção."}
             </p>
             {unidade.agente_id ? (
               <Link

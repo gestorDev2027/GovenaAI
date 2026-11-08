@@ -5,6 +5,7 @@ import {
   UsersRound,
   Activity,
   Bot,
+  MessagesSquare,
   BookOpen,
   Building2,
   ChevronDown,
@@ -28,8 +29,9 @@ import {
   X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { api, sair, type Acesso, type Config, type Permissao, type PermissaoPrefeitura } from "@/lib/api";
-import { useDaPlataforma, usePode, usePodeNaPrefeitura } from "@/hooks/use-permissoes";
+import { api, sair, type Acesso, type Config, type Permissao, type PermissaoOrganizacao, type Rotulos } from "@/lib/api";
+import { useDaPlataforma, usePode, usePodeNaOrganizacao, useRotulos } from "@/hooks/use-permissoes";
+import { ROTULOS_SAUDE } from "@/lib/rotulos";
 import { useUsuarios } from "@/pages/usuarios";
 import { useTheme } from "@/hooks/use-theme";
 import { Logo, LogoIcone } from "./logo";
@@ -45,7 +47,7 @@ import { Logo, LogoIcone } from "./logo";
  */
 
 /** novaAba: a tela abre em outra aba, fora do menu (ex.: Central de comando, em tela cheia). permissao: o item só
- * aparece para quem a tem (na plataforma); naPrefeitura: o item é da prefeitura e pede essa permissão lá.
+ * aparece para quem a tem (na plataforma); naOrganizacao: o item é da organização e pede essa permissão lá.
  * contagem: um número ao lado (ex.: pessoas esperando aprovação). */
 type Item = {
   to: string;
@@ -53,27 +55,28 @@ type Item = {
   icone: ComponentType<{ className?: string }>;
   novaAba?: boolean;
   permissao?: Permissao;
-  naPrefeitura?: PermissaoPrefeitura;
+  naOrganizacao?: PermissaoOrganizacao;
   contagem?: number;
 };
 // O ícone da SEÇÃO só aparece no menu recolhido e nunca repete o de um item da própria seção.
-// daPlataforma: a seção é da equipe GestorGov (aprovada no painel); as outras são da prefeitura de quem entrou.
+// daPlataforma: a seção é da equipe GestorGov (aprovada no painel); as outras são da organização de quem entrou.
 type Secao = { titulo: string; icone: ComponentType<{ className?: string }>; itens: Item[]; daPlataforma?: boolean };
 
-// A prefeitura de quem entrou (dono e membros, pelo cargo) e, para a equipe GestorGov, as visões da plataforma,
-// o trabalho com os agentes e a configuração.
-const SECOES: Secao[] = [
+// A organização de quem entrou (dono e membros, pelo cargo) e, para a equipe GestorGov, as visões da plataforma,
+// o trabalho com os agentes e a configuração. Os nomes seguem o segmento (Cidade ou Mapa, Secretaria ou Escritório...).
+const secoesDo = (r: Rotulos): Secao[] => [
   {
-    titulo: "Prefeitura",
+    titulo: r.organizacao,
     icone: Landmark,
     itens: [
-      { to: "/comando", rotulo: "Cidade", icone: MapPinned, novaAba: true, naPrefeitura: "ver_painel" },
-      { to: "/secretaria", rotulo: "Secretaria virtual", icone: Building2, novaAba: true, naPrefeitura: "ver_painel" },
-      { to: "/cidade", rotulo: "Unidades de saúde", icone: Radar, naPrefeitura: "ver_painel" },
-      { to: "/chat", rotulo: "Chat com os agentes", icone: Bot, naPrefeitura: "ver_painel" },
-      { to: "/cargos", rotulo: "Organograma e cargos", icone: Network, naPrefeitura: "ver_painel" },
-      { to: "/equipe", rotulo: "Equipe e acessos", icone: UserCog, naPrefeitura: "gerenciar_equipe" },
-      { to: "/implantacao", rotulo: "Implantação", icone: Rocket, naPrefeitura: "gerenciar_cargos" },
+      { to: "/comando", rotulo: r.mapa, icone: MapPinned, novaAba: true, naOrganizacao: "ver_painel" },
+      { to: "/secretaria", rotulo: r.predio, icone: Building2, novaAba: true, naOrganizacao: "ver_painel" },
+      { to: "/cidade", rotulo: r.Unidades, icone: Radar, naOrganizacao: "ver_painel" },
+      { to: "/agentes", rotulo: "Agentes", icone: Bot, naOrganizacao: "ver_painel" },
+      { to: "/chat", rotulo: "Chat com os agentes", icone: MessagesSquare, naOrganizacao: "ver_painel" },
+      { to: "/cargos", rotulo: "Organograma e cargos", icone: Network, naOrganizacao: "ver_painel" },
+      { to: "/equipe", rotulo: "Equipe e acessos", icone: UserCog, naOrganizacao: "gerenciar_equipe" },
+      { to: "/implantacao", rotulo: "Implantação", icone: Rocket, naOrganizacao: "gerenciar_cargos" },
     ],
   },
   {
@@ -81,9 +84,9 @@ const SECOES: Secao[] = [
     icone: LayoutGrid,
     daPlataforma: true,
     itens: [
-      { to: "/comando", rotulo: "Cidade", icone: MapPinned, novaAba: true },
-      { to: "/secretaria", rotulo: "Secretaria virtual", icone: Building2, novaAba: true },
-      { to: "/cidade", rotulo: "Unidades de saúde", icone: Radar },
+      { to: "/comando", rotulo: r.mapa, icone: MapPinned, novaAba: true },
+      { to: "/secretaria", rotulo: r.predio, icone: Building2, novaAba: true },
+      { to: "/cidade", rotulo: r.Unidades, icone: Radar },
       { to: "/chat", rotulo: "Chat com os agentes", icone: Bot, permissao: "usar_chat" },
     ],
   },
@@ -99,7 +102,7 @@ const SECOES: Secao[] = [
     ],
   },
 ];
-const TODOS_OS_ITENS = SECOES.flatMap((s) => s.itens);
+const TODOS_OS_ITENS = secoesDo(ROTULOS_SAUDE).flatMap((s) => s.itens);
 const FERRAMENTAS = [{ href: "https://os.agno.com", rotulo: "AgentOS (Agno)" }];
 const CHAVE = "gestorgov.sidebar.recolhido";
 const JANELA_LARGA = "(min-width: 1024px)";
@@ -226,12 +229,13 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-/* ───────── Barra do topo: a prefeitura e quem está conectado ───────── */
+/* ───────── Barra do topo: a organização e quem está conectado ───────── */
 
 function BarraDoTopo() {
   const acesso = useQuery({ queryKey: ["acesso"], queryFn: () => api<Acesso>("/acesso"), staleTime: Infinity });
   const usuario = acesso.data?.usuario;
-  const prefeitura = acesso.data?.prefeitura;
+  const org = acesso.data?.organizacao;
+  const r = useRotulos();
   const nome = usuario?.nome || usuario?.email || "Acesso local";
   const iniciais = nome
     .split(/[\s@.]+/)
@@ -243,10 +247,10 @@ function BarraDoTopo() {
     <div className="hidden h-16 shrink-0 items-center justify-between gap-4 border-b border-border bg-card px-6 md:flex">
       <div className="min-w-0">
         <p className="truncate text-sm font-semibold">
-          {prefeitura?.municipio ? `Secretaria Municipal de Saúde · ${prefeitura.municipio}-${prefeitura.uf}` : "GestorGov"}
+          {org?.organizacao ? [org.organizacao, [org.cidade, org.uf].filter(Boolean).join("-")].filter(Boolean).join(" · ") : "GestorGov"}
         </p>
         <p className="truncate text-xs text-muted-foreground">
-          {prefeitura ? (prefeitura.situacao_municipio === "ativo" ? "Implantação concluída" : "Implantação em andamento") : "Plataforma"}
+          {org ? `${r.organizacao} · ${org.situacao_organizacao === "ativo" ? "implantação concluída" : "implantação em andamento"}` : "Plataforma"}
         </p>
       </div>
       <div className="flex items-center gap-3 rounded-full border border-border bg-background py-1 pr-4 pl-1">
@@ -257,7 +261,7 @@ function BarraDoTopo() {
         <span className="flex min-w-0 flex-col leading-tight">
           <span className="truncate text-sm font-semibold">{nome}</span>
           <span className="truncate text-[11px] text-muted-foreground">
-            {prefeitura ? (prefeitura.papel === "dono" ? "Dono da prefeitura" : prefeitura.cargo ?? "Membro") : usuario?.papel ?? "Plataforma"}
+            {org ? (org.papel === "dono" ? `Dono da ${r.organizacao_curta}` : org.cargo ?? "Membro") : usuario?.papel ?? "Plataforma"}
           </span>
         </span>
       </div>
@@ -271,23 +275,25 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
   const { theme, toggle } = useTheme();
   const acesso = useQuery({ queryKey: ["acesso"], queryFn: () => api<Acesso>("/acesso"), staleTime: Infinity });
   const usuario = acesso.data?.usuario;
-  const prefeitura = acesso.data?.prefeitura;
-  const organizacao = prefeitura?.municipio ? `Saúde · ${prefeitura.municipio}-${prefeitura.uf}` : "Secretaria Municipal de Saúde";
+  const org = acesso.data?.organizacao;
+  const r = useRotulos();
+  const organizacao = org?.organizacao || "GestorGov";
   const quem = usuario?.email ?? (acesso.data?.requer_chave ? "acesso pela chave" : "acesso local, sem login");
   // O menu mostra só o que a pessoa pode usar; Usuários traz quantos esperam aprovação.
   const pode = usePode();
   const daPlataforma = useDaPlataforma();
-  const podeNaPrefeitura = usePodeNaPrefeitura();
-  const temPrefeitura = !!acesso.data?.prefeitura;
+  const podeNaOrganizacao = usePodeNaOrganizacao();
+  const temOrganizacao = !!org;
   const usuarios = useUsuarios(daPlataforma && pode("gerenciar_usuarios"));
   const pendentes = usuarios.data?.usuarios.filter((u) => u.situacao === "pendente").length ?? 0;
-  const secoes = SECOES.filter((s) => (s.daPlataforma ? daPlataforma : temPrefeitura))
+  const secoes = secoesDo(r)
+    .filter((s) => (s.daPlataforma ? daPlataforma : temOrganizacao))
     .map((s) => ({
       ...s,
       itens: s.itens
-        .filter((i) => (i.naPrefeitura ? podeNaPrefeitura(i.naPrefeitura) : !i.permissao || pode(i.permissao)))
-        // Quem tem a seção da prefeitura não precisa da Cidade repetida em Visões.
-        .filter((i) => !(s.daPlataforma && temPrefeitura && i.to === "/cidade"))
+        .filter((i) => (i.naOrganizacao ? podeNaOrganizacao(i.naOrganizacao) : !i.permissao || pode(i.permissao)))
+        // Quem tem a seção da organização não precisa das unidades repetidas em Visões.
+        .filter((i) => !(s.daPlataforma && temOrganizacao && i.to === "/cidade"))
         .map((i) => (i.to === "/usuarios" ? { ...i, contagem: pendentes } : i)),
     }))
     .filter((s) => s.itens.length);
@@ -343,7 +349,7 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
             <span className="flex min-w-0 flex-col leading-tight">
               <span className="truncate text-xs font-semibold text-white">{usuario?.nome || organizacao}</span>
               <span className="truncate text-[10px] text-sidebar-foreground/60">
-                {prefeitura ? (prefeitura.papel === "dono" ? "Dono da prefeitura" : prefeitura.cargo ?? "Sem cargo") : quem}
+                {org ? (org.papel === "dono" ? `Dono da ${r.organizacao_curta}` : org.cargo ?? "Sem cargo") : quem}
               </span>
             </span>
           )}

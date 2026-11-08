@@ -42,7 +42,7 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         "tarefas_execucoes", metadados,
         Column("id", String(64), primary_key=True),
         Column("tipo", String(40), nullable=False, index=True),
-        Column("municipio_id", String(36), index=True),
+        Column("organizacao_id", String(36), index=True),
         Column("referencia", String(80), index=True),
         Column("run_id", String(80)),  # a execução no Render (vazio quando rodou numa thread do servidor)
         Column("situacao", String(16), nullable=False, default="na_fila"),
@@ -94,17 +94,17 @@ def _alterar(execucao_id: str, **valores) -> None:
         conexao.execute(update(_t()).where(_t().c.id == execucao_id).values(**valores))
 
 
-def criar(tipo: str, *, municipio_id: str | None = None, referencia: str | None = None, criado_por: str = "sistema",
+def criar(tipo: str, *, organizacao_id: str | None = None, referencia: str | None = None, criado_por: str = "sistema",
           contexto: dict | None = None, execucao_id: str | None = None) -> str:
     execucao_id = execucao_id or uuid.uuid4().hex
     with _estado["engine"].begin() as conexao:
         conexao.execute(insert(_t()).values(
-            id=execucao_id, tipo=tipo, municipio_id=municipio_id, referencia=referencia, situacao="na_fila",
+            id=execucao_id, tipo=tipo, organizacao_id=organizacao_id, referencia=referencia, situacao="na_fila",
             contexto=contexto or {}, criado_por=criado_por, criado_em=_agora()))
     return execucao_id
 
 
-def disparar(tipo: str, entrada: list, *, local: Callable[[str], dict | None], municipio_id: str | None = None,
+def disparar(tipo: str, entrada: list, *, local: Callable[[str], dict | None], organizacao_id: str | None = None,
              referencia: str | None = None, criado_por: str = "sistema", contexto: dict | None = None,
              forcar_local: bool = False) -> str:
     """Começa a tarefa e devolve o id da execução (acompanhe com `andamento`/`esperar`).
@@ -113,7 +113,7 @@ def disparar(tipo: str, entrada: list, *, local: Callable[[str], dict | None], m
     `local(execucao_id)`: o mesmo trabalho, para rodar numa thread quando o Render não está ligado.
     """
     _conferir_entrada(entrada)
-    execucao_id = criar(tipo, municipio_id=municipio_id, referencia=referencia, criado_por=criado_por, contexto=contexto)
+    execucao_id = criar(tipo, organizacao_id=organizacao_id, referencia=referencia, criado_por=criado_por, contexto=contexto)
     if remoto() and not forcar_local:
         try:
             from render import Render
@@ -189,10 +189,10 @@ def andamento(execucao_id: str) -> dict | None:
     return _conferir_no_render(_dict(linha)) if linha else None
 
 
-def ultima(tipo: str, *, municipio_id: str | None = None, referencia: str | None = None) -> dict | None:
+def ultima(tipo: str, *, organizacao_id: str | None = None, referencia: str | None = None) -> dict | None:
     q = select(_t()).where(_t().c.tipo == tipo)
-    if municipio_id:
-        q = q.where(_t().c.municipio_id == municipio_id)
+    if organizacao_id:
+        q = q.where(_t().c.organizacao_id == organizacao_id)
     if referencia:
         q = q.where(_t().c.referencia == referencia)
     with _estado["engine"].connect() as conexao:

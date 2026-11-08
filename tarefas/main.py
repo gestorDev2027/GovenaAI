@@ -33,10 +33,10 @@ def processar_documento(ctx: TaskContext, execucao_id: str, documento_id: int) -
 
 
 @app.task(retry=TENTATIVAS, timeout_seconds=1800)
-def importar_cnes(ctx: TaskContext, execucao_id: str, municipio_id: str) -> dict:
+def importar_cnes(ctx: TaskContext, execucao_id: str, organizacao_id: str) -> dict:
     """As unidades públicas e conveniadas ao SUS do município, dos dados abertos do CNES."""
     contexto.ligar()
-    return segundo_plano.executar(execucao_id, lambda: cnes.importar_cnes(execucao_id, municipio_id))
+    return segundo_plano.executar(execucao_id, lambda: cnes.importar_cnes(execucao_id, organizacao_id))
 
 
 @app.task(retry=Retry(max_retries=1, wait_duration_ms=10000), timeout_seconds=900)

@@ -158,7 +158,7 @@ export function useAtivarEquipe(aoMudar?: () => void) {
       atualizarListas(qc, e.id);
       toast.success(e.publicada ? `${e.nome} ativada` : `${e.nome} desativada`, {
         description: e.publicada
-          ? "Já aparece no chat, na Cidade e na Secretaria virtual."
+          ? "Já aparece no chat, no mapa e no prédio virtual."
           : "Parou de atender. Dá para ativar de novo quando quiser.",
       });
     },

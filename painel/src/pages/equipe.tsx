@@ -12,7 +12,7 @@ import { Table, TableCell, TableHead, TableHeader, TableRow, TableWrapper } from
 import { useCargos } from "./cargos";
 
 /*
- * Equipe e acessos da prefeitura: quem entra no sistema e em que cargo (as permissões vêm do cargo). O dono
+ * Equipe e acessos da organização: quem entra no sistema e em que cargo (as permissões vêm do cargo). O dono
  * convida por um link (vale 7 dias; a pessoa cria a própria senha), troca o cargo e bloqueia quem sai.
  */
 
@@ -39,30 +39,30 @@ interface Convite {
 export function Equipe() {
   const qc = useQueryClient();
   const acesso = useQuery({ queryKey: ["acesso"], queryFn: () => api<Acesso>("/acesso"), staleTime: Infinity });
-  const equipe = useQuery({ queryKey: ["prefeitura-equipe"], queryFn: () => api<{ membros: Membro[]; convites: Convite[] }>("/prefeitura/equipe") });
+  const equipe = useQuery({ queryKey: ["organizacao-equipe"], queryFn: () => api<{ membros: Membro[]; convites: Convite[] }>("/organizacao/equipe") });
   const cargos = useCargos();
   const [convidando, setConvidando] = useState(false);
   const eu = acesso.data?.usuario?.email;
 
   const alterar = useMutation({
     mutationFn: ({ email, dados }: { email: string; dados: { cargo_id?: string | null; ativo?: boolean } }) =>
-      api(`/prefeitura/membros/${encodeURIComponent(email)}`, { method: "PUT", body: JSON.stringify(dados) }),
+      api(`/organizacao/membros/${encodeURIComponent(email)}`, { method: "PUT", body: JSON.stringify(dados) }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["prefeitura-equipe"] });
-      qc.invalidateQueries({ queryKey: ["prefeitura-cargos"] });
+      qc.invalidateQueries({ queryKey: ["organizacao-equipe"] });
+      qc.invalidateQueries({ queryKey: ["organizacao-cargos"] });
     },
   });
   const [aprovados, setAprovados] = useState<Record<string, string>>({});
   const aprovar = useMutation({
-    mutationFn: (id: string) => api<{ link: string }>(`/prefeitura/convites/${id}/aprovar`, { method: "POST" }),
+    mutationFn: (id: string) => api<{ link: string }>(`/organizacao/convites/${id}/aprovar`, { method: "POST" }),
     onSuccess: (r, id) => {
       setAprovados((a) => ({ ...a, [id]: r.link }));
-      qc.invalidateQueries({ queryKey: ["prefeitura-equipe"] });
+      qc.invalidateQueries({ queryKey: ["organizacao-equipe"] });
     },
   });
   const cancelar = useMutation({
-    mutationFn: (id: string) => api(`/prefeitura/convites/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["prefeitura-equipe"] }),
+    mutationFn: (id: string) => api(`/organizacao/convites/${id}`, { method: "DELETE" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["organizacao-equipe"] }),
   });
 
   const listaCargos = cargos.data?.cargos ?? [];
@@ -276,11 +276,11 @@ function Convidar({ aoFechar }: { aoFechar: () => void }) {
   const [copiado, setCopiado] = useState(false);
   const convidar = useMutation({
     mutationFn: () =>
-      api<{ link: string; validade_dias: number }>("/prefeitura/convites", {
+      api<{ link: string; validade_dias: number }>("/organizacao/convites", {
         method: "POST",
         body: JSON.stringify({ nome: nome.trim(), email: email.trim(), cargo_id: cargo || null }),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["prefeitura-equipe"] }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["organizacao-equipe"] }),
   });
   function enviar(e: FormEvent) {
     e.preventDefault();

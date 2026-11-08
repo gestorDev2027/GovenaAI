@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { api, type Acesso, type Permissao, type PermissaoPrefeitura } from "@/lib/api";
+import { api, type Acesso, type Permissao, type PermissaoOrganizacao, type Rotulos } from "@/lib/api";
+import { rotulosDe } from "@/lib/rotulos";
 
 export const useAcesso = () => useQuery({ queryKey: ["acesso"], queryFn: () => api<Acesso>("/acesso"), staleTime: Infinity });
 
@@ -19,8 +20,18 @@ export function useDaPlataforma(): boolean {
   return !usuario || usuario.situacao === "ativo";
 }
 
-/** O que a pessoa pode fazer na prefeitura dela (o dono pode tudo; o membro, o que o cargo dá). */
-export function usePodeNaPrefeitura(): (permissao: PermissaoPrefeitura) => boolean {
-  const prefeitura = useAcesso().data?.prefeitura;
-  return (permissao) => !!prefeitura && prefeitura.permissoes.includes(permissao);
+/** O que a pessoa pode fazer na organização dela (o dono pode tudo; o membro, o que o cargo dá). */
+export function usePodeNaOrganizacao(): (permissao: PermissaoOrganizacao) => boolean {
+  const organizacao = useAcesso().data?.organizacao;
+  return (permissao) => !!organizacao && organizacao.permissoes.includes(permissao);
+}
+
+/**
+ * Os nomes de tela do segmento da organização de quem está logado (setor ou departamento, servidor ou
+ * funcionário...). `doServidor`: os rótulos que vieram no panorama, que valem por cima. Sem organização, o
+ * padrão (Saúde pública).
+ */
+export function useRotulos(doServidor?: Partial<Rotulos> | null): Rotulos {
+  const segmento = useAcesso().data?.organizacao?.segmento_id;
+  return rotulosDe(segmento, doServidor);
 }

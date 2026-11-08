@@ -3,7 +3,8 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowUp, Building2, Check, Copy, Landmark, LayoutDashboard, Loader2, LogOut, MapPinned, Share2, Timer, Users } from "lucide-react";
 import { Input } from "@/components/ui/fields";
-import { api, ErroAcesso, sair, type Acesso } from "@/lib/api";
+import { api, ErroAcesso, sair, type Acesso, type CampoSegmento, type PanoramaOrganizacao, type Rotulos } from "@/lib/api";
+import { fasesDaImplantacao, rotulosDe, totemDe } from "@/lib/rotulos";
 import { fmtInt } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/layout/logo";
@@ -18,11 +19,13 @@ import { useCentralAoVivo } from "@/hooks/use-central-ao-vivo";
 import { PageLoader } from "@/components/widgets/widgets";
 
 /*
- * Implantação da prefeitura: a primeira tela de quem se cadastra. Chat com o Assistente de Implantação à
- * esquerda e, à direita, o quadro que se monta a cada resposta, a partir do panorama que a rota devolve. A ordem:
- * município, setores (cada um vira uma sala do prédio), atividades, responsáveis, agentes (os robôs sentam nas
- * salas) e, por último, as unidades de saúde no mapa real da cidade, cada uma com o seu prédio e o agente. Embaixo,
- * as mesmas informações em lista (o 3D nunca é obrigatório). Vale para quem ainda espera a aprovação do painel.
+ * Implantação da organização (uma Secretaria de Saúde ou uma empresa): a primeira tela de quem se cadastra. Chat com
+ * o Assistente de Implantação à esquerda e, à direita, o quadro que se monta a cada resposta, a partir do panorama que
+ * a rota devolve. A ordem: o segmento e o cadastro da organização, as áreas (setores ou departamentos; cada uma vira
+ * uma sala do prédio), atividades, cargos, responsáveis, agentes (os robôs sentam nas salas), quem tem acesso e, por
+ * último, as unidades no mapa, cada uma com o seu prédio e o agente. Embaixo, as mesmas informações em lista (o 3D
+ * nunca é obrigatório). Os nomes de tela vêm do segmento (segmento.rotulos) e os campos do cadastro, de
+ * segmento.campos. Vale para quem ainda espera a aprovação do painel.
  */
 
 interface Unidade {
@@ -35,54 +38,12 @@ interface Unidade {
   longitude: string | number | null;
   agente_id?: string | null;
 }
-interface Setor {
-  id: string;
-  nome: string;
-  responsavel: { nome: string } | null;
-  atividades: unknown[];
-  agentes: { agente_id: string }[];
-}
-interface Panorama {
-  municipio: {
-    nome: string;
-    uf: string;
-    codigo_ibge: string;
-    situacao: string | null;
-    latitude: string | number | null;
-    longitude: string | number | null;
-    cep?: string | null;
-    prefeitura_cnpj?: string | null;
-    prefeitura_logradouro?: string | null;
-    prefeitura_numero?: string | null;
-    prefeitura_bairro?: string | null;
-    prefeitura_telefone?: string | null;
-    prefeito_nome?: string | null;
-  };
-  secretaria: {
-    nome?: string | null;
-    fundo_cnpj?: string | null;
-    cep?: string | null;
-    logradouro?: string | null;
-    numero?: string | null;
-    bairro?: string | null;
-    telefone?: string | null;
-    email?: string | null;
-    secretario_nome: string | null;
-    secretario_email?: string | null;
-    secretario_telefone?: string | null;
-  } | null;
-  /** O que falta em cada fase (vazio = completa) e a fase atual (a primeira incompleta). */
-  pendencias?: Record<string, string[]>;
-  fase?: string;
-  setores: Setor[];
-  unidades: Unidade[];
-  onboarding: { etapa: string | null } | null;
-}
+type Panorama = PanoramaOrganizacao<Unidade>;
 interface Implantacao {
   conta: { email: string; nome: string };
   boas_vindas: string;
   historico: { papel: "contato" | "agente"; texto: string }[];
-  municipio_id: string | null;
+  organizacao_id: string | null;
   panorama: Panorama | null;
 }
 interface TipoUnidade {
@@ -92,19 +53,8 @@ interface TipoUnidade {
   ordem: number | null;
 }
 
-const ETAPAS = [
-  ["municipio", "Prefeitura e secretaria"],
-  ["setores", "Setores"],
-  ["atividades", "Atividades"],
-  ["cargos", "Cargos"],
-  ["responsaveis", "Responsáveis"],
-  ["agentes", "Agentes"],
-  ["equipe", "Pessoas com acesso"],
-  ["unidades", "Unidades de saúde"],
-  ["revisao", "Revisão"],
-] as const;
-// Dos setores à equipe, o quadro mostra o prédio; nas unidades, a cidade.
-const ETAPAS_DO_PREDIO = new Set(["setores", "atividades", "cargos", "responsaveis", "agentes", "equipe"]);
+// Das áreas à equipe, o quadro mostra o prédio; nas unidades, o mapa.
+const ETAPAS_DO_PREDIO = new Set(["areas", "atividades", "cargos", "responsaveis", "agentes", "equipe"]);
 const Predio = lazy(() => import("@/components/central/predio-secretaria"));
 
 /** `segundos`: quanto o assistente trabalhou nesta resposta (só nas respostas desta visita). */
@@ -145,7 +95,7 @@ export function PaginaImplantacao() {
   useEffect(() => {
     if (!dados.data) return;
     setMensagens([{ papel: "agente", texto: dados.data.boas_vindas }, ...dados.data.historico]);
-    setPanorama(dados.data.panorama);
+    setPanorama(dados.data.panorama?.organizacao ? dados.data.panorama : null);
   }, [dados.data]);
   // Sempre no fim da conversa: na primeira vez, direto; depois, suave. O cartão de respostas rápidas muda a altura.
   const primeiraRolagem = useRef(true);
@@ -174,7 +124,7 @@ export function PaginaImplantacao() {
       });
       const segundos = Math.max(1, Math.round((Date.now() - comeco) / 1000));
       if (r.resposta) setMensagens((m) => [...m, { papel: "agente", texto: r.resposta as string, segundos }]);
-      setPanorama(r.panorama);
+      setPanorama(r.panorama?.organizacao ? r.panorama : null);
       qc.invalidateQueries({ queryKey: ["gestao-panorama"] });
       qc.invalidateQueries({ queryKey: ["acesso"] });
       qc.invalidateQueries({ queryKey: ["agentes-visiveis"] });
@@ -212,21 +162,33 @@ export function PaginaImplantacao() {
   const aprovado = acesso.data?.usuario?.situacao === "ativo";
   const conta = dados.data?.conta;
   const ultima = mensagens.at(-1);
-  // Respostas rápidas quando o assistente termina numa pergunta (como os cartões do Replit).
-  const rapidas = !enviando && ultima?.papel === "agente" && ultima.texto.trim().endsWith("?") ? RESPOSTAS_RAPIDAS : [];
+  // Respostas rápidas quando o assistente termina numa pergunta (como os cartões do Replit). Só na abertura, antes da
+  // primeira resposta da pessoa, elas dizem o segmento (Secretaria de Saúde ou empresa); depois que o segmento foi
+  // respondido e enquanto a organização não está registrada, o assistente pede dados (cidade, CEP): sem botões.
+  const jaRespondeu = mensagens.some((m) => m.papel !== "agente");
+  const rapidas =
+    enviando || ultima?.papel !== "agente"
+      ? []
+      : !jaRespondeu
+        ? RESPOSTAS_INICIAIS
+        : panorama?.organizacao && ultima.texto.trim().endsWith("?")
+          ? RESPOSTAS_RAPIDAS
+          : [];
+  const org = panorama?.organizacao;
+  const local = org ? [org.cidade, org.uf].filter(Boolean).join("-") : "";
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-[#F6F7F9] text-foreground dark:bg-[#0A1328]">
       <header className="flex h-12 shrink-0 items-center justify-between gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link to="/inicio" aria-label="GestorGov — início" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Logo className="[&_svg]:size-7" />
+            <Logo tamanho="sm" />
           </Link>
           <span className="h-5 w-px bg-border" aria-hidden="true" />
           <span className="truncate text-sm font-medium">Implantação</span>
-          {panorama && (
+          {org && (
             <span className="hidden truncate rounded-full bg-card px-2.5 py-0.5 text-xs text-muted-foreground ring-1 ring-border sm:inline">
-              {panorama.municipio.nome}-{panorama.municipio.uf}
+              {[org.sigla || org.nome, local].filter(Boolean).join(" · ")}
             </span>
           )}
         </div>
@@ -316,7 +278,7 @@ export function PaginaImplantacao() {
         </section>
 
         {/* O canvas: o que a conversa vai montando */}
-        <section aria-label="A secretaria sendo montada" className="hidden min-h-0 flex-1 pr-3 pb-3 lg:flex">
+        <section aria-label="A organização sendo montada" className="hidden min-h-0 flex-1 pr-3 pb-3 lg:flex">
           <Canvas panorama={panorama} tipos={catalogo.data?.tipos_unidade ?? []} token={acesso.data?.mapbox_token ?? null} />
         </section>
       </div>
@@ -325,6 +287,7 @@ export function PaginaImplantacao() {
 }
 
 const RESPOSTAS_RAPIDAS = ["Sim, pode seguir", "Quero ajustar antes"];
+const RESPOSTAS_INICIAIS = ["É uma Secretaria de Saúde", "É uma empresa"];
 
 function RespostaDoAssistente({ m }: { m: Mensagem }) {
   return (
@@ -380,9 +343,15 @@ type Aba = "predio" | "cidade" | "resumo";
 
 /** O canvas: a barra fina (vistas e progresso) e, embaixo, a vista inteira. */
 function Canvas({ panorama, tipos, token }: { panorama: Panorama | null; tipos: TipoUnidade[]; token: string | null }) {
-  const etapa = panorama ? (panorama.municipio.situacao === "ativo" ? "concluido" : panorama.fase ?? panorama.onboarding?.etapa ?? "municipio") : "municipio";
+  const r = rotulosDe(panorama?.segmento.id, panorama?.segmento.rotulos);
+  const ETAPAS = fasesDaImplantacao(r);
+  const etapa: string = panorama
+    ? panorama.organizacao.situacao === "ativo"
+      ? "concluido"
+      : panorama.fase ?? panorama.onboarding?.etapa ?? "organizacao"
+    : "organizacao";
   const indice = etapa === "concluido" ? ETAPAS.length : Math.max(0, ETAPAS.findIndex(([id]) => id === etapa));
-  const sugerida: Aba = ETAPAS_DO_PREDIO.has(etapa) ? "predio" : etapa === "municipio" || etapa === "revisao" || etapa === "concluido" ? "resumo" : "cidade";
+  const sugerida: Aba = ETAPAS_DO_PREDIO.has(etapa) ? "predio" : etapa === "organizacao" || etapa === "revisao" || etapa === "concluido" ? "resumo" : "cidade";
   const [escolhida, setEscolhida] = useState<Aba | null>(null);
   useEffect(() => setEscolhida(null), [sugerida]); // etapa nova: volta a vista dela
   const aba = escolhida ?? sugerida;
@@ -394,8 +363,8 @@ function Canvas({ panorama, tipos, token }: { panorama: Panorama | null; tipos: 
         <div role="tablist" aria-label="Vista" className="flex items-center gap-0.5">
           {(
             [
-              ["predio", "Secretaria", Building2],
-              ["cidade", "Cidade", MapPinned],
+              ["predio", r.predio.split(" ")[0], Building2],
+              ["cidade", r.mapa, MapPinned],
               ["resumo", "Resumo", Users],
             ] as const
           ).map(([id, rotulo, Icone]) => (
@@ -437,32 +406,68 @@ function Canvas({ panorama, tipos, token }: { panorama: Panorama | null; tipos: 
       <div className="relative min-h-0 flex-1">
         {!panorama ? (
           <div className="grid h-full place-items-center p-8">
-            <div className="max-w-sm space-y-3 text-center">
-              <MapPinned className="mx-auto size-8 text-primary-text" />
-              <p className="text-base font-semibold">A sua secretaria aparece aqui</p>
+            <div className="max-w-md space-y-4 text-center">
+              <Building2 className="mx-auto size-8 text-primary-text" />
+              <p className="text-base font-semibold">A sua organização aparece aqui</p>
               <p className="text-sm text-muted-foreground">
-                Diga ao assistente o CEP da prefeitura. Depois vêm os setores (o prédio vai subindo aqui), os agentes e, por último, as unidades de saúde no mapa
-                da cidade.
+                Primeiro, diga ao assistente o que você vai implantar. Depois vêm o cadastro, as áreas (o prédio vai subindo aqui), os agentes e, por último,
+                as unidades no mapa.
               </p>
+              <div className="grid gap-2 text-left sm:grid-cols-2">
+                <div className="rounded-xl border border-border bg-background p-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    <Landmark className="size-4 text-primary-text" /> Secretaria de Saúde
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">Setores, servidores e as unidades de saúde do município (UBS, UPA, CAPS...), com o CNES.</p>
+                </div>
+                <div className="rounded-xl border border-border bg-background p-3">
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    <Building2 className="size-4 text-primary-text" /> Empresa
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">Departamentos, funcionários e as unidades da empresa (matriz, filiais, lojas, depósitos).</p>
+                </div>
+              </div>
             </div>
           </div>
         ) : aba === "resumo" ? (
           <div className="thin-scroll h-full overflow-y-auto p-4">
-            <Resumo panorama={panorama} tipos={tipos} />
+            <Resumo panorama={panorama} tipos={tipos} rotulos={r} etapas={ETAPAS} />
           </div>
         ) : (
-          <Vista panorama={panorama} tipos={tipos} token={token} aba={aba} />
+          <Vista panorama={panorama} tipos={tipos} token={token} aba={aba} rotulos={r} />
         )}
-        {panorama && etapa !== "concluido" && aba !== "resumo" && <Checklist titulo={rotuloEtapa} itens={panorama.pendencias?.[etapa] ?? []} />}
+        {panorama && etapa !== "concluido" && aba !== "resumo" && (
+          <Checklist titulo={rotuloEtapa} itens={panorama.pendencias?.[etapa as keyof NonNullable<Panorama["pendencias"]>] ?? []} />
+        )}
       </div>
     </div>
   );
 }
 
-/** As listas (a versão acessível do canvas): o município, os setores e as unidades, com a conferência. */
-function Resumo({ panorama, tipos }: { panorama: Panorama; tipos: TipoUnidade[] }) {
+/** O valor de um campo do cadastro: coluna de `organizacao` ou, com "dados.", chave de `dados_segmento`. */
+function valorDoCampo(org: Panorama["organizacao"], campo: CampoSegmento): string | null {
+  const bruto = campo.chave.startsWith("dados.")
+    ? org.dados_segmento?.[campo.chave.slice(6)]
+    : (org as unknown as Record<string, unknown>)[campo.chave];
+  if (bruto == null || bruto === "") return null;
+  const texto = String(bruto);
+  if (campo.tipo === "cnpj") return fmtCnpj(texto);
+  if (campo.tipo === "cep") return texto.length === 8 ? `${texto.slice(0, 5)}-${texto.slice(5)}` : texto;
+  if (campo.tipo === "inteiro" && !Number.isNaN(Number(texto))) return fmtInt(Number(texto));
+  return texto;
+}
+
+/** As listas (a versão acessível do canvas): o cadastro (pelos campos do segmento), as áreas e as unidades. */
+function Resumo({ panorama, tipos, rotulos: r, etapas }: { panorama: Panorama; tipos: TipoUnidade[]; rotulos: Rotulos; etapas: [string, string][] }) {
   const [conferindo, setConferindo] = useState(false);
+  const org = panorama.organizacao;
   const aConferir = panorama.unidades.filter((u) => !u.confirmada).length;
+  // Os campos do cadastro, agrupados (Prefeitura, Secretaria, Secretário(a)... ou Empresa, Sede, Diretor(a)).
+  const grupos = useMemo(() => {
+    const mapa = new Map<string, CampoSegmento[]>();
+    for (const c of panorama.segmento.campos) mapa.set(c.grupo || r.organizacao, [...(mapa.get(c.grupo || r.organizacao) ?? []), c]);
+    return [...mapa];
+  }, [panorama.segmento.campos, r.organizacao]);
   const porTipo = useMemo(() => {
     const mapa = new Map(tipos.map((t) => [t.id, t]));
     const contagem = new Map<string, number>();
@@ -473,33 +478,21 @@ function Resumo({ panorama, tipos }: { panorama: Panorama; tipos: TipoUnidade[] 
   }, [panorama, tipos]);
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Fases panorama={panorama} />
-      <Bloco icone={<Landmark className="size-5" />} titulo={`Prefeitura de ${panorama.municipio.nome}-${panorama.municipio.uf}`}>
-        <Dados
-          linhas={[
-            ["CNPJ", fmtCnpj(panorama.municipio.prefeitura_cnpj)],
-            ["Endereço", endereco(panorama.municipio.prefeitura_logradouro, panorama.municipio.prefeitura_numero, panorama.municipio.prefeitura_bairro, panorama.municipio.cep)],
-            ["Telefone", panorama.municipio.prefeitura_telefone],
-            ["Prefeito(a)", panorama.municipio.prefeito_nome],
-            ["Código IBGE", panorama.municipio.codigo_ibge],
-          ]}
-        />
-      </Bloco>
-      <Bloco icone={<Building2 className="size-5" />} titulo={panorama.secretaria?.nome || "Secretaria Municipal de Saúde"}>
-        <Dados
-          linhas={[
-            ["CNPJ do Fundo Municipal de Saúde", fmtCnpj(panorama.secretaria?.fundo_cnpj)],
-            ["Endereço", endereco(panorama.secretaria?.logradouro, panorama.secretaria?.numero, panorama.secretaria?.bairro, panorama.secretaria?.cep)],
-            ["Telefone", panorama.secretaria?.telefone],
-            ["E-mail", panorama.secretaria?.email],
-            ["Secretário(a)", [panorama.secretaria?.secretario_nome, panorama.secretaria?.secretario_email, panorama.secretaria?.secretario_telefone].filter(Boolean).join(" · ") || null],
-          ]}
-        />
-      </Bloco>
-      <Bloco icone={<Users className="size-5" />} titulo={`Setores · ${fmtInt(panorama.setores.length)}`}>
-        {panorama.setores.length ? (
+      <Fases panorama={panorama} etapas={etapas} />
+      <p className="text-xs text-muted-foreground">
+        {panorama.segmento.nome} · {org.nome || r.organizacao}
+        {org.cidade ? ` · ${org.cidade}${org.uf ? `-${org.uf}` : ""}` : ""}
+        {org.codigo_ibge ? ` · IBGE ${org.codigo_ibge}` : ""}
+      </p>
+      {grupos.map(([grupo, campos], i) => (
+        <Bloco key={grupo} icone={i === 0 ? <Landmark className="size-5" /> : <Building2 className="size-5" />} titulo={grupo}>
+          <Dados linhas={campos.map((c) => [c.rotulo, valorDoCampo(org, c), c.obrigatorio])} />
+        </Bloco>
+      ))}
+      <Bloco icone={<Users className="size-5" />} titulo={`${r.Areas} · ${fmtInt(panorama.areas.length)}`}>
+        {panorama.areas.length ? (
           <ul className="grid gap-2 sm:grid-cols-2">
-            {panorama.setores.map((s) => (
+            {panorama.areas.map((s) => (
               <li key={s.id} className="rounded-lg border border-border bg-background px-3 py-2">
                 <div className="text-sm font-medium">{s.nome}</div>
                 <div className="text-xs text-muted-foreground">
@@ -509,10 +502,10 @@ function Resumo({ panorama, tipos }: { panorama: Panorama; tipos: TipoUnidade[] 
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">O assistente propõe os setores logo depois do município: cada um vira uma sala do prédio.</p>
+          <p className="text-sm text-muted-foreground">O assistente propõe os {r.areas} logo depois do cadastro: cada um vira uma sala do prédio.</p>
         )}
       </Bloco>
-      <Bloco icone={<Building2 className="size-5" />} titulo={`Unidades de saúde · ${fmtInt(panorama.unidades.length)}`}>
+      <Bloco icone={<Building2 className="size-5" />} titulo={`${r.Unidades} · ${fmtInt(panorama.unidades.length)}`}>
         {porTipo.length ? (
           <ul className="flex flex-wrap gap-2">
             {porTipo.map((t) => (
@@ -524,7 +517,7 @@ function Resumo({ panorama, tipos }: { panorama: Panorama; tipos: TipoUnidade[] 
             ))}
           </ul>
         ) : (
-          <p className="text-sm text-muted-foreground">As unidades de saúde são a última etapa: entram no mapa da cidade, cada uma com a sua visão 3D.</p>
+          <p className="text-sm text-muted-foreground">As {r.unidades} são a última etapa: entram no mapa, cada uma com a sua visão 3D.</p>
         )}
         {panorama.unidades.length > 0 && (
           <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-border pt-3">
@@ -540,7 +533,7 @@ function Resumo({ panorama, tipos }: { panorama: Panorama; tipos: TipoUnidade[] 
         )}
       </Bloco>
       {conferindo && (
-        <Slideover titulo="Unidades de saúde" subtitulo="Confira cada unidade e cadastre as que faltam (o CEP busca o endereço)" aoFechar={() => setConferindo(false)}>
+        <Slideover titulo={r.Unidades} subtitulo="Confira cada unidade e cadastre as que faltam (o CEP busca o endereço)" aoFechar={() => setConferindo(false)}>
           <GerenciarUnidades />
         </Slideover>
       )}
@@ -562,8 +555,20 @@ function Bloco({ icone, titulo, children }: { icone: ReactNode; titulo: string; 
   );
 }
 
-/** A vista do canvas: o prédio da secretaria (setores e agentes) ou a cidade (unidades). */
-function Vista({ panorama, tipos, token, aba }: { panorama: Panorama; tipos: TipoUnidade[]; token: string | null; aba: "predio" | "cidade" }) {
+/** A vista do canvas: o prédio da organização (áreas e agentes) ou o mapa (unidades). */
+function Vista({
+  panorama,
+  tipos,
+  token,
+  aba,
+  rotulos: r,
+}: {
+  panorama: Panorama;
+  tipos: TipoUnidade[];
+  token: string | null;
+  aba: "predio" | "cidade";
+  rotulos: Rotulos;
+}) {
   const agentes = useAgentes();
   const aoVivo = useCentralAoVivo();
   const camera = useRef<ApiCamera | null>(null);
@@ -583,16 +588,19 @@ function Vista({ panorama, tipos, token, aba }: { panorama: Panorama; tipos: Tip
         })),
     [panorama.unidades, cores],
   );
-  const mun = panorama.municipio;
-  const centro = mun.latitude != null && mun.longitude != null ? ([Number(mun.latitude), Number(mun.longitude)] as [number, number]) : null;
+  const org = panorama.organizacao;
+  const centro = org.latitude != null && org.longitude != null ? ([Number(org.latitude), Number(org.longitude)] as [number, number]) : null;
 
   if (aba === "predio")
-    return panorama.setores.length ? (
+    return panorama.areas.length ? (
       <div className="absolute inset-0 bg-[#0D1B38]">
         <Suspense fallback={<div className="grid h-full place-items-center text-white/70"><Loader2 className="size-5 animate-spin" /></div>}>
           <Predio
-            setores={panorama.setores}
+            areas={panorama.areas}
             agentes={agentes}
+            nomePredio={org.sigla || org.nome || r.organizacao}
+            rotuloCentro={r.centro}
+            totem={totemDe(r)}
             eventos={aoVivo.eventos}
             inicio={aoVivo.inicio}
             selecao={selecao}
@@ -609,31 +617,34 @@ function Vista({ panorama, tipos, token, aba }: { panorama: Panorama; tipos: Tip
       <div className="grid h-full place-items-center p-8 text-center">
         <div className="max-w-sm space-y-3">
           <Building2 className="mx-auto size-8 text-primary-text" />
-          <p className="text-base font-semibold">O prédio sobe com os setores</p>
-          <p className="text-sm text-muted-foreground">Quando você confirmar os setores, cada um vira uma sala deste prédio, e depois cada sala ganha o seu agente.</p>
+          <p className="text-base font-semibold">O prédio sobe com os {r.areas}</p>
+          <p className="text-sm text-muted-foreground">Quando você confirmar os {r.areas}, cada um vira uma sala deste prédio, e depois cada sala ganha o seu agente.</p>
         </div>
       </div>
     );
   return token ? (
-    <MapaCidade token={token} unidades={noMapa} centro={centro} satelite className="absolute inset-0 h-full w-full" />
+    <MapaCidade token={token} unidades={noMapa} centro={centro} zoom={org.zoom_mapa ?? null} satelite className="absolute inset-0 h-full w-full" />
   ) : (
-    <p className="grid h-full place-items-center px-6 text-center text-sm text-muted-foreground">Defina o MAPBOX_TOKEN no servidor para ver o mapa da cidade.</p>
+    <p className="grid h-full place-items-center px-6 text-center text-sm text-muted-foreground">Defina o MAPBOX_TOKEN no servidor para ver o mapa.</p>
   );
 }
 
 const fmtCnpj = (c?: string | null) =>
   c && c.length === 14 ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}` : (c ?? null);
-const endereco = (rua?: string | null, numero?: string | null, bairro?: string | null, cep?: string | null) =>
-  [[rua, numero].filter(Boolean).join(", "), bairro, cep && cep.length === 8 ? `CEP ${cep.slice(0, 5)}-${cep.slice(5)}` : cep].filter(Boolean).join(" · ") || null;
 
-/** Os dados de um bloco do Resumo; o que falta aparece como "a preencher". */
-function Dados({ linhas }: { linhas: [string, string | null | undefined][] }) {
+/** Os dados de um bloco do Resumo; o obrigatório que falta aparece como "a preencher"; o opcional, como "—". */
+function Dados({ linhas }: { linhas: [string, string | null | undefined, boolean?][] }) {
   return (
     <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-      {linhas.map(([rotulo, valor]) => (
+      {linhas.map(([rotulo, valor, obrigatorio = true]) => (
         <div key={rotulo}>
-          <dt className="text-xs text-muted-foreground">{rotulo}</dt>
-          <dd className={cn("text-sm", !valor && "text-warning")}>{valor || "a preencher"}</dd>
+          <dt className="text-xs text-muted-foreground">
+            {rotulo}
+            {!obrigatorio && <span className="text-muted-foreground/70"> (opcional)</span>}
+          </dt>
+          <dd className={cn("text-sm", !valor && obrigatorio && "text-warning", !valor && !obrigatorio && "text-muted-foreground")}>
+            {valor || (obrigatorio ? "a preencher" : "—")}
+          </dd>
         </div>
       ))}
     </dl>
@@ -641,14 +652,14 @@ function Dados({ linhas }: { linhas: [string, string | null | undefined][] }) {
 }
 
 /** As fases da implantação, com o que falta em cada uma. */
-function Fases({ panorama }: { panorama: Panorama }) {
-  const atual = panorama.municipio.situacao === "ativo" ? "concluido" : panorama.fase;
+function Fases({ panorama, etapas: ETAPAS }: { panorama: Panorama; etapas: [string, string][] }) {
+  const atual: string | undefined = panorama.organizacao.situacao === "ativo" ? "concluido" : panorama.fase;
   return (
     <section className="rounded-xl border border-border p-4">
       <h2 className="mb-3 text-sm font-semibold">Fases da implantação</h2>
       <ol className="space-y-2">
         {ETAPAS.map(([id, rotulo], i) => {
-          const falta = panorama.pendencias?.[id] ?? [];
+          const falta = panorama.pendencias?.[id as keyof NonNullable<Panorama["pendencias"]>] ?? [];
           const feita = atual === "concluido" || (falta.length === 0 && ETAPAS.findIndex(([e]) => e === atual) > i);
           return (
             <li key={id} className="flex items-start gap-3 text-sm">
@@ -708,7 +719,7 @@ function Compartilhar() {
     setErro(null);
     setGerando(true);
     try {
-      setDados(await api<{ link: string; codigo: string; validade_dias: number }>("/prefeitura/implantacao/link", { method: "POST" }));
+      setDados(await api<{ link: string; codigo: string; validade_dias: number }>("/organizacao/implantacao/link", { method: "POST" }));
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : "Não foi possível gerar o link.");
     } finally {
@@ -721,10 +732,10 @@ function Compartilhar() {
         <Share2 /> Compartilhar
       </Button>
       {aberto && (
-        <Slideover titulo="Compartilhar a implantação" subtitulo="Para outro colaborador da secretaria continuar daqui" aoFechar={() => { setAberto(false); setDados(null); }}>
+        <Slideover titulo="Compartilhar a implantação" subtitulo="Para outra pessoa da organização continuar daqui" aoFechar={() => { setAberto(false); setDados(null); }}>
           <div className="space-y-4 text-sm">
             <p className="text-muted-foreground">
-              Quem receber o link e o código entra com a própria conta, passa a fazer parte da prefeitura e continua a implantação de onde parou.
+              Quem receber o link e o código entra com a própria conta, passa a fazer parte da organização e continua a implantação de onde parou.
               Mande o link e o código por canais diferentes (por exemplo, o link por e-mail e o código por telefone).
             </p>
             {!dados ? (

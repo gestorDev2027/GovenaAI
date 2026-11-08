@@ -71,7 +71,7 @@ export const TIPO_SECAO: Record<TipoSecao, { rotulo: string; tom: "primario" | "
   conteudo: {
     rotulo: "Conteúdo",
     tom: "neutro",
-    ajuda: "Vale para os servidores na próxima mensagem. Links, prazos e valores são repetidos exatamente como estão escritos.",
+    ajuda: "Vale para as pessoas na próxima mensagem. Links, prazos e valores são repetidos exatamente como estão escritos.",
   },
 };
 

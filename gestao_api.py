@@ -1,16 +1,17 @@
-"""Rotas do cadastro da prefeitura (agente/gestao.py), para as telas do GestorGov.
+"""Rotas do cadastro das organizações (agente/gestao.py), para as telas do GestorGov.
 
-- GET /painel/api/gestao/municipios          os municípios (situação e etapa do onboarding)
-- GET /painel/api/gestao/panorama?municipio=  tudo para desenhar a cidade e o prédio: município, secretaria,
-                                              setores (com atividades, responsável e agentes) e unidades.
-                                              A tela de onboarding pede de novo a cada resposta do assistente.
-- GET /painel/api/gestao/catalogo            tipos de setor, tipos de unidade (cor e ícone dos pinos) e o
-                                              catálogo de atividades
+- GET /painel/api/gestao/organizacoes           as organizações (segmento, situação e etapa da implantação)
+- GET /painel/api/gestao/panorama?organizacao=  tudo para desenhar o mapa e o prédio: a organização (com o
+                                                segmento e os nomes de tela), as áreas (com atividades, responsável
+                                                e agentes), as unidades e a fase da implantação. A tela da
+                                                implantação pede de novo a cada resposta do assistente.
+- GET /painel/api/gestao/catalogo?segmento=     os segmentos (nomes de tela e campos), os tipos de área, os tipos
+                                                de unidade (cor e ícone dos pinos) e o catálogo de atividades
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from agente import gestao
+from agente import gestao, segmentos
 from painel_api import exigir_chave
 
 
@@ -19,32 +20,38 @@ def criar_rotas_gestao() -> APIRouter:
 
     def disponivel() -> None:
         if not gestao.disponivel():
-            raise HTTPException(status_code=503, detail="O cadastro da prefeitura não está disponível neste servidor.")
+            raise HTTPException(status_code=503, detail="O cadastro das organizações não está disponível neste servidor.")
 
-    @rotas.get("/municipios")
-    def municipios() -> dict:
+    @rotas.get("/organizacoes")
+    def organizacoes() -> dict:
         disponivel()
         saida = []
-        for m in gestao.municipios():
-            aberto = gestao.onboarding_aberto(str(m["id"]))
-            saida.append({**gestao._json(m), "etapa": (aberto or {}).get("etapa")})
-        return {"municipios": saida}
+        for o in gestao.organizacoes():
+            aberto = gestao.onboarding_aberto(str(o["id"]))
+            saida.append({**gestao._json(o), "etapa": (aberto or {}).get("etapa")})
+        return {"organizacoes": saida}
 
     @rotas.get("/panorama")
-    def panorama(municipio: str | None = Query(default=None, max_length=40)) -> dict:
+    def panorama(organizacao: str | None = Query(default=None, max_length=40)) -> dict:
         disponivel()
-        mid = municipio or gestao.municipio_padrao()
-        if not mid:
-            return {"municipio": None}
-        dados = gestao.panorama(mid)
-        if not dados:
-            raise HTTPException(status_code=404, detail="Município não encontrado.")
+        oid = organizacao or gestao.organizacao_padrao()
+        if not oid:
+            return {"organizacao": None}
+        dados = gestao.panorama(oid)
+        if not dados.get("organizacao"):
+            raise HTTPException(status_code=404, detail="Organização não encontrada.")
         return dados
 
     @rotas.get("/catalogo")
-    def catalogo() -> dict:
+    def catalogo(segmento: str | None = Query(default=None, max_length=40)) -> dict:
         disponivel()
-        return gestao._json({"tipos_setor": gestao.tipos_setor(), "tipos_unidade": gestao.tipos_unidade(),
-                             "atividades": gestao.modelos_atividade()})
+        tipos = gestao.tipos_area(segmento)
+        ids = {t["id"] for t in tipos}
+        return gestao._json({
+            "segmentos": [s.para_tela() for s in segmentos.SEGMENTOS.values()],
+            "tipos_area": tipos,
+            "tipos_unidade": gestao.tipos_unidade(segmento),
+            "atividades": [a for a in gestao.modelos_atividade() if not segmento or a["tipo_area_id"] in ids],
+        })
 
     return rotas

@@ -55,6 +55,7 @@ import { PageHeader, StatusBadge } from "@/components/widgets/widgets";
 import { IconeAgente, IconeUsuario } from "@/components/chat/icones";
 import { Anexos, ROTULO_FERRAMENTA, type AnexoExibido } from "@/components/chat/anexos";
 import { porArea, useAgentes, useEquipesPublicadas } from "@/hooks/use-agentes";
+import { useRotulos } from "@/hooks/use-permissoes";
 import { UsoNaResposta } from "@/components/conhecimento/uso";
 
 /*
@@ -85,10 +86,11 @@ export type EtapaExibida = EtapaChat & { inicio: number; fim?: number };
 // Perguntas de exemplo de cada agente (as do script dele); um agente novo sem lista usa as do padrão.
 const SUGESTOES: Record<string, string[]> = {
   onboarding: [
-    "Quero implantar o GestorGov no meu município",
+    "Quero implantar a Secretaria de Saúde do meu município",
+    "Quero implantar a minha empresa",
     "Nosso CEP é 01001-000",
     "Importe as unidades do CNES",
-    "Quais setores a secretaria pode ter?",
+    "Quais setores ou departamentos posso ter?",
     "Sugira as atividades da Regulação",
     "O responsável pelas Compras é a Ana",
     "Como está a implantação?",
@@ -111,7 +113,7 @@ const SUGESTOES: Record<string, string[]> = {
     "Quem espera há mais de 90 dias?",
     "Quais especialidades têm vagas sem uso?",
     "Qual o tempo médio de espera em ortopedia?",
-    "Prepare o relatório da fila para o secretário",
+    "Prepare o relatório da fila para o(a) secretário(a)",
   ],
 };
 
@@ -186,9 +188,13 @@ function Ferramentas({ nomes }: { nomes: string[] }) {
 const ETAPA_FERRAMENTA: Record<string, string> = {
   transferir_para_humano: "Transferindo para a equipe",
   encerrar_atendimento: "Encerrando o atendimento",
-  consultar_secretaria: "Consultando a secretaria",
+  consultar_organizacao: "Consultando o cadastro da organização",
+  consultar_dados: "Consultando os dados",
   listar_unidades: "Listando as unidades",
   buscar_municipio: "Buscando o município",
+  registrar_organizacao: "Registrando a organização",
+  pesquisar_na_web: "Pesquisando na web",
+  buscar_endereco: "Buscando o endereço",
   importar_unidades_cnes: "Importando as unidades do CNES",
   update_user_memory: "Registrando na memória",
 };
@@ -430,6 +436,7 @@ function CaixaTexto(props: React.ComponentProps<"textarea">) {
 /* ───────── Tela ───────── */
 
 export function Chat() {
+  const rotulos = useRotulos();
   const qc = useQueryClient();
   const pedido = useSearch({ from: "/protegido/painel/chat" });
   // Com quem se conversa: escolhido antes da primeira mensagem; depois, o da sessão.
@@ -909,7 +916,7 @@ export function Chat() {
       <PageHeader
         title="Chat com os agentes"
         icon={Bot}
-        description="Converse com o agente de cada setor (texto, documentos, planilhas e prints)."
+        description={`Converse com o agente de cada ${rotulos.area} (texto, documentos, planilhas e prints).`}
       />
     <div className="-mx-4 flex min-h-[520px] flex-1 gap-1.5 p-1.5 sm:-mx-8">
       {paineis.sessoes && <aside className="hidden w-64 shrink-0 px-2 py-3 lg:block">{colunaSessoes}</aside>}

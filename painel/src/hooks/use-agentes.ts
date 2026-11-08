@@ -3,7 +3,7 @@ import { api, type AgentePainel, type EquipePainel } from "@/lib/api";
 
 export { porArea, SEM_AREA } from "@/lib/agentes";
 
-/** Os agentes publicados que quem está logado pode ver (a prefeitura vê só os dela). */
+/** Os agentes publicados que quem está logado pode ver (a organização vê só os dela). */
 function useVisiveis() {
   return useQuery({
     queryKey: ["agentes-visiveis"],

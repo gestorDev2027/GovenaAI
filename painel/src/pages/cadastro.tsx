@@ -10,7 +10,7 @@ import { Campo, FormularioCentral } from "./entrar";
 
 const SENHA_MINIMA = 8;
 
-/** Cadastro da prefeitura: a conta do secretário. Depois dele, a implantação com o assistente. */
+/** Cadastro da organização (Secretaria de Saúde ou empresa): a conta de quem implanta. Depois, a implantação com o assistente. */
 export function Cadastro() {
   const qc = useQueryClient();
   const navegar = useNavigate();
@@ -23,7 +23,7 @@ export function Cadastro() {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    document.title = "Cadastrar prefeitura · GestorGov";
+    document.title = "Cadastrar organização · GestorGov";
   }, []);
 
   const senhaCurta = senha.length > 0 && senha.length < SENHA_MINIMA;
@@ -48,8 +48,8 @@ export function Cadastro() {
   return (
     <>
       <FormularioCentral
-        titulo="Cadastrar prefeitura"
-        descricao="Crie a conta do secretário de saúde. Em seguida, o Assistente de Implantação monta a secretaria com você."
+        titulo="Cadastrar organização"
+        descricao="Para Secretarias de Saúde e empresas. Crie a conta de quem vai implantar; em seguida, o Assistente de Implantação monta a organização com você."
       >
         {acesso.data && !acesso.data.aceita_senha && (
           <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning-text">
@@ -60,7 +60,7 @@ export function Cadastro() {
           <Campo id="nome" rotulo="Seu nome completo">
             <Input id="nome" autoComplete="name" required autoFocus minLength={2} value={nome} onChange={(e) => setNome(e.target.value)} className="h-11" />
           </Campo>
-          <Campo id="email" rotulo="E-mail institucional" ajuda="De preferência o e-mail da prefeitura (ex.: saude@municipio.rj.gov.br).">
+          <Campo id="email" rotulo="E-mail institucional" ajuda="De preferência o e-mail institucional (ex.: saude@municipio.rj.gov.br ou voce@empresa.com.br).">
             <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} className="h-11" />
           </Campo>
           <Campo id="senha" rotulo="Senha" ajuda={`Pelo menos ${SENHA_MINIMA} caracteres.`}>

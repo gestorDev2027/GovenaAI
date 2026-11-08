@@ -4,7 +4,8 @@ import { FileText, ImageIcon, Mic } from "lucide-react";
 export const ROTULO_FERRAMENTA: Record<string, string> = {
   transferir_para_humano: "Transferiu para a equipe",
   encerrar_atendimento: "Encerrou a conversa",
-  consultar_secretaria: "Consultou a secretaria",
+  consultar_organizacao: "Consultou o cadastro da organização",
+  consultar_dados: "Consultou os dados",
   listar_unidades: "Listou as unidades",
   update_user_memory: "Registrou na memória",
 };

@@ -1,4 +1,4 @@
-"""Agente das Unidades de Saúde: o modelo copiado para cada prefeitura na implantação (agente/agentes_prefeitura.py)."""
+"""Agente das Unidades de Saúde: o modelo copiado para cada prefeitura na implantação (agente/agentes_organizacao.py)."""
 
 from agente.perfis.setor import perfil_de_setor
 

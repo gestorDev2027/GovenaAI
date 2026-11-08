@@ -166,7 +166,7 @@ def _gravar_sessao(resposta: Response, email: str, nome: str) -> None:
 
 
 def exigir_sessao(painel_sessao: str | None = Cookie(default=None)) -> dict:
-    """Pessoa logada (aprovada ou ainda pendente; bloqueada não): a implantação da própria prefeitura não
+    """Pessoa logada (aprovada ou ainda pendente; bloqueada não): a implantação da própria organização não
     depende da aprovação do dono do painel."""
     sessao = _ler_sessao(painel_sessao)
     if not sessao:
@@ -200,9 +200,9 @@ def exigir_chave(
     raise HTTPException(status_code=401, detail="Chave de acesso inválida ou ausente.")
 
 
-# ── Escopo por prefeitura ──
+# ── Escopo por organização ──
 # None: a equipe da plataforma (ou a chave, ou o servidor local sem chave) vê todos os agentes. Um conjunto: quem é
-# de uma prefeitura vê só os agentes dela (fabrica.agentes_do_municipio) e as conversas deles.
+# de uma organização vê só os agentes dela (fabrica.agentes_da_organizacao) e as conversas deles.
 Escopo = frozenset | None
 
 
@@ -219,7 +219,7 @@ def _escopo_de(painel_sessao: str | None, authorization: str | None, permissao: 
         return None
     contexto = acessos.contexto(email)
     if contexto and "ver_painel" in contexto["permissoes"]:
-        return frozenset(fabrica.agentes_do_municipio(contexto["municipio_id"]))
+        return frozenset(fabrica.agentes_da_organizacao(contexto["organizacao_id"]))
     _conferir_usuario(email, permissao)  # levanta com o motivo
     return None
 
@@ -436,7 +436,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
 
     def _escolhidos(agente_id: str | None, area: str | None, escopo: Escopo = None) -> list[Agent]:
         """Os agentes de um filtro do painel: um agente, os de uma área ou, sem filtro, todos (de quem chama:
-        com escopo, só os da prefeitura dele)."""
+        com escopo, só os da organização dele)."""
         if agente_id:
             if not no_escopo(agente_id, escopo):
                 raise HTTPException(status_code=404, detail="Agente não encontrado.")
@@ -479,8 +479,8 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             "mapbox_token": os.getenv("MAPBOX_TOKEN", "").strip() or None,
             # Com o Google ligado, pessoas entram por ele; a chave fica para rotinas (PAINEL_LOGIN_CHAVE=sim reabre).
             "aceita_chave": not google or os.getenv("PAINEL_LOGIN_CHAVE", "").strip().lower() in ("1", "sim", "true"),
-            # A prefeitura da pessoa (dono ou membro) e as permissões dela lá (agente/acessos.py).
-            "prefeitura": acessos.contexto(sessao["email"]) if sessao else None,
+            # A organização da pessoa (dono ou membro) e as permissões dela lá (agente/acessos.py).
+            "organizacao": acessos.contexto(sessao["email"]) if sessao else None,
             "usuario": {
                 "email": sessao["email"], "nome": sessao.get("nome") or "",
                 "papel": (dele or {}).get("papel"), "situacao": (dele or {}).get("situacao", "pendente"),
@@ -517,7 +517,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
 
     @rotas.post("/cadastro")
     async def cadastro(pedido: PedidoCadastro, resposta: Response) -> dict:
-        """Cadastro pela landing page: cria a conta e já entra. A pessoa vai para a implantação da prefeitura."""
+        """Cadastro pela landing page: cria a conta e já entra. A pessoa vai para a implantação da organização."""
         if not _chave() or not usuarios.disponivel():
             raise HTTPException(status_code=503, detail="O cadastro não está ligado neste servidor (falta OS_SECURITY_KEY).")
         email = pedido.email.strip().lower()
@@ -547,18 +547,18 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         _gravar_sessao(resposta, email, dele["nome"])
         return {"email": email, "nome": dele["nome"], "situacao": dele["situacao"], "papel": dele["papel"]}
 
-    # ───────── Implantação da prefeitura (quem se cadastrou, mesmo antes da aprovação) ─────────
+    # ───────── Implantação da organização (quem se cadastrou, mesmo antes da aprovação) ─────────
 
     def _implantacao_da(email: str) -> tuple[str, str | None]:
-        """A conversa de implantação da conta (uma por pessoa) e o município dela, se já registrado."""
+        """A conversa de implantação da conta (uma por pessoa) e a organização dela, se já registrada."""
         sessao = "implantacao-" + hashlib.sha256(email.encode()).hexdigest()[:16]
-        dela = gestao.municipios_de(email) if gestao.disponivel() else []
+        dela = gestao.organizacoes_de(email) if gestao.disponivel() else []
         return sessao, (str(dela[0]["id"]) if dela else None)
 
     @rotas.get("/implantacao")
     def implantacao(sessao: dict = Depends(exigir_sessao)) -> dict:
         email = sessao["email"]
-        session_id, municipio_id = _implantacao_da(email)
+        session_id, organizacao_id = _implantacao_da(email)
         historico = []
         conversa = _sessao(agente.db, session_id)
         for run in (getattr(conversa, "runs", None) or []):
@@ -571,30 +571,34 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             "conta": {"email": email, "nome": sessao.get("nome") or ""},
             "boas_vindas": perfis.obter(perfis.PADRAO).boas_vindas((sessao.get("nome") or "").split(" ")[0]),
             "historico": historico,
-            "municipio_id": municipio_id,
-            "panorama": gestao.panorama(municipio_id) if municipio_id else None,
+            "organizacao_id": organizacao_id,
+            "panorama": gestao.panorama(organizacao_id) if organizacao_id else None,
         }
 
     @rotas.get("/implantacao/catalogo")
     def implantacao_catalogo(sessao: dict = Depends(exigir_sessao)) -> dict:
-        """Os tipos de unidade (nome e cor), para o quadro da implantação."""
-        return gestao._json({"tipos_unidade": gestao.tipos_unidade()}) if gestao.disponivel() else {"tipos_unidade": []}
+        """Os tipos de unidade (nome e cor) do segmento da organização da conta, para o quadro da implantação."""
+        if not gestao.disponivel():
+            return {"tipos_unidade": []}
+        _, organizacao_id = _implantacao_da(sessao["email"])
+        segmento_id = gestao.segmento_de(organizacao_id).id if organizacao_id else None
+        return gestao._json({"tipos_unidade": gestao.tipos_unidade(segmento_id)})
 
     @rotas.post("/implantacao/mensagem")
     async def implantacao_mensagem(pedido: PedidoImplantacao, sessao: dict = Depends(exigir_sessao)) -> dict:
         email = sessao["email"]
-        session_id, municipio_id = _implantacao_da(email)
+        session_id, organizacao_id = _implantacao_da(email)
         assistente = agentes.get(perfis.PADRAO) or agente
         nome = (sessao.get("nome") or "").split(" ")[0]
         resultado = await run_in_threadpool(
             responder, assistente, session_id, pedido.mensagem.strip(), nome, email, "", None,
             # fase_da_vez: a fase em que a mensagem começou; as ferramentas das fases seguintes esperam a próxima mensagem.
-            {"conta_email": email, "conta_nome": sessao.get("nome") or "", "municipio_id": municipio_id,
-             "fase_da_vez": gestao.fase_atual(municipio_id) if municipio_id else "municipio"},
+            {"conta_email": email, "conta_nome": sessao.get("nome") or "", "organizacao_id": organizacao_id,
+             "fase_da_vez": gestao.fase_atual(organizacao_id) if organizacao_id else "organizacao"},
         )
-        _, municipio_id = _implantacao_da(email)
-        return {**resultado, "municipio_id": municipio_id,
-                "panorama": gestao.panorama(municipio_id) if municipio_id else None}
+        _, organizacao_id = _implantacao_da(email)
+        return {**resultado, "organizacao_id": organizacao_id,
+                "panorama": gestao.panorama(organizacao_id) if organizacao_id else None}
 
     # ───────── Usuários e permissões (agente/usuarios.py) ─────────
 
@@ -629,9 +633,9 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
     def config(agente_id: str | None = Query(default=None, max_length=60, alias="agente"),
                escopo: Escopo = Depends(escopo_painel)) -> dict:
         if escopo is not None and not no_escopo(agente_id, escopo):
-            # Quem é de uma prefeitura não usa o padrão da plataforma: o primeiro agente dela.
+            # Quem é de uma organização não usa o padrão da plataforma: o primeiro agente dela.
             if not escopo:
-                raise HTTPException(status_code=404, detail="Esta prefeitura ainda não tem agentes.")
+                raise HTTPException(status_code=404, detail="Esta organização ainda não tem agentes.")
             agente_id = sorted(escopo)[0]
         # Equipe: a configuração do agente padrão dela (boas-vindas, modelo), com o id e o nome da equipe.
         equipe = equipes.EQUIPES.get(agente_id or "")
@@ -734,7 +738,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             # Conversa em andamento: segue com quem a começou.
             escolhido = _da_sessao(session_id)
         if not no_escopo(escolhido.id, escopo):
-            raise HTTPException(status_code=403, detail="Escolha um dos agentes da sua prefeitura.")
+            raise HTTPException(status_code=403, detail="Escolha um dos agentes da sua organização.")
         anexos = []
         if len(arquivos) > MAX_ANEXOS:
             raise HTTPException(status_code=422, detail=f"Envie no máximo {MAX_ANEXOS} arquivos por mensagem.")
@@ -753,7 +757,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         texto = texto or "(o contato enviou o anexo sem texto)"
 
         if escopo is not None:
-            # Servidor de uma prefeitura: conversa de verdade (conta nos números), com o e-mail e o nome dele.
+            # Pessoa de uma organização: conversa de verdade (conta nos números), com o e-mail e o nome dele.
             sessao_login = _ler_sessao(painel_sessao) or {}
             session_id = session_id or f"servidor-{uuid.uuid4().hex[:12]}"
             nome = (sessao_login.get("nome") or "").split(" ")[0]
@@ -827,7 +831,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
     @rotas.get("/agentes")
     def agentes_visiveis(escopo: Escopo = Depends(escopo_painel)) -> dict:
         """Os agentes publicados que quem chama pode ver (e as equipes, só para a plataforma)."""
-        # O Assistente de Implantação não é um agente da secretaria: fica fora da lista (tem a tela dele, /implantacao).
+        # O Assistente de Implantação não é um agente da organização: fica fora da lista (tem a tela dele, /implantacao).
         lista = [{"id": a.id, **perfis.identidade(a.id)} for a in agentes.values()
                  if perfis.publicado(a.id) and no_escopo(a.id, escopo) and a.id != perfis.PADRAO]
         lista_equipes = ([] if escopo is not None else

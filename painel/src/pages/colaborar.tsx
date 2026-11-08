@@ -10,8 +10,8 @@ import { TelaDeAcesso } from "@/components/publico/tela-de-acesso";
 import { Campo } from "./entrar";
 
 /**
- * Entrada pelo link da implantação: um colaborador da secretaria recebeu o link e o código de segurança de quem está
- * implantando. Com os dois, cria a conta (ou usa a que já tem), entra na prefeitura e continua a implantação.
+ * Entrada pelo link da implantação: um colaborador da organização recebeu o link e o código de segurança de quem está
+ * implantando. Com os dois, cria a conta (ou usa a que já tem), entra na organização e continua a implantação.
  */
 export function ColaborarNaImplantacao() {
   const { token } = useParams({ strict: false }) as { token: string };
@@ -19,7 +19,7 @@ export function ColaborarNaImplantacao() {
   const navegar = useNavigate();
   const link = useQuery({
     queryKey: ["link-implantacao", token],
-    queryFn: () => api<{ municipio: string; convidado_por: string }>(`/implantacao/link/${encodeURIComponent(token)}`),
+    queryFn: () => api<{ organizacao: string; convidado_por: string }>(`/implantacao/link/${encodeURIComponent(token)}`),
     retry: false,
   });
   const [nome, setNome] = useState("");
@@ -69,7 +69,7 @@ export function ColaborarNaImplantacao() {
   }
   return (
     <TelaDeAcesso
-      titulo={`Implantação da Secretaria de Saúde de ${link.data.municipio}`}
+      titulo={`Implantação de ${link.data.organizacao}`}
       descricao={
         <>
           <strong className="text-foreground">{link.data.convidado_por}</strong> compartilhou a implantação com você. Use o código de segurança que

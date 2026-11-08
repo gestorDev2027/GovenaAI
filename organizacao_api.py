@@ -1,31 +1,33 @@
-"""Rotas da prefeitura de quem está logado (agente/acessos.py): o contexto, o panorama, os cargos com as
-permissões, a equipe e os convites. Tudo fica restrito à prefeitura da pessoa; o que ela pode fazer vem do
+"""Rotas da organização de quem está logado (agente/acessos.py): o contexto, o panorama, os cargos com as
+permissões, a equipe e os convites. Tudo fica restrito à organização da pessoa; o que ela pode fazer vem do
 cargo (o dono pode tudo).
 
-- GET  /painel/api/prefeitura/contexto            a prefeitura e as permissões de quem está logado
-- GET  /painel/api/prefeitura/permissoes          o catálogo de permissões e os níveis
-- GET  /painel/api/prefeitura/panorama            o município, as unidades e os setores
-- GET  /painel/api/prefeitura/cep/{cep}           o endereço do CEP (ViaCEP) e o ponto no mapa
-- POST /painel/api/prefeitura/unidades            cadastra uma unidade de saúde
-- PUT  /painel/api/prefeitura/unidades/{id}       altera a unidade e marca como conferida
-- GET  /painel/api/prefeitura/unidades/{id}/fotos as fotos da unidade
-- POST /painel/api/prefeitura/unidades/{id}/fotos envia uma foto (fachada, interior...)
-- GET  /painel/api/prefeitura/fotos/{id}          a imagem
-- POST /painel/api/prefeitura/fotos/{id}/principal  a foto que aparece na ficha
-- DELETE /painel/api/prefeitura/fotos/{id}        apaga a foto
-- GET  /painel/api/prefeitura/cargos              o organograma (cargos, hierarquia, permissões, ocupantes)
-- POST /painel/api/prefeitura/cargos/padrao       monta o organograma padrão do catálogo
-- POST /painel/api/prefeitura/cargos              cria um cargo
-- PUT  /painel/api/prefeitura/cargos/{id}         altera nome, superior, atribuições, permissões ou situação
-- GET  /painel/api/prefeitura/equipe              membros e convites pendentes
-- POST /painel/api/prefeitura/convites            convida (devolve o link)
-- DELETE /painel/api/prefeitura/convites/{id}     cancela um convite
-- POST /painel/api/prefeitura/convites/{id}/aprovar  aprova o acesso que o assistente cadastrou (devolve o link)
-- POST /painel/api/prefeitura/implantacao/link    compartilha a implantação: link + código de segurança (uma vez)
-- GET  /painel/api/implantacao/link/{token}       (aberta) de que prefeitura é o link
+- GET  /painel/api/organizacao/contexto           a organização e as permissões de quem está logado
+- GET  /painel/api/organizacao/permissoes          o catálogo de permissões e os níveis
+- GET  /painel/api/organizacao/panorama           a organização (com o segmento), as áreas e as unidades
+- GET  /painel/api/organizacao/cep/{cep}           o endereço do CEP (ViaCEP) e o ponto no mapa
+- POST /painel/api/organizacao/unidades            cadastra uma unidade
+- PUT  /painel/api/organizacao/unidades/{id}       altera a unidade e marca como conferida
+- GET  /painel/api/organizacao/unidades/{id}/fotos as fotos da unidade
+- POST /painel/api/organizacao/unidades/{id}/fotos envia uma foto (fachada, interior...)
+- GET  /painel/api/organizacao/fotos/{id}          a imagem
+- POST /painel/api/organizacao/fotos/{id}/principal  a foto que aparece na ficha
+- DELETE /painel/api/organizacao/fotos/{id}        apaga a foto
+- GET  /painel/api/organizacao/agentes             os agentes da organização, com a ficha e o catálogo de dados
+- PUT  /painel/api/organizacao/agentes/{id}/ficha  altera a ficha (características, memória, dados, escopo)
+- GET  /painel/api/organizacao/cargos              o organograma (cargos, hierarquia, permissões, ocupantes)
+- POST /painel/api/organizacao/cargos/padrao       monta o organograma padrão do catálogo
+- POST /painel/api/organizacao/cargos              cria um cargo
+- PUT  /painel/api/organizacao/cargos/{id}         altera nome, superior, atribuições, permissões ou situação
+- GET  /painel/api/organizacao/equipe              membros e convites pendentes
+- POST /painel/api/organizacao/convites            convida (devolve o link)
+- DELETE /painel/api/organizacao/convites/{id}     cancela um convite
+- POST /painel/api/organizacao/convites/{id}/aprovar  aprova o acesso que o assistente cadastrou (devolve o link)
+- POST /painel/api/organizacao/implantacao/link    compartilha a implantação: link + código de segurança (uma vez)
+- GET  /painel/api/implantacao/link/{token}       (aberta) de que organização é o link
 - POST /painel/api/implantacao/link/{token}       (aberta) entra com o código: cria a conta (ou confere a senha),
-                                                  vira membro da prefeitura e continua a implantação
-- PUT  /painel/api/prefeitura/membros/{email}     muda o cargo ou bloqueia/desbloqueia
+                                                  vira membro da organização e continua a implantação
+- PUT  /painel/api/organizacao/membros/{email}     muda o cargo ou bloqueia/desbloqueia
 - GET  /painel/api/convite/{token}                (aberta) os dados do convite
 - POST /painel/api/convite/{token}                (aberta) aceita: cria a conta com a senha e entra
 """
@@ -84,6 +86,14 @@ class PedidoLinkImplantacao(BaseModel):
     codigo: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
+class PedidoFicha(BaseModel):
+    caracteristicas: dict | None = None
+    memoria: dict | None = None
+    permissoes: dict[str, list[str]] | None = None
+    escopo: str | None = Field(default=None, max_length=20)
+    integracoes: list[str] | None = Field(default=None, max_length=50)
+
+
 class PedidoAceite(BaseModel):
     nome: str = Field(min_length=2, max_length=120)
     senha: str = Field(min_length=8, max_length=200)
@@ -94,7 +104,7 @@ def _erro(erro: acessos.ErroAcesso) -> HTTPException:
 
 
 def _precisa(permissao: str):
-    """Dependência: pessoa logada, membro ativo de uma prefeitura, com a permissão. Devolve (e-mail, contexto)."""
+    """Dependência: pessoa logada, membro ativo de uma organização, com a permissão. Devolve (e-mail, contexto)."""
     def conferir(sessao: dict = Depends(exigir_sessao)) -> tuple[str, dict]:
         try:
             return sessao["email"], acessos.pode(sessao["email"], permissao)
@@ -103,38 +113,40 @@ def _precisa(permissao: str):
     return conferir
 
 
-def criar_rotas_prefeitura() -> APIRouter:
-    rotas = APIRouter(prefix="/painel/api", tags=["GestorGov · Prefeitura"])
+def criar_rotas_organizacao() -> APIRouter:
+    rotas = APIRouter(prefix="/painel/api", tags=["GestorGov · Organização"])
 
     def disponivel() -> None:
         if not gestao.disponivel():
-            raise HTTPException(status_code=503, detail="O cadastro da prefeitura não está disponível neste servidor.")
+            raise HTTPException(status_code=503, detail="O cadastro das organizações não está disponível neste servidor.")
 
-    @rotas.get("/prefeitura/contexto")
+    @rotas.get("/organizacao/contexto")
     def contexto(sessao: dict = Depends(exigir_sessao)) -> dict:
         disponivel()
-        return {"prefeitura": acessos.contexto(sessao["email"])}
+        return {"organizacao": acessos.contexto(sessao["email"])}
 
-    @rotas.get("/prefeitura/permissoes")
+    @rotas.get("/organizacao/permissoes")
     def permissoes(_: dict = Depends(exigir_sessao)) -> dict:
         return {"permissoes": [{"id": k, "rotulo": r, "descricao": d} for k, (r, d) in acessos.PERMISSOES.items()],
                 "niveis": list(acessos.NIVEIS), "padrao_por_nivel": acessos.PADRAO_POR_NIVEL}
 
-    @rotas.get("/prefeitura/panorama")
+    @rotas.get("/organizacao/panorama")
     def panorama(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
-        return gestao.panorama(quem[1]["municipio_id"]) or {"municipio": None}
+        return gestao.panorama(quem[1]["organizacao_id"]) or {"organizacao": None}
 
-    # ───────── Unidades de saúde ─────────
+    # ───────── Unidades ─────────
 
-    @rotas.get("/prefeitura/cep/{cep}")
+    @rotas.get("/organizacao/cep/{cep}")
     async def cep(cep: str, numero: str = Query(default="", max_length=20),
                   quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:
-        """O endereço do CEP e o ponto no mapa. `do_municipio` diz se o CEP é do município de quem pede."""
+        """O endereço do CEP e o ponto no mapa. `da_cidade` diz se o CEP é da cidade da organização de quem pede."""
         achado = await run_in_threadpool(gestao.endereco_por_cep, cep, numero)
         if not achado:
             raise HTTPException(status_code=404, detail="CEP não encontrado no ViaCEP. Confira os 8 dígitos.")
-        mun = gestao.municipio(quem[1]["municipio_id"]) or {}
-        return {**achado, "do_municipio": str(achado.get("codigo_ibge") or "") == str(mun.get("codigo_ibge") or "")}
+        org = gestao.organizacao(quem[1]["organizacao_id"]) or {}
+        # Sem código IBGE na organização (uma empresa sem a cidade cadastrada), não há com o que comparar: null.
+        da_cidade = (str(achado.get("codigo_ibge") or "") == str(org["codigo_ibge"])) if org.get("codigo_ibge") else None
+        return {**achado, "da_cidade": da_cidade}
 
     def _unidade_ou_404(acao):
         try:
@@ -144,105 +156,139 @@ def criar_rotas_prefeitura() -> APIRouter:
         except ValueError as erro:
             raise HTTPException(status_code=422, detail=str(erro)) from erro
 
-    @rotas.post("/prefeitura/unidades", status_code=201)
+    @rotas.post("/organizacao/unidades", status_code=201)
     def criar_unidade(pedido: PedidoUnidade, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:
         dados = pedido.model_dump(exclude_none=True)
         if not dados.get("nome") or not dados.get("tipo_id"):
             raise HTTPException(status_code=422, detail="Informe o nome e o tipo da unidade.")
-        if dados["tipo_id"] not in {t["id"] for t in gestao.tipos_unidade()}:
+        if dados["tipo_id"] not in {t["id"] for t in gestao.tipos_unidade(quem[1].get("segmento_id"))}:
             raise HTTPException(status_code=422, detail="Tipo de unidade inválido.")
         conferida = dados.pop("conferida", True)
         dados.pop("situacao", None)
-        return gestao.salvar_unidade(quem[1]["municipio_id"], quem=quem[0], origem="manual", confirmada=conferida,
-                                     origem_auditoria="painel", **dados)
+        return gestao.salvar_unidade(quem[1]["organizacao_id"], quem=quem[0], origem="manual", confirmada=conferida,
+                                     origem_auditoria="pessoa", **dados)
 
-    @rotas.put("/prefeitura/unidades/{unidade_id}")
+    @rotas.put("/organizacao/unidades/{unidade_id}")
     def alterar_unidade(unidade_id: str, pedido: PedidoUnidade, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:
         dados = pedido.model_dump(exclude_unset=True)
         conferida = dados.pop("conferida", None)
-        return _unidade_ou_404(lambda: gestao.alterar_unidade(quem[1]["municipio_id"], unidade_id, dados, quem[0], conferida))
+        return _unidade_ou_404(lambda: gestao.alterar_unidade(quem[1]["organizacao_id"], unidade_id, dados, quem[0], conferida))
 
-    @rotas.get("/prefeitura/unidades/{unidade_id}/fotos")
+    @rotas.get("/organizacao/unidades/{unidade_id}/fotos")
     def fotos(unidade_id: str, quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
-        return {"fotos": gestao._json(gestao.fotos(quem[1]["municipio_id"], unidade_id))}
+        return {"fotos": gestao._json(gestao.fotos(quem[1]["organizacao_id"], unidade_id))}
 
-    @rotas.post("/prefeitura/unidades/{unidade_id}/fotos", status_code=201)
+    @rotas.post("/organizacao/unidades/{unidade_id}/fotos", status_code=201)
     async def enviar_foto(unidade_id: str, arquivo: UploadFile = File(...), tipo: str = Form(default="fachada"),
                           legenda: str = Form(default="", max_length=200),
                           quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:
         conteudo = await arquivo.read(gestao.MAX_BYTES_FOTO + 1)
         return await run_in_threadpool(_unidade_ou_404, lambda: gestao.salvar_foto(
-            quem[1]["municipio_id"], unidade_id, conteudo, quem[0], tipo, legenda))
+            quem[1]["organizacao_id"], unidade_id, conteudo, quem[0], tipo, legenda))
 
-    @rotas.get("/prefeitura/fotos/{foto_id}")
+    @rotas.get("/organizacao/fotos/{foto_id}")
     async def ver_foto(foto_id: str, quem: tuple = Depends(_precisa("ver_painel"))) -> Response:
-        conteudo = await run_in_threadpool(_unidade_ou_404, lambda: gestao.conteudo_foto(quem[1]["municipio_id"], foto_id))
+        conteudo = await run_in_threadpool(_unidade_ou_404, lambda: gestao.conteudo_foto(quem[1]["organizacao_id"], foto_id))
         # A foto não muda (uma foto nova tem outro id): pode ficar no navegador.
         return Response(conteudo, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
 
-    @rotas.post("/prefeitura/fotos/{foto_id}/principal", status_code=204)
+    @rotas.post("/organizacao/fotos/{foto_id}/principal", status_code=204)
     def foto_principal(foto_id: str, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> None:
-        _unidade_ou_404(lambda: gestao.tornar_principal(quem[1]["municipio_id"], foto_id, quem[0]))
+        _unidade_ou_404(lambda: gestao.tornar_principal(quem[1]["organizacao_id"], foto_id, quem[0]))
 
-    @rotas.delete("/prefeitura/fotos/{foto_id}", status_code=204)
+    @rotas.delete("/organizacao/fotos/{foto_id}", status_code=204)
     def apagar_foto(foto_id: str, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> None:
-        _unidade_ou_404(lambda: gestao.apagar_foto(quem[1]["municipio_id"], foto_id, quem[0]))
+        _unidade_ou_404(lambda: gestao.apagar_foto(quem[1]["organizacao_id"], foto_id, quem[0]))
+
+    # ───────── Agentes da organização: a ficha ─────────
+
+    def _dados_erro(acao):
+        from agente import dados_agente
+
+        try:
+            return acao()
+        except dados_agente.ErroDados as erro:
+            raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
+
+    @rotas.get("/organizacao/agentes")
+    def agentes_da_organizacao(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        from agente import dados_agente, fabrica, perfis
+
+        oid = quem[1]["organizacao_id"]
+        nomes = {str(s["id"]): s["nome"] for s in gestao.areas(oid)}
+        areas_de: dict[str, list[str]] = {}
+        for a in gestao.agentes_area(oid):
+            areas_de.setdefault(a["agente_id"], []).append(nomes.get(str(a["area_id"]), ""))
+        lista = [{"id": aid, **perfis.identidade(aid), "areas": areas_de.get(aid, []), "ficha": dados_agente.ficha(aid)}
+                 for aid in fabrica.agentes_da_organizacao(oid) if perfis.existe(aid)]
+        return {"agentes": lista,
+                "dominios": [{"id": k, "nome": n, "descricao": d, "operacoes": list(o)} for k, (n, d, o) in dados_agente.DOMINIOS.items()],
+                "autonomias": [{"id": k, "nome": n} for k, n in dados_agente.AUTONOMIAS.items()], "tons": list(dados_agente.TONS)}
+
+    @rotas.put("/organizacao/agentes/{agente_id}/ficha")
+    def salvar_ficha(agente_id: str, pedido: PedidoFicha, quem: tuple = Depends(_precisa("criar_agentes"))) -> dict:
+        from agente import dados_agente, fabrica
+
+        oid = quem[1]["organizacao_id"]
+        if agente_id not in fabrica.agentes_da_organizacao(oid):
+            raise HTTPException(status_code=404, detail="Agente não encontrado nesta organização.")
+        return _dados_erro(lambda: dados_agente.salvar_ficha(oid, agente_id, pedido.model_dump(exclude_none=True), quem[0]))
 
     # ───────── Organograma ─────────
 
-    @rotas.get("/prefeitura/cargos")
+    @rotas.get("/organizacao/cargos")
     def listar_cargos(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
-        return {"cargos": acessos.cargos(quem[1]["municipio_id"])}
+        return {"cargos": acessos.cargos(quem[1]["organizacao_id"])}
 
-    @rotas.post("/prefeitura/cargos/padrao")
+    @rotas.post("/organizacao/cargos/padrao")
     async def organograma_padrao(quem: tuple = Depends(_precisa("gerenciar_cargos"))) -> dict:
-        criados = await run_in_threadpool(acessos.montar_organograma_padrao, quem[1]["municipio_id"], quem[0])
-        return {"criados": criados, "cargos": acessos.cargos(quem[1]["municipio_id"])}
+        criados = await run_in_threadpool(acessos.montar_organograma_padrao, quem[1]["organizacao_id"], quem[0])
+        return {"criados": criados, "cargos": acessos.cargos(quem[1]["organizacao_id"])}
 
-    @rotas.post("/prefeitura/cargos")
+    @rotas.post("/organizacao/cargos")
     def criar_cargo(pedido: PedidoCargo, quem: tuple = Depends(_precisa("gerenciar_cargos"))) -> dict:
         if not pedido.nome:
             raise HTTPException(status_code=422, detail="Dê um nome ao cargo.")
         try:
-            return acessos.criar_cargo(quem[1]["municipio_id"], pedido.model_dump(exclude_unset=True), quem[0])
+            return acessos.criar_cargo(quem[1]["organizacao_id"], pedido.model_dump(exclude_unset=True), quem[0])
         except acessos.ErroAcesso as erro:
             raise _erro(erro) from erro
 
-    @rotas.put("/prefeitura/cargos/{cargo_id}")
+    @rotas.put("/organizacao/cargos/{cargo_id}")
     def alterar_cargo(cargo_id: str, pedido: PedidoCargo, quem: tuple = Depends(_precisa("gerenciar_cargos"))) -> dict:
         try:
-            return acessos.alterar_cargo(quem[1]["municipio_id"], cargo_id, pedido.model_dump(exclude_unset=True), quem[0])
+            return acessos.alterar_cargo(quem[1]["organizacao_id"], cargo_id, pedido.model_dump(exclude_unset=True), quem[0])
         except acessos.ErroAcesso as erro:
             raise _erro(erro) from erro
 
-    @rotas.get("/prefeitura/equipe")
+    @rotas.get("/organizacao/equipe")
     def equipe(quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> dict:
-        return acessos.equipe(quem[1]["municipio_id"])
+        return acessos.equipe(quem[1]["organizacao_id"])
 
-    @rotas.post("/prefeitura/convites")
+    @rotas.post("/organizacao/convites")
     def convidar(pedido: PedidoConvite, pedido_http: Request, quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> dict:
         try:
-            token = acessos.convidar(quem[1]["municipio_id"], pedido.email, pedido.nome, pedido.cargo_id, quem[0])
+            token = acessos.convidar(quem[1]["organizacao_id"], pedido.email, pedido.nome, pedido.cargo_id, quem[0])
         except acessos.ErroAcesso as erro:
             raise _erro(erro) from erro
         base = str(pedido_http.base_url).rstrip("/")
         return {"link": f"{base}/painel/convite/{token}", "validade_dias": acessos.VALIDADE_CONVITE.days}
 
-    @rotas.post("/prefeitura/convites/{convite_id}/aprovar")
+    @rotas.post("/organizacao/convites/{convite_id}/aprovar")
     def aprovar_convite(convite_id: str, pedido_http: Request, quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> dict:
         """O acesso que o Assistente de Implantação cadastrou passa a valer: devolve o link de entrada da pessoa."""
         try:
-            token = acessos.aprovar_convite(quem[1]["municipio_id"], convite_id, quem[0])
+            token = acessos.aprovar_convite(quem[1]["organizacao_id"], convite_id, quem[0])
         except acessos.ErroAcesso as erro:
             raise _erro(erro) from erro
         base = str(pedido_http.base_url).rstrip("/")
         return {"link": f"{base}/painel/convite/{token}", "validade_dias": acessos.VALIDADE_CONVITE.days}
 
-    @rotas.post("/prefeitura/implantacao/link")
+    @rotas.post("/organizacao/implantacao/link")
     def compartilhar_implantacao(pedido_http: Request, quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> dict:
-        """Um link para outro colaborador da secretaria continuar a implantação, com o código de segurança. Os dois só
+        """Um link para outro colaborador da organização continuar a implantação, com o código de segurança. Os dois só
         aparecem agora: mande o link e o código por canais diferentes (ex.: e-mail e telefone)."""
-        token, codigo = acessos.criar_link_implantacao(quem[1]["municipio_id"], quem[0])
+        token, codigo = acessos.criar_link_implantacao(quem[1]["organizacao_id"], quem[0])
         base = str(pedido_http.base_url).rstrip("/")
         return {"link": f"{base}/painel/colaborar/{token}", "codigo": codigo, "validade_dias": acessos.VALIDADE_LINK.days}
 
@@ -279,24 +325,24 @@ def criar_rotas_prefeitura() -> APIRouter:
         except acessos.ErroAcesso as erro:
             raise _erro(erro) from erro
         _gravar_sessao(resposta, email, pedido.nome.strip())
-        return {"municipio": dados["municipio"]}
+        return {"organizacao": dados["organizacao"]}
 
-    @rotas.delete("/prefeitura/convites/{convite_id}", status_code=204)
+    @rotas.delete("/organizacao/convites/{convite_id}", status_code=204)
     def cancelar_convite(convite_id: str, quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> None:
         try:
-            acessos.cancelar_convite(quem[1]["municipio_id"], convite_id, quem[0])
+            acessos.cancelar_convite(quem[1]["organizacao_id"], convite_id, quem[0])
         except acessos.ErroAcesso as erro:
             raise _erro(erro) from erro
 
-    @rotas.put("/prefeitura/membros/{email}")
+    @rotas.put("/organizacao/membros/{email}")
     def alterar_membro(email: str, pedido: PedidoMembro, quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> dict:
         if email.strip().lower() == quem[0]:
             raise HTTPException(status_code=403, detail="Você não pode alterar o próprio acesso.")
         try:
-            acessos.alterar_membro(quem[1]["municipio_id"], email, pedido.model_dump(exclude_unset=True), quem[0])
+            acessos.alterar_membro(quem[1]["organizacao_id"], email, pedido.model_dump(exclude_unset=True), quem[0])
         except acessos.ErroAcesso as erro:
             raise _erro(erro) from erro
-        return acessos.equipe(quem[1]["municipio_id"])
+        return acessos.equipe(quem[1]["organizacao_id"])
 
     # ───────── Convite (aberto: quem recebeu o link ainda não tem conta) ─────────
 
@@ -307,7 +353,7 @@ def criar_rotas_prefeitura() -> APIRouter:
             dados = acessos.ler_convite(token)
         except acessos.ErroAcesso as erro:
             raise _erro(erro) from erro
-        return {k: dados[k] for k in ("email", "nome", "municipio", "cargo")}
+        return {k: dados[k] for k in ("email", "nome", "organizacao", "cargo")}
 
     @rotas.post("/convite/{token}")
     async def aceitar_convite(token: str, pedido: PedidoAceite, resposta: Response) -> dict:
@@ -331,6 +377,6 @@ def criar_rotas_prefeitura() -> APIRouter:
                 raise HTTPException(status_code=401, detail="Este e-mail já tem conta: use a senha dela para aceitar.") from erro
         await run_in_threadpool(acessos.aceitar_convite, token, pedido.nome)
         _gravar_sessao(resposta, email, pedido.nome.strip())
-        return {"email": email, "municipio": convite["municipio"], "cargo": convite["cargo"]}
+        return {"email": email, "organizacao": convite["organizacao"], "cargo": convite["cargo"]}
 
     return rotas

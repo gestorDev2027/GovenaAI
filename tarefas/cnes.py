@@ -1,4 +1,4 @@
-"""Importação das unidades de saúde do CNES (dados abertos do Ministério da Saúde) para o cadastro do município.
+"""Importação das unidades de saúde do CNES (dados abertos do Ministério da Saúde) para o cadastro da organização (Secretaria de Saúde).
 
 As páginas da API vêm em paralelo (gestao.unidades_cnes) e cada unidade é gravada "a conferir", pelo código CNES:
 repetir a importação atualiza as mesmas unidades, sem duplicar. O agente das unidades é criado depois, pelo servidor
@@ -8,17 +8,19 @@ web (agente/ferramentas_gestao.py), porque ele entra no AgentOS que está rodand
 from agente import gestao, segundo_plano
 
 
-def importar_cnes(execucao_id: str, municipio_id: str) -> dict:
+def importar_cnes(execucao_id: str, organizacao_id: str) -> dict:
     ctx = (segundo_plano.andamento(execucao_id) or {}).get("contexto") or {}
     quem, sessao = ctx.get("quem") or "onboarding", ctx.get("session_id")
-    mun = gestao.municipio(municipio_id)
-    if not mun:
-        raise LookupError(f"Município {municipio_id} não existe.")
-    brutas = gestao.unidades_cnes(mun["codigo_ibge"])  # um erro de rede sobe: a tarefa tenta de novo
+    org = gestao.organizacao(organizacao_id)
+    if not org:
+        raise LookupError(f"Organização {organizacao_id} não existe.")
+    if not org.get("codigo_ibge"):
+        return {"importadas": 0, "por_tipo": {}, "particulares_fora": 0, "motivo": "organização sem código IBGE"}
+    brutas = gestao.unidades_cnes(org["codigo_ibge"])  # um erro de rede sobe: a tarefa tenta de novo
     if not brutas:
         return {"importadas": 0, "por_tipo": {}, "particulares_fora": 0, "motivo": "sem resultados"}
     por_codigo = {}
-    for tipo in gestao.tipos_unidade():
+    for tipo in gestao.tipos_unidade(org.get("segmento_id")):
         for codigo in tipo.get("codigos_cnes") or []:
             por_codigo[str(codigo).zfill(2)] = tipo["id"]
     # Só as unidades públicas e as conveniadas ao SUS: consultórios e clínicas particulares ficam de fora.
@@ -32,7 +34,7 @@ def importar_cnes(execucao_id: str, municipio_id: str) -> dict:
         lng = u.get("longitude_estabelecimento_decimo_grau") or u.get("longitude")
         endereco = " ".join(str(x) for x in (u.get("endereco_estabelecimento"), u.get("numero_estabelecimento")) if x)
         gestao.salvar_unidade(
-            municipio_id, nome=u.get("nome_fantasia") or u.get("nome_razao_social") or "Unidade sem nome",
+            organizacao_id, nome=u.get("nome_fantasia") or u.get("nome_razao_social") or "Unidade sem nome",
             tipo_id=tipo_id, cnes=str(u.get("codigo_cnes") or ""), endereco=endereco,
             bairro=u.get("bairro_estabelecimento") or "", cep=str(u.get("codigo_cep_estabelecimento") or ""),
             latitude=float(lat) if lat not in (None, "") else None,

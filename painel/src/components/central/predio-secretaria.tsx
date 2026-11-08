@@ -10,13 +10,14 @@ import { Balcao, Banner, Cadeira, DivisoriaVidro, Estacao, Estante, PALETAS, Pla
 import { ControleCamera, PisoClicavel, Projetor, useEscuro, type Alvo, type ApiCamera, type Retangulo, type Rotulo } from "./escritorio";
 
 /*
- * O prédio (da Secretaria de Saúde ou de uma unidade de saúde, pages/unidade.tsx) pelo cadastro da prefeitura: cada SETOR é uma sala de vidro, com o agente do
- * setor sentado na mesa dele, a placa com o nome e o responsável. No centro, o CCO (Centro de Comando e Operações),
- * de onde a secretaria acompanha tudo. As salas nascem na implantação: setor novo, sala nova; agente ligado ao
- * setor, robô na mesa. Quando um agente trabalha (ao vivo), o rosto dele muda (pensando, feliz, alerta).
+ * O prédio (da organização ou de uma unidade, pages/unidade.tsx) pelo cadastro: cada ÁREA (setor na saúde,
+ * departamento na empresa) é uma sala de vidro, com o agente da área sentado na mesa dele, a placa com o nome e o
+ * responsável. No centro, o CCO (ou a sala de comando, na empresa), de onde a organização acompanha tudo. As salas
+ * nascem na implantação: área nova, sala nova; agente ligado à área, robô na mesa. Quando um agente trabalha (ao
+ * vivo), o rosto dele muda (pensando, feliz, alerta).
  */
 
-export interface SetorNoPredio {
+export interface AreaNoPredio {
   id: string;
   nome: string;
   responsavel?: { nome: string } | null;
@@ -29,7 +30,7 @@ export interface AgenteNoPredio {
   nome: string;
   cor?: string | null;
 }
-export type SelecaoPredio = { tipo: "setor" | "agente" | "cco"; id: string } | null;
+export type SelecaoPredio = { tipo: "area" | "agente" | "cco"; id: string } | null;
 
 // Medidas (metros da cena).
 const SALA_L = 7;
@@ -55,23 +56,23 @@ const REACOES: Partial<Record<EventoCentral["tipo"], [Humor, number]>> = {
 };
 
 interface Sala {
-  setor: SetorNoPredio;
+  area: AreaNoPredio;
   ret: Retangulo;
   cor: string;
   /** A sala fica na fileira de cima (porta para +z) ou de baixo (porta para -z). */
   cima: boolean;
 }
 
-function montarPlanta(setores: SetorNoPredio[]) {
-  const colunas = Math.max(2, Math.ceil(setores.length / 2));
+function montarPlanta(areas: AreaNoPredio[]) {
+  const colunas = Math.max(2, Math.ceil(areas.length / 2));
   const largura = colunas * SALA_L;
   const x0 = -largura / 2;
-  const salas: Sala[] = setores.map((setor, i) => {
+  const salas: Sala[] = areas.map((area, i) => {
     const cima = i < colunas;
     const col = cima ? i : i - colunas;
     const z0 = cima ? -MEIO / 2 - SALA_P : MEIO / 2;
     return {
-      setor,
+      area,
       cima,
       cor: CORES[i % CORES.length],
       ret: { x0: x0 + col * SALA_L, x1: x0 + (col + 1) * SALA_L, z0, z1: z0 + SALA_P },
@@ -83,7 +84,7 @@ function montarPlanta(setores: SetorNoPredio[]) {
 }
 
 export default function PredioSecretaria({
-  setores,
+  areas,
   agentes,
   eventos,
   inicio,
@@ -96,6 +97,7 @@ export default function PredioSecretaria({
   nomePredio = "Secretaria Municipal de Saúde",
   totem,
   centro: tipoCentro = "cco",
+  rotuloCentro,
   tetoDeVidro = false,
 }: {
   /** Aberto, mostra um teto de vidro por cima das salas (não parece inacabado; não atrapalha o clique). */
@@ -103,9 +105,11 @@ export default function PredioSecretaria({
   /** O nome na fachada e as linhas do totem da entrada. */
   nomePredio?: string;
   totem?: string[];
-  /** A sala do meio: o CCO (secretaria) ou a recepção (unidade). */
+  /** A sala do meio: o centro de comando (organização) ou a recepção (unidade). */
   centro?: "cco" | "recepcao";
-  setores: SetorNoPredio[];
+  /** O nome do centro de comando na placa (rotulos.centro: "CCO" ou "Sala de comando"). */
+  rotuloCentro?: string;
+  areas: AreaNoPredio[];
   agentes: AgenteNoPredio[];
   eventos: EventoCentral[];
   inicio: number | null;
@@ -118,7 +122,7 @@ export default function PredioSecretaria({
 }) {
   const escuro = useEscuro();
   const p = escuro ? PALETAS.escuro : PALETAS.claro;
-  const planta = useMemo(() => montarPlanta(setores), [setores]);
+  const planta = useMemo(() => montarPlanta(areas), [areas]);
   const predio = useMemo(
     () => ({ x0: planta.x0 - 0.5, x1: planta.x1 + 0.5, z0: planta.z0 - 0.5, z1: planta.z1 + 0.5 }),
     [planta],
@@ -134,7 +138,7 @@ export default function PredioSecretaria({
       altura: ANDAR + PE_DIREITO + 2,
     };
   }, [aberto, planta, predio]);
-  const salaEmFoco = selecao?.tipo === "setor" ? planta.salas.find((s) => s.setor.id === selecao.id) : undefined;
+  const salaEmFoco = selecao?.tipo === "area" ? planta.salas.find((s) => s.area.id === selecao.id) : undefined;
   const foco = useMemo<Alvo | null>(() => {
     if (!salaEmFoco) return null;
     const r = salaEmFoco.ret;
@@ -165,15 +169,15 @@ export default function PredioSecretaria({
 
   const rotulos: Rotulo[] = [
     ...planta.salas.map((s) => {
-      const agente = s.setor.agentes[0]?.agente_id;
-      const ativa = selecao?.tipo === "setor" && selecao.id === s.setor.id;
+      const agente = s.area.agentes[0]?.agente_id;
+      const ativa = selecao?.tipo === "area" && selecao.id === s.area.id;
       return {
-        id: `sala-${s.setor.id}`,
+        id: `sala-${s.area.id}`,
         posicao: new THREE.Vector3((s.ret.x0 + s.ret.x1) / 2, 3.1, s.cima ? s.ret.z1 - 0.4 : s.ret.z0 + 0.4),
         conteudo: (
           <button
             type="button"
-            onClick={() => aoSelecionar({ tipo: "setor", id: s.setor.id })}
+            onClick={() => aoSelecionar({ tipo: "area", id: s.area.id })}
             className={cn(
               "flex max-w-56 flex-col items-start rounded-xl border bg-white/95 px-2.5 py-1.5 text-left shadow-md backdrop-blur dark:bg-[#0D1B38]/90",
               ativa ? "border-[#1A63D8] ring-2 ring-[#1A63D8]/40" : "border-white/60 dark:border-white/10",
@@ -181,10 +185,10 @@ export default function PredioSecretaria({
           >
             <span className="flex items-center gap-1.5 text-[12px] leading-tight font-semibold text-[#0D1B38] dark:text-white">
               <span className="size-2 shrink-0 rounded-full" style={{ background: s.cor }} />
-              {s.setor.nome}
+              {s.area.nome}
             </span>
             <span className="text-[10px] leading-tight text-[#424E6B] dark:text-white/70">
-              {s.setor.detalhe ?? `${agente ? nomeDe(agente) : "sem agente"} · ${s.setor.responsavel?.nome ?? "sem responsável"}`}
+              {s.area.detalhe ?? `${agente ? nomeDe(agente) : "sem agente"} · ${s.area.responsavel?.nome ?? "sem responsável"}`}
             </span>
           </button>
         ),
@@ -199,7 +203,7 @@ export default function PredioSecretaria({
           onClick={() => aoSelecionar({ tipo: "cco", id: "cco" })}
           className="rounded-full border border-[#F4B800]/60 bg-[#0D1B38]/90 px-3 py-1 text-[12px] font-semibold text-white shadow-md"
         >
-          {tipoCentro === "cco" ? "CCO · Centro de Comando" : "Recepção e acolhimento"}
+          {tipoCentro === "cco" ? (rotuloCentro && rotuloCentro !== "CCO" ? rotuloCentro : "CCO · Centro de Comando") : "Recepção e acolhimento"}
         </button>
       ),
     },
@@ -237,16 +241,16 @@ export default function PredioSecretaria({
           <meshStandardMaterial color={p.piso} roughness={0.55} metalness={0.15} />
         </mesh>
 
-        {/* As salas dos setores */}
+        {/* As salas das áreas */}
         {planta.salas.map((s) => {
-          const agente = s.setor.agentes[0]?.agente_id;
+          const agente = s.area.agentes[0]?.agente_id;
           return (
-            <SalaDoSetor
-              key={s.setor.id}
+            <SalaDaArea
+              key={s.area.id}
               sala={s}
               p={p}
-              ativa={selecao?.tipo === "setor" && selecao.id === s.setor.id}
-              aoSelecionar={() => aoSelecionar({ tipo: "setor", id: s.setor.id })}
+              ativa={selecao?.tipo === "area" && selecao.id === s.area.id}
+              aoSelecionar={() => aoSelecionar({ tipo: "area", id: s.area.id })}
               agente={agente ? { id: agente, cor: corDe(agente, s.cor) } : null}
               agenteDestacado={selecao?.tipo === "agente" && selecao.id === agente}
               ocupado={!!agente && Date.now() - (ativos[agente] ?? 0) < 120_000}
@@ -305,7 +309,7 @@ function Parede({ p, de, ate, em, emZ = false, porta = false }: { p: Paleta; de:
   );
 }
 
-function SalaDoSetor({
+function SalaDaArea({
   sala,
   p,
   ativa,
