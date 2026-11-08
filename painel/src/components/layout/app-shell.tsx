@@ -11,11 +11,13 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   CircleHelp,
   Landmark,
   Network,
   Rocket,
   UserCog,
+  Workflow,
   Factory,
   ExternalLink,
   LayoutGrid,
@@ -33,6 +35,7 @@ import { api, sair, type Acesso, type Config, type Permissao, type PermissaoOrga
 import { useDaPlataforma, usePode, usePodeNaOrganizacao, useRotulos } from "@/hooks/use-permissoes";
 import { ROTULOS_SAUDE } from "@/lib/rotulos";
 import { useUsuarios } from "@/pages/usuarios";
+import { useContagemAprovacoes } from "@/pages/aprovacoes";
 import { useTheme } from "@/hooks/use-theme";
 import { Logo, LogoIcone } from "./logo";
 
@@ -72,7 +75,9 @@ const secoesDo = (r: Rotulos): Secao[] => [
       { to: "/comando", rotulo: r.mapa, icone: MapPinned, novaAba: true, naOrganizacao: "ver_painel" },
       { to: "/secretaria", rotulo: r.predio, icone: Building2, novaAba: true, naOrganizacao: "ver_painel" },
       { to: "/cidade", rotulo: r.Unidades, icone: Radar, naOrganizacao: "ver_painel" },
+      { to: "/aprovacoes", rotulo: "Aprovações", icone: ClipboardCheck, naOrganizacao: "ver_painel" },
       { to: "/agentes", rotulo: "Agentes", icone: Bot, naOrganizacao: "ver_painel" },
+      { to: "/processos", rotulo: "Atividades e processos", icone: Workflow, naOrganizacao: "ver_painel" },
       { to: "/chat", rotulo: "Chat com os agentes", icone: MessagesSquare, naOrganizacao: "ver_painel" },
       { to: "/cargos", rotulo: "Organograma e cargos", icone: Network, naOrganizacao: "ver_painel" },
       { to: "/equipe", rotulo: "Equipe e acessos", icone: UserCog, naOrganizacao: "gerenciar_equipe" },
@@ -286,6 +291,7 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
   const temOrganizacao = !!org;
   const usuarios = useUsuarios(daPlataforma && pode("gerenciar_usuarios"));
   const pendentes = usuarios.data?.usuarios.filter((u) => u.situacao === "pendente").length ?? 0;
+  const aprovacoes = useContagemAprovacoes(temOrganizacao && podeNaOrganizacao("ver_painel"));
   const secoes = secoesDo(r)
     .filter((s) => (s.daPlataforma ? daPlataforma : temOrganizacao))
     .map((s) => ({
@@ -294,7 +300,7 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
         .filter((i) => (i.naOrganizacao ? podeNaOrganizacao(i.naOrganizacao) : !i.permissao || pode(i.permissao)))
         // Quem tem a seção da organização não precisa das unidades repetidas em Visões.
         .filter((i) => !(s.daPlataforma && temOrganizacao && i.to === "/cidade"))
-        .map((i) => (i.to === "/usuarios" ? { ...i, contagem: pendentes } : i)),
+        .map((i) => (i.to === "/usuarios" ? { ...i, contagem: pendentes } : i.to === "/aprovacoes" ? { ...i, contagem: aprovacoes } : i)),
     }))
     .filter((s) => s.itens.length);
 

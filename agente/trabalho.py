@@ -316,10 +316,12 @@ def tarefas(organizacao_id: str, email: str | None = None, situacao: str | None 
     for produto_id, area in areas.items():
         linhas, _ = cm().list_tasks(product_id=produto_id, status=status, limit=limite, sort_by="created_at", sort_order="desc")
         for t in linhas:
-            if situacao == "abertas" and t["status"] not in ("backlog", "in_review"):
+            if situacao == "abertas" and t["status"] not in ("backlog", "in_review", "in_progress"):
                 continue
             atividade = atividades.get(t.get("project_id")) or {}
-            passo_tipo = {"backlog": "aceite", "in_review": "revisao"}.get(t["status"])
+            ex = execucao(t["id"]) or {}
+            aguardando = t["status"] == "in_progress" and ex.get("situacao") == "aguardando_aprovacao"
+            passo_tipo = "aprovacao" if aguardando else {"backlog": "aceite", "in_review": "revisao"}.get(t["status"])
             cargos = (_passo(organizacao_id, t, passo_tipo) or {}).get("cargos") if passo_tipo else None
             executor = t.get("executor_id")
             lista.append(gestao._json({
@@ -330,9 +332,13 @@ def tarefas(organizacao_id: str, email: str | None = None, situacao: str | None 
                 "atividade": atividade.get("nome"), "agente_id": executor,
                 "agente": perfis.identidade(executor)["nome"] if executor and perfis.existe(executor) else None,
                 "aceita_por": t.get("accepted_by"), "criada_em": datetime.fromtimestamp(t["created_at"], timezone.utc),
-                "historico": [{"de": h.get("from"), "para": h.get("to"), "motivo": h.get("reason"), "por": h.get("accepted_by")}
+                "historico": [{"de": h.get("from"), "para": h.get("target"), "motivo": h.get("reason"), "por": h.get("user_id"),
+                               "em": datetime.fromtimestamp(h["created_at"], timezone.utc) if h.get("created_at") else None}
                               for h in (t.get("transitions") or [])],
                 "posso_decidir": bool(email and passo_tipo and pode_decidir(organizacao_id, email, str(area["id"]), cargos)),
+                "aguardando_aprovacao": aguardando, "pedidos": (ex.get("pedidos") or []) if aguardando else [],
+                "entrega": ex.get("entrega") if t["status"] in ("in_review", "done") else None,
+                "andamento": ex.get("situacao"), "tentativa": ex.get("tentativa"), "erro": ex.get("erro"),
             }))
     lista.sort(key=lambda x: x["criada_em"], reverse=True)
     return lista[:limite]
@@ -360,6 +366,7 @@ def aceitar(organizacao_id: str, tarefa_id: str, email: str) -> dict:
     with gestao._estado["engine"].begin() as c:
         gestao.auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=email, acao="aceitar_tarefa",
                        entidade="tarefa", entidade_id=tarefa_id, depois={"titulo": tarefa["title"], "executor": executor})
+    executar(organizacao_id, tarefa_id)  # o agente começa na hora (numa thread)
     return nova
 
 
@@ -386,3 +393,214 @@ def atencao(organizacao_id: str) -> dict[str, dict]:
             _, contagem[chave] = cm().list_tasks(product_id=produto_id, status=status, limit=1)
         saida[str(area["id"])] = contagem
     return saida
+
+
+# ───────── Execução (parte 3) e revisão (parte 4) ─────────
+#
+# Aceita a tarefa, o processo vira um Workflow do Agno: cada passo "agente" é um Step (o agente da área faz o passo,
+# com o que os passos anteriores produziram); um passo "aprovacao" põe a confirmação de uma pessoa no Step seguinte
+# (a ação sensível). O Workflow pausa ali e retoma pelo run_id quando a pessoa decide (recusada, a ação é pulada e o
+# agente segue). No fim, a entrega vai para a REVISÃO: a pessoa aprova (concluída) ou ajusta e devolve (o agente
+# refaz o processo com os ajustes). O andamento de cada tarefa fica em `tarefas_execucao` (criada pelo servidor).
+
+def _tabela_execucao():
+    if "execucao" not in _estado:
+        from sqlalchemy import JSON, Column, DateTime, Integer, MetaData, String, Table, Text
+
+        schema = gestao._estado.get("schema")
+        m = MetaData(schema=schema)
+        _estado["execucao"] = Table(
+            "tarefas_execucao", m,
+            Column("tarefa_id", String(64), primary_key=True),
+            Column("organizacao_id", String(36), index=True),
+            Column("run_id", String(80)),            # a execução do Workflow (para retomar depois da aprovação)
+            Column("sessao", String(120)),
+            Column("situacao", String(30)),          # rodando | aguardando_aprovacao | entregue | erro
+            Column("pedidos", JSON),                 # as ações paradas esperando aprovação
+            Column("entrega", Text),
+            Column("ajustes", Text),                 # o que a pessoa pediu ao devolver
+            Column("tentativa", Integer, default=1),
+            Column("erro", Text),
+            Column("atualizado_em", DateTime(timezone=True)),
+        )
+        m.create_all(gestao._estado["engine"], tables=[_estado["execucao"]])
+    return _estado["execucao"]
+
+
+def execucao(tarefa_id: str) -> dict | None:
+    t = _tabela_execucao()
+    return gestao._uma(select(t).where(t.c.tarefa_id == tarefa_id))
+
+
+def _gravar_execucao(tarefa_id: str, organizacao_id: str, **campos) -> None:
+    t = _tabela_execucao()
+    campos["atualizado_em"] = _agora()
+    with gestao._estado["engine"].begin() as c:
+        if c.execute(select(t.c.tarefa_id).where(t.c.tarefa_id == tarefa_id)).first():
+            c.execute(update(t).where(t.c.tarefa_id == tarefa_id).values(**campos))
+        else:
+            c.execute(insert(t).values(tarefa_id=tarefa_id, organizacao_id=organizacao_id, **campos))
+
+
+def _workflow(organizacao_id: str, tarefa: dict, agente) -> Any:
+    """O Workflow do processo da atividade da tarefa (os passos depois do aceite, até a revisão)."""
+    from agno.workflow import Step, Workflow
+    from agno.workflow.types import HumanReview, OnReject, StepInput, StepOutput
+
+    atividade = atividade_da_tarefa(organizacao_id, tarefa) or {}
+    proc = processo(organizacao_id, str(atividade.get("id"))) if atividade else None
+    passos = (proc or {}).get("passos") or processo_padrao(atividade or {"nome": tarefa["title"]})
+    depois_do_aceite = passos[next((i for i, p in enumerate(passos) if p["tipo"] == "aceite"), -1) + 1:]
+    sessao = f"tarefa-{tarefa['id']}"
+
+    def passo_do_agente(titulo: str, instrucoes: str):
+        def executar(entrada: StepInput) -> StepOutput:
+            anterior = entrada.previous_step_content or ""
+            pedido = (
+                f"Você está fazendo uma tarefa aceita pela equipe: {tarefa['title']}.\n"
+                f"{tarefa.get('brief') or ''}\n\n"
+                f"Passo agora: {titulo}.\n{instrucoes}\n\n"
+                + (f"O que os passos anteriores produziram:\n{anterior}\n\n" if anterior else "")
+                + (f"A pessoa que revisou pediu estes ajustes (faça-os):\n{entrada.input}\n\n"
+                   if isinstance(entrada.input, str) and entrada.input.startswith("AJUSTES:") else "")
+                + "Faça este passo e responda com o resultado, pronto para a próxima etapa. Não proponha tarefas novas."
+            )
+            # A conversa do agente em sessão própria: a do Workflow (sessao) guarda a execução para retomar.
+            resposta = agente.run(pedido, session_id=f"{sessao}-agente", session_state={"organizacao_id": organizacao_id,
+                                                                            "tarefa_id": tarefa["id"]})
+            return StepOutput(content=resposta.content or "")
+        return executar
+
+    steps, aprovar_proximo = [], None
+    for i, p in enumerate(depois_do_aceite):
+        if p["tipo"] == "aprovacao":
+            aprovar_proximo = p
+            continue
+        if p["tipo"] != "agente":
+            continue  # aceite e revisão ficam fora do Workflow (são as portas do CompanyOS)
+        revisao = (HumanReview(requires_confirmation=True, confirmation_message=aprovar_proximo["titulo"], on_reject=OnReject.skip)
+                   if aprovar_proximo else None)
+        steps.append(Step(name=p["titulo"][:60] or f"Passo {i + 1}", step_id=f"passo-{i + 1}",
+                          executor=passo_do_agente(p["titulo"], p.get("instrucoes") or ""), human_review=revisao))
+        aprovar_proximo = None
+    if aprovar_proximo:  # a aprovação é o último passo antes da revisão: libera a entrega
+        def liberar(entrada: StepInput) -> StepOutput:
+            return StepOutput(content=entrada.previous_step_content or "")
+        steps.append(Step(name="Liberar a entrega", step_id="liberar", executor=liberar,
+                          human_review=HumanReview(requires_confirmation=True, confirmation_message=aprovar_proximo["titulo"],
+                                                   on_reject=OnReject.cancel)))
+    if not steps:
+        steps.append(Step(name="Fazer a tarefa", step_id="passo-1", executor=passo_do_agente(tarefa["title"], tarefa.get("brief") or "")))
+    return Workflow(id=f"processo-{tarefa['id']}"[:60], name=f"Processo: {tarefa['title']}"[:80], db=cm().db, steps=steps)
+
+
+def _pedidos(saida) -> list[dict]:
+    return [{"id": r.step_id, "ferramenta": r.step_name or r.step_id,
+             "descricao": getattr(r, "confirmation_message", None) or "Aprovar este passo", "argumentos": {}}
+            for r in (getattr(saida, "active_step_requirements", None) or getattr(saida, "step_requirements", None) or [])
+            if getattr(r, "requires_confirmation", False) and getattr(r, "confirmed", None) is None]
+
+
+def _depois_de_rodar(organizacao_id: str, tarefa_id: str, saida) -> None:
+    """O Workflow parou numa aprovação, terminou (vai para a revisão) ou foi cancelado (aprovação final recusada)."""
+    if getattr(saida, "is_paused", False):
+        _gravar_execucao(tarefa_id, organizacao_id, run_id=saida.run_id, situacao="aguardando_aprovacao", pedidos=_pedidos(saida))
+        return
+    status = str(getattr(saida, "status", "") or "").lower()
+    if "cancel" in status:
+        _gravar_execucao(tarefa_id, organizacao_id, situacao="erro", pedidos=[], erro="A ação foi recusada; a tarefa voltou para o aceite.")
+        cm().transition_task(task_id=tarefa_id, target="backlog", reason="Ação recusada na aprovação")
+        return
+    entrega = saida.content if isinstance(saida.content, str) else str(saida.content or "")
+    _gravar_execucao(tarefa_id, organizacao_id, run_id=saida.run_id, situacao="entregue", pedidos=[], entrega=entrega)
+    cm().transition_task(task_id=tarefa_id, target="in_review", reason="Entrega pronta para revisão")
+
+
+def executar(organizacao_id: str, tarefa_id: str, ajustes: str | None = None) -> None:
+    """Roda o processo da tarefa aceita (ou devolvida com ajustes), numa thread. Fica em execução até pausar numa
+    aprovação ou entregar."""
+    import threading
+
+    from agente import registro
+
+    tarefa, area = _tarefa_da_organizacao(organizacao_id, tarefa_id)
+    agente = (registro.agentes or {}).get(tarefa.get("executor_id") or "")
+    if not agente:
+        raise ErroTrabalho(422, f"O agente da área {area['nome']} não está no ar.")
+    if tarefa["status"] != "in_progress":
+        cm().transition_task(task_id=tarefa_id, target="in_progress",
+                             reason="Refazendo com os ajustes" if ajustes else "Execução iniciada")
+    anterior = execucao(tarefa_id) or {}
+    tentativa = int(anterior.get("tentativa") or 0) + 1
+    _gravar_execucao(tarefa_id, organizacao_id, situacao="rodando", pedidos=[], ajustes=ajustes, tentativa=tentativa,
+                     sessao=f"tarefa-{tarefa_id}", erro=None)
+
+    def rodar() -> None:
+        try:
+            wf = _workflow(organizacao_id, tarefa, agente)
+            entrada = (f"AJUSTES: {ajustes}" if ajustes else tarefa.get("brief") or tarefa["title"])
+            _depois_de_rodar(organizacao_id, tarefa_id, wf.run(input=entrada, session_id=f"tarefa-{tarefa_id}"))
+        except Exception as erro:
+            log_warning(f"Tarefa {tarefa_id}: {type(erro).__name__}: {erro}")
+            _gravar_execucao(tarefa_id, organizacao_id, situacao="erro", erro=f"{type(erro).__name__}: {erro}"[:500])
+
+    threading.Thread(target=rodar, daemon=True, name=f"tarefa-{tarefa_id[:8]}").start()
+
+
+def decidir_acoes(organizacao_id: str, tarefa_id: str, email: str, aprovar: bool, motivo: str = "") -> None:
+    """A pessoa aprova (ou recusa) a ação parada; o Workflow retoma de onde parou, numa thread."""
+    import threading
+
+    from agente import registro
+
+    tarefa, area = _tarefa_da_organizacao(organizacao_id, tarefa_id)
+    ex = execucao(tarefa_id) or {}
+    if tarefa["status"] != "in_progress" or ex.get("situacao") != "aguardando_aprovacao" or not ex.get("run_id"):
+        raise ErroTrabalho(409, "Esta tarefa não está esperando aprovação.")
+    cargos = (_passo(organizacao_id, tarefa, "aprovacao") or {}).get("cargos")
+    if not pode_decidir(organizacao_id, email, str(area["id"]), cargos):
+        raise ErroTrabalho(403, "Quem aprova esta ação é o cargo definido no processo (ou a direção).")
+    if not aprovar and not (motivo or "").strip():
+        raise ErroTrabalho(422, "Diga por que está recusando a ação.")
+    agente = (registro.agentes or {}).get(tarefa.get("executor_id") or "")
+    if not agente:
+        raise ErroTrabalho(422, f"O agente da área {area['nome']} não está no ar.")
+    with gestao._estado["engine"].begin() as c:
+        gestao.auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=email,
+                       acao="aprovar_acao" if aprovar else "recusar_acao", entidade="tarefa", entidade_id=tarefa_id,
+                       depois={"pedidos": ex.get("pedidos"), "motivo": (motivo or "").strip() or None})
+    _gravar_execucao(tarefa_id, organizacao_id, situacao="rodando", pedidos=[])
+
+    def retomar() -> None:
+        try:
+            wf = _workflow(organizacao_id, tarefa, agente)
+            pausada = wf.get_run(ex["run_id"], session_id=ex.get("sessao"))
+            for r in (getattr(pausada, "active_step_requirements", None) or pausada.step_requirements or []):
+                if getattr(r, "requires_confirmation", False) and getattr(r, "confirmed", None) is None:
+                    r.confirm() if aprovar else r.reject()
+            _depois_de_rodar(organizacao_id, tarefa_id, wf.continue_run(run_response=pausada))
+        except Exception as erro:
+            log_warning(f"Tarefa {tarefa_id} (retomar): {type(erro).__name__}: {erro}")
+            _gravar_execucao(tarefa_id, organizacao_id, situacao="erro", erro=f"{type(erro).__name__}: {erro}"[:500])
+
+    threading.Thread(target=retomar, daemon=True, name=f"retomar-{tarefa_id[:8]}").start()
+
+
+def revisar(organizacao_id: str, tarefa_id: str, email: str, aprovar: bool, ajustes: str = "") -> dict:
+    """A pessoa avalia a entrega: aprova (a tarefa fica concluída) ou ajusta e devolve (o agente refaz com os ajustes,
+    quantas vezes a pessoa quiser)."""
+    tarefa, _ = _decisao(organizacao_id, tarefa_id, email, "revisao", "in_review")
+    if aprovar:
+        nova = cm().transition_task(task_id=tarefa_id, target="done", reason=f"Aprovada por {email}", accepted_by=email)
+        acao, depois = "aprovar_entrega", {"titulo": tarefa["title"]}
+    else:
+        if not (ajustes or "").strip():
+            raise ErroTrabalho(422, "Diga o que ajustar: o agente refaz com isso.")
+        cm().transition_task(task_id=tarefa_id, target="in_progress", reason=f"Devolvida por {email}: {ajustes.strip()[:500]}")
+        executar(organizacao_id, tarefa_id, ajustes=ajustes.strip())
+        nova = cm().get_task(tarefa_id)
+        acao, depois = "devolver_entrega", {"titulo": tarefa["title"], "ajustes": ajustes.strip()}
+    with gestao._estado["engine"].begin() as c:
+        gestao.auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=email, acao=acao, entidade="tarefa",
+                       entidade_id=tarefa_id, depois=depois)
+    return nova

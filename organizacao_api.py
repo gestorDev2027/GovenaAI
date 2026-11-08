@@ -98,6 +98,16 @@ class PedidoRecusa(BaseModel):
     motivo: str = Field(min_length=3, max_length=1000)
 
 
+class PedidoAcoes(BaseModel):
+    aprovar: bool
+    motivo: str = Field(default="", max_length=1000)
+
+
+class PedidoRevisao(BaseModel):
+    aprovar: bool
+    ajustes: str = Field(default="", max_length=4000)
+
+
 class PedidoAceite(BaseModel):
     nome: str = Field(min_length=2, max_length=120)
     senha: str = Field(min_length=8, max_length=200)
@@ -271,6 +281,20 @@ def criar_rotas_organizacao() -> APIRouter:
         _trabalho(lambda: trabalho.recusar(quem[1]["organizacao_id"], tarefa_id, quem[0], pedido.motivo))
         return {"ok": True}
 
+    @rotas.post("/organizacao/tarefas/{tarefa_id}/acoes")
+    def decidir_acoes(tarefa_id: str, pedido: PedidoAcoes, quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        from agente import trabalho
+
+        _trabalho(lambda: trabalho.decidir_acoes(quem[1]["organizacao_id"], tarefa_id, quem[0], pedido.aprovar, pedido.motivo))
+        return {"ok": True}
+
+    @rotas.post("/organizacao/tarefas/{tarefa_id}/revisao")
+    def revisar_tarefa(tarefa_id: str, pedido: PedidoRevisao, quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        from agente import trabalho
+
+        _trabalho(lambda: trabalho.revisar(quem[1]["organizacao_id"], tarefa_id, quem[0], pedido.aprovar, pedido.ajustes))
+        return {"ok": True}
+
     @rotas.get("/organizacao/atencao")
     def atencao(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
         from agente import trabalho
@@ -279,7 +303,7 @@ def criar_rotas_organizacao() -> APIRouter:
 
     @rotas.get("/organizacao/atividades")
     def listar_atividades(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
-        from agente import trabalho
+        from agente import perfis, trabalho
 
         oid = quem[1]["organizacao_id"]
         nomes = {str(a["id"]): a["nome"] for a in gestao.areas(oid)}
@@ -289,7 +313,8 @@ def criar_rotas_organizacao() -> APIRouter:
             saida.append(gestao._json({
                 "id": a["id"], "nome": a["nome"], "descricao": a["descricao"], "tipo": a["tipo"], "frequencia": a["frequencia"],
                 "entregavel": a.get("entregavel"), "ativa": a.get("ativa", True), "area_id": a["area_id"],
-                "area": nomes.get(str(a["area_id"])), "agente_id": trabalho.agente_da_area(oid, str(a["area_id"])),
+                "area": nomes.get(str(a["area_id"])), "agente_id": (ag := trabalho.agente_da_area(oid, str(a["area_id"]))),
+                "agente": perfis.identidade(ag)["nome"] if ag and perfis.existe(ag) else None,
                 "processo": {"versao": proc["versao"], "passos": proc["passos"]} if proc else None,
             }))
         return {"atividades": saida}
