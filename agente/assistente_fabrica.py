@@ -38,7 +38,7 @@ class RascunhoAgente(BaseModel):
     area: str
     cargo: str
     descricao: str = Field(description="Uma frase com a função do agente.")
-    ferramentas: list[Literal["consultar_secretaria", "listar_unidades", "transferir_para_humano",
+    ferramentas: list[Literal["consultar_organizacao", "listar_unidades", "transferir_para_humano",
                               "encerrar_atendimento"]]
     motivos: list[Motivo] = Field(description="De 3 a 7 motivos de transferência, sem o 'outro' (entra sozinho).")
     quando_transferir: str
@@ -139,7 +139,7 @@ def rascunho(tipo: str, pedido: str, agente_id: str | None = None, atual: dict |
         areas = sorted({p.area for p in perfis.PERFIS.values() if p.area})
         saida = _rodar(RascunhoAgente, f"""Monte um agente novo para um setor da Secretaria de Saúde a partir do pedido.
 Áreas (setores) que já existem (use uma delas quando fizer sentido): {', '.join(areas)}.
-Ferramentas: consultar_secretaria (setores, responsáveis e atividades), listar_unidades (unidades de saúde),
+Ferramentas: consultar_organizacao (setores, responsáveis e atividades), listar_unidades (unidades de saúde),
 transferir_para_humano (sempre: encaminha ao responsável) e encerrar_atendimento (quase sempre).""", pedido)
         saida["categorias"] = {m["chave"]: m["rotulo"] for m in saida.pop("motivos")}
         return saida

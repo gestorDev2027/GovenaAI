@@ -5,8 +5,9 @@ Idioma do projeto: **português do Brasil** — código, comentários, mensagens
 
 ## 1. O que é
 
-**GestorGov — Gestão Pública Inteligente** é um ecossistema de agentes de IA para a gestão das **Secretarias
-Municipais de Saúde**. Cada setor da secretaria ganha um agente que trabalha com os servidores: faz as rotinas do
+**GestorGov — Gestão Pública Inteligente** é um ecossistema de agentes de IA para a gestão de **organizações**:
+começou pelas **Secretarias Municipais de Saúde** e, desde 11/11/2026, serve também a **empresas** (segmentos, §2b).
+Cada área da organização (setor da secretaria, departamento da empresa) ganha um agente que trabalha com os servidores: faz as rotinas do
 setor sozinho, prepara documentos sob demanda e aponta o que precisa de atenção. Tudo o que um agente propõe ou
 entrega passa pela aprovação de um servidor responsável.
 
@@ -14,8 +15,8 @@ A ambição de longo prazo é **substituir, módulo por módulo, os ERPs de saú
 caminho até lá: os agentes começam por cima dos dados que a prefeitura já tem (exportações, planilhas,
 documentos) e, aos poucos, o GestorGov passa a ser o lugar onde o dado nasce.
 
-- **Cliente:** prefeituras (começando pela Secretaria de Saúde; o modelo de dados já prevê Educação, Assistência
-  Social e Administração).
+- **Cliente:** organizações de um segmento: Secretarias Municipais de Saúde (`saude_publica`) e empresas
+  (`empresa`). Um segmento novo = uma entrada em `agente/segmentos.py` e o catálogo dele numa migration.
 - **Usuários:** servidores internos (secretário, coordenadores de setor, técnicos). **Não é atendimento ao
   cidadão** — ainda (ver §11).
 - **Repositório:** github.com/gestorDev2027/GovenaAI.
@@ -41,14 +42,36 @@ comentários (ex.: "Luna", "Vera", "SDR"): renomeie quando passar por eles.
 ## 2. O conceito
 
 ```
-Prefeitura → Secretaria de Saúde → Setores → Atividades → Agente do setor → Servidor que aprova
+Organização → Áreas → Atividades → Agente da área → Pessoa que aprova
+            → Unidades (UBS, UPA... ou matriz, filiais, lojas)
 ```
 
-### Setores
+### 2b. Segmentos (generalização de 11/11/2026)
 
-Cada setor da secretaria (Compras e Licitações, Atenção Primária, Regulação, Assistência Farmacêutica,
-Vigilância, Gestão de Pessoas, Financeiro, Faturamento, Ouvidoria, Gabinete...) é um andar/sala do prédio da
-secretaria e tem um agente e um responsável.
+O motor é um só; o segmento muda os nomes de tela, os campos obrigatórios do cadastro, os modelos (tipos de área e
+de unidade, atividades, cargos, indicadores) e as fontes externas. Tudo em `agente/segmentos.py`; os modelos ficam
+nas migrations com `segmento_id`.
+
+| | Saúde pública (`saude_publica`) | Empresa (`empresa`) |
+|---|---|---|
+| Organização | a Secretaria Municipal de Saúde (a prefeitura, o Fundo e o prefeito ficam em `dados_segmento`) | a empresa (razão social, CNPJ, sede) |
+| Área | setor | departamento |
+| Pessoa | servidor | funcionário |
+| Responsável | secretário(a) de saúde | diretor(a) |
+| Unidades | unidades de saúde, importadas do CNES | matriz, filiais, lojas, depósitos (pelo CEP) |
+| Prédio | Secretaria virtual (CCO no centro) | Escritório virtual (sala de comando) |
+| Uma por município | sim (código IBGE) | não (por CNPJ) |
+
+No banco: `organizacoes` (antes `municipios` + `secretarias`), `areas` (antes `setores`), `pessoas` (antes
+`servidores`), `agentes_area`, `atividades_area`, `tipos_area`; tudo por `organizacao_id`. O texto das instruções dos
+agentes da saúde continua falando de setor e secretaria (está certo para a saúde); o modelo da Fábrica
+(`INSTRUCOES_MODELO`) recebe os nomes do segmento na criação (`fabrica.instrucoes_iniciais`).
+
+### Áreas (setores, departamentos)
+
+Cada área (na saúde, os setores da secretaria: Compras e Licitações, Atenção Primária, Regulação, Assistência Farmacêutica,
+Vigilância, Gestão de Pessoas, Financeiro, Faturamento, Ouvidoria, Gabinete...; numa empresa, Financeiro, Comercial,
+Compras, RH, Operações, Atendimento...) é uma sala do prédio e tem um agente e um responsável.
 
 ### Atividades — dois tipos
 
@@ -57,13 +80,13 @@ secretaria e tem um agente e um responsável.
 | **Rotina** | o agente, num horário (a cada hora, diária, semanal, mensal) | Routine do CompanyOS | Regulação, a cada hora: "14 pacientes há mais de 90 dias esperando cardiologia" |
 | **Sob demanda** | um servidor pede pelo chat do setor | Task (ou conversa) | Compras: "elabora o termo de referência de 2.000 seringas" |
 
-O catálogo padrão (27 atividades em 10 setores) está em `supabase/gestorgov/20261106_gestorgov_atividades.sql`
-(`modelos_atividade`). O onboarding sugere esse catálogo; o secretário confirma, tira ou acrescenta.
+Os catálogos estão em `supabase/gestorgov/20261111_gestorgov_2_saude.sql` e `..._3_empresa.sql`
+(`modelos_atividade`). A implantação sugere o catálogo do segmento; o responsável confirma, tira ou acrescenta.
 
 ### Aprovação (regra inegociável)
 
 - O agente **nunca** aprova o próprio trabalho. `auto_accept=False` em toda Routine.
-- Quem aprova é o responsável do setor (`servidores.aprova_tarefas`).
+- Quem aprova é o responsável da área (`pessoas.aprova_tarefas`).
 - Toda ação de pessoa ou de agente vai para `auditoria` (quem, quando, antes/depois, quem aprovou).
 
 ### As três visões da interface (o core)
@@ -94,15 +117,16 @@ por quem e quando) e as fotos (fachada, interior; enviadas do computador ou do c
 1600 px, sem os metadados, no bucket privado `prefeituras`; sem Supabase, em `dados/arquivos/`). O cadastro e a
 edição usam o CEP: o ViaCEP traz a rua e o bairro, e o Nominatim põe o ponto pela rua e número (ou pelo CEP).
 Unidade importada do CNES chega "a conferir". Quem cadastra e confere precisa da permissão de cargo
-`gerenciar_unidades`. Rotas em `prefeitura_api.py` (`/prefeitura/cep`, `/prefeitura/unidades`, `/prefeitura/fotos`).
+`gerenciar_unidades`. Rotas em `organizacao_api.py` (`/organizacao/cep`, `/organizacao/unidades`, `/organizacao/fotos`), bucket `organizacoes`.
 
 ## 3. O onboarding conversacional (a primeira experiência do cliente)
 
-Caminho de quem chega: **landing page** (`/painel/inicio`) → **Cadastrar prefeitura** (`/painel/cadastro`: nome, e-mail e
+Caminho de quem chega: **landing page** (`/painel/inicio`) → **Cadastrar** (`/painel/cadastro`: nome, e-mail e
 senha) → **Implantação** (`/painel/implantacao`). Quem já tem conta usa **Entrar** (`/painel/entrar`: e-mail e senha, ou
 Google). A conta nasce pendente para o Painel (o dono aprova), mas já implanta a própria prefeitura: as rotas
-`/implantacao*` exigem só estar logado. Quem cadastra a prefeitura entra em `membros` como secretário, e o
-assistente dessa conversa só mexe no município dela (`conta_email` no estado da sessão). Cadastro e login
+`/implantacao*` exigem só estar logado. Quem cadastra a organização entra em `membros` como dono, e o
+assistente dessa conversa só mexe na organização dela (`conta_email` no estado da sessão). A primeira pergunta do
+assistente é o segmento. Cadastro e login
 precisam da `OS_SECURITY_KEY` (é ela que assina a sessão); sem ela, o painel fica aberto e sem login.
 
 O secretário de saúde implanta a prefeitura **conversando** com o Assistente de Implantação. A tela é dividida:
@@ -119,14 +143,14 @@ fases seguintes esperam a próxima mensagem do secretário (o modelo não encade
 
 | # | Fase | O que precisa ficar completo | Ferramentas |
 |---|---|---|---|
-| 1 | `municipio` | Prefeitura: CNPJ, endereço (CEP, rua, número, bairro), telefone, prefeito(a). Secretaria: nome oficial, CNPJ do Fundo Municipal de Saúde, endereço, telefone, e-mail, secretário(a) com nome, e-mail e telefone (`gestao.CAMPOS_OBRIGATORIOS`; CNPJ com dígitos conferidos) | `buscar_municipio`, `registrar_municipio`, `salvar_dados_prefeitura`, `salvar_dados_secretaria`, `buscar_endereco` (Mapbox + ViaCEP), `pesquisar_na_web` (Google, `agente/pesquisa.py`) |
-| 2 | `setores` | Pelo menos um setor (cada um vira uma sala do prédio) | `listar_tipos_setor`, `salvar_setores` |
+| 1 | `organizacao` | O segmento e os campos obrigatórios dele (`segmentos.py`, `Campo.obrigatorio`; CNPJ com dígitos conferidos). Saúde: prefeitura (CNPJ, endereço, telefone, prefeito) e secretaria (nome, CNPJ do Fundo, endereço, telefone, e-mail, secretário). Empresa: razão social, CNPJ, ramo, sede, telefone, e-mail, diretor | `buscar_municipio`, `registrar_organizacao`, `salvar_dados_prefeitura` e `salvar_dados_secretaria` (saúde), `salvar_dados_empresa` (empresa), `buscar_endereco` (Mapbox + ViaCEP), `pesquisar_na_web` (Google, `agente/pesquisa.py`) |
+| 2 | `areas` | Pelo menos uma área (cada uma vira uma sala do prédio) | `listar_tipos_area`, `salvar_areas` |
 | 3 | `atividades` | Toda sala com pelo menos uma atividade | `sugerir_atividades`, `salvar_atividades`, `nova_atividade` |
-| 4 | `cargos` | Todo setor com pelo menos um cargo (organograma) | `montar_cargos`, `criar_cargo` |
+| 4 | `cargos` | Toda área com pelo menos um cargo (organograma). O catálogo é só sugestão: grava o que for confirmado | `sugerir_cargos`, `salvar_cargos`, `criar_cargo` |
 | 5 | `responsaveis` | Todo setor com responsável (quem aprova) | `cadastrar_responsavel` |
 | 6 | `agentes` | Todo setor com o seu agente (criado para a prefeitura) | `montar_agentes` |
 | 7 | `equipe` | Os responsáveis com acesso; os acessos cadastrados pelo assistente aprovados pelo dono no painel | `dar_acesso` |
-| 8 | `unidades` | A lista confirmada pelo secretário, ou "fica para depois" (o assistente cadastra unidades a qualquer momento, mesmo depois da implantação) | `importar_unidades_cnes`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` |
+| 8 | `unidades` | A lista confirmada pelo responsável, ou "fica para depois" (o CNES só na saúde) (o assistente cadastra unidades a qualquer momento, mesmo depois da implantação) | `importar_unidades_cnes`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` |
 | 9 | `revisao` | Resumo e "pode concluir": o município fica ativo | `situacao_implantacao`, `concluir_implantacao` |
 
 Dado achado na web é proposta: só grava depois do "sim". Nada de copiar um campo para outro (o e-mail da conta não é o
@@ -174,11 +198,13 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
 | `regulacao` | Agente de Regulação | consulta | `agente/perfis/regulacao.py` |
 | `unidade` | Agente das Unidades de Saúde | consulta | `agente/perfis/unidade.py` |
 
-Os de setor e o das unidades são **modelos**: cada prefeitura ganha a sua cópia na implantação (§3).
+Os de setor e o das unidades são **modelos da saúde**: cada Secretaria ganha a sua cópia na implantação (§3). As
+demais áreas (e todas as de uma empresa) ganham um agente da Fábrica com o modelo de instruções nos nomes do
+segmento (`agente/agentes_organizacao.py`).
 
 - Agentes de setor seguem um molde único: `agente/perfis/setor.py` (`perfil_de_setor`). Novo setor no código =
   um arquivo de 20 linhas + registrar em `agente/perfis/__init__.py` + `agente/base_conhecimento_<id>.md` +
-  incluir em `MODELO_DO_SETOR` (`agente/agentes_prefeitura.py`).
+  incluir em `MODELO_DA_AREA` (`agente/agentes_organizacao.py`).
 - Os demais setores ganham agente pela **Fábrica de agentes** no painel (sem código), com o modelo
   `INSTRUCOES_MODELO` de `agente/fabrica.py`.
 - Nas instruções, `{nome_contato}` é o nome de quem conversa; nos roteiros, `[NOME DO CONTATO]` é trocado pelo
@@ -206,15 +232,18 @@ Os de setor e o das unidades são **modelos**: cada prefeitura ganha a sua cópi
 
 ```
 app.py                        AgentOS + rotas + rotinas de manutenção + CompanyOS
-gestao_api.py                 /painel/api/gestao/* (panorama, municípios, catálogo)
+gestao_api.py                 /painel/api/gestao/* (panorama, organizações, catálogo com os segmentos)
 painel_api.py                 painel: acesso, login, implantação, chat, conversas, base, limpeza
 fabrica_api.py                Fábrica de agentes e equipes (skills, ferramentas HTTP, chaves, casos de teste)
-prefeitura_api.py             a prefeitura de quem está logado: cargos, permissões, equipe e convites
+organizacao_api.py            a organização de quem está logado: unidades, fotos, agentes (ficha), cargos, equipe e convites
 conhecimento_api.py           documentos vetorizados
 banco_api.py                  Observabilidade (leitura do banco)
-agente/gestao.py              cadastro da prefeitura (tabelas, leitura, gravação) + ViaCEP/IBGE/OSM/CNES
+agente/segmentos.py           os segmentos: nomes de tela, campos do cadastro, CNES, um por município
+agente/gestao.py              cadastro da organização (tabelas, leitura, gravação, fases) + ViaCEP/IBGE/OSM/CNES
+agente/agentes_organizacao.py os agentes de cada organização (um por área e o das unidades)
+agente/dados_agente.py        a ficha de cada agente e o que ele lê dos dados
 agente/ferramentas_gestao.py  ferramentas dos agentes (implantação e consulta)
-agente/companyos.py           setores → Products; atividades de rotina → Routines
+agente/companyos.py           áreas → Products; atividades de rotina → Routines
 agente/perfis/                os agentes do código
 agente/agente.py              monta cada Agent a partir do perfil (modelo, memória, guardrails)
 supabase/gestorgov/           migrations (rodar à mão no SQL Editor)
@@ -225,23 +254,63 @@ painel/src/                   frontend
 
 - Schema `gestorgov`, papel `gestorgov_app` (só enxerga o próprio schema). RLS ligado nas tabelas do cadastro,
   com política só para o papel do servidor. O schema **não** é exposto na API REST do Supabase.
-- Migrations (`supabase/gestorgov/`, rodar em ordem): `..._inicial.sql` (schema, papel, pgvector, bucket
-  `agentes`, Vault, cadastro), `..._atividades.sql` (catálogo e atividades) e `..._organograma.sql` (membros,
-  catálogo de 38 cargos e 125 indicadores do documento da Secretaria de Saúde Virtual, cargos, indicadores com meta,
-  medições, entregas, pendências, status e alertas), `..._unidades.sql` (endereço completo e conferência da
-  unidade, `unidade_fotos` e o bucket `prefeituras`) e `..._prefeitura.sql` (cadastro detalhado da prefeitura e da
-  secretaria, convites com aprovação e `implantacao_links`). No SQLite local, os catálogos são carregados das migrations a cada início.
-- Tabelas do cadastro (migrations): `municipios`, `secretarias`, `setores`, `unidades`, `servidores`,
-  `agentes_setor`, `atividades_setor`, `onboardings`, `auditoria` (só inserção), `tipos_setor`, `tipos_unidade`,
-  `modelos_atividade`, e as do organograma: `membros`, `modelos_cargo`, `modelos_indicador`, `cargos`,
-  `indicadores_cargo`, `medicoes`, `entregas`, `pendencias`, `status_cargo`, `alertas_cargo`, e `unidade_fotos`. Tudo separado por
-  `municipio_id` (multi-prefeitura).
+- Migrations (`supabase/gestorgov/`, rodar em ordem): `20261111_gestorgov_1_base.sql` (schema, papel, pgvector,
+  buckets `agentes` e `organizacoes`, Vault, todas as tabelas, RLS), `..._2_saude.sql` (catálogo da saúde: 16 setores,
+  14 tipos de unidade com os códigos do CNES, atividades, 38 cargos e 125 indicadores do documento da Secretaria de
+  Saúde Virtual) e `..._3_empresa.sql` (catálogo da empresa). Elas substituíram as de 06 a 10/11/2026, que nunca
+  rodaram em produção. No SQLite local, os catálogos são carregados das migrations a cada início.
+- Tabelas do cadastro: `segmentos`, `tipos_area`, `tipos_unidade`, `modelos_atividade`, `modelos_cargo`,
+  `modelos_indicador`, `organizacoes`, `pessoas`, `areas`, `unidades`, `unidade_fotos`, `agentes_area`,
+  `fichas_agente`, `atividades_area`, `cargos`, `indicadores_cargo`, `medicoes`, `entregas`, `pendencias`,
+  `status_cargo`, `alertas_cargo`, `membros`, `convites`, `implantacao_links`, `onboardings`, `auditoria` (só
+  inserção). Tudo separado por `organizacao_id`.
 - Tabelas que o servidor cria ao subir: as do Agno (`agno_*`, CompanyOS) e as do painel (`fabrica_*`,
   `conhecimento_*`, `guardrail_frases`, `painel_usuarios`, `painel_contas`...). Não crie essas à mão. Num banco que
   já rodou o NexaAgents podem sobrar `unnichat_*`, `avaliacoes_humanas`, `qualidade_supervisor` e `alertas_baixas`:
   não são mais usadas.
   `create_all` não altera tabela que já existe: coluna renomeada no código precisa de `alter table` à mão.
 - Sem `DATABASE_URL`: SQLite local em `dados/`, com o cadastro e os catálogos carregados das migrations.
+
+## 5b. Arquitetura dos agentes (decidida em 08/11/2026; a construir)
+
+O sistema gira em torno dos agentes. Os gestores de saúde definem o trabalho, os agentes (e equipes de agentes)
+executam, e os servidores aprovam ou recusam, conforme a permissão do cargo. Nada que muda dados vale sem aprovação.
+
+**Ficha do agente** (montada na implantação, como um personagem, no estilo do criador do Meshy: uma pergunta por
+tela, prévia ao lado; depois editável no painel por quem tem "criar agentes"):
+- características: aparência (avatar, cor) e comportamento (tom, autonomia);
+- skills: o que ele sabe fazer;
+- memória: do agente, do setor (compartilhada entre os agentes do setor) e da secretaria (geral, todos leem);
+- dados: o que ele enxerga do cadastro (por tipo de dado) e o que pode fazer (ler; criar, alterar e apagar só como
+  proposta para aprovar);
+- integrações externas liberadas para ele (da Central de integrações).
+
+**Rotinas = Workflows do Agno** (`agno.workflow`: passos, `Condition`, `Loop`, `Parallel`, `Router`, `HumanReview`
+que pausa para aprovação e retoma com `continue_run`), agendadas pelo Scheduler do AgentOS (as Routines do CompanyOS
+deram 403 com a OS_SECURITY_KEY). Ciclo: atividade do setor → workflow → agendamento → execução → tarefa para aprovar
+(fila do setor; CompanyOS) → aprovado → o efeito acontece (grava, envia) → auditoria. Ferramentas que alteram dados
+usam `requires_confirmation`.
+
+**Memória: Mem0 auto-hospedado** (`mem0ai` 2.2.1, `Memory.from_config`; o `Mem0Tools` do Agno aceita `config`):
+vetores no pgvector do nosso Supabase em São Paulo (`DATABASE_URL`), modelo e embeddings no Gemini. Nada na nuvem do
+Mem0. Separação obrigatória por prefeitura (filtro por município em toda busca); nunca guarda dado de paciente;
+`enable_delete_all_memories=False` sempre.
+
+**Central de integrações = MCP Toolbox for Databases** (pedido de 11/11/2026: o Toolbox não é só para o nosso banco
+nem para a memória; é o centro de integrações externas do sistema). O Toolbox serve ferramentas de muitas fontes:
+o nosso banco, bancos de outros sistemas (Postgres, MySQL, SQL Server, BigQuery...) e APIs REST (fonte `http`, com
+cabeçalhos e chaves). Cada fonte é cadastrada na Central; as ferramentas são agrupadas em toolsets; cada agente
+recebe só os toolsets da ficha dele (`agno.tools.mcp_toolbox.MCPToolbox`, `bound_params` com o `organizacao_id`
+para separar as organizações). Servidores MCP externos (`agno.tools.mcp`) e webhooks de entrada (Edge Functions)
+também entram pela Central. O Mem0 (memória) fica fora do Toolbox. Credenciais no Vault do Supabase: no banco, só a referência; o servidor monta a configuração do Toolbox lendo o
+Vault, e o valor nunca chega ao modelo. Por prefeitura e por agente (cada agente usa só as integrações da ficha dele), com hosts
+liberados, limite de chamadas, teste de conexão e cada chamada na auditoria. O `.env` do Render fica só com o mínimo
+para subir (banco, Supabase, Gemini). Extensões do Supabase previstas: Vault, pgvector, pg_net, pg_cron, Wrappers,
+pgmq; e Realtime para o painel ao vivo.
+
+**Ordem de construção:** 0) generalização em organizações e segmentos (feito em 11/11/2026); 1) base do CompanyOS e
+a ficha do agente; 2) Central de integrações com o Toolbox e o Vault; 3) rotinas
+como workflows, com a fila de aprovação por setor; 4) memória com o Mem0; 5) o criador de agente na implantação.
 
 ## 6. Identidade visual
 
@@ -279,13 +348,13 @@ Dois níveis, separados:
 
 - **Plataforma** (equipe GestorGov): `painel_usuarios` (agente/usuarios.py), com o dono em `PAINEL_DONO`. Vê as telas
   de configuração (Fábrica, Conhecimento, Observabilidade, Usuários), a Cidade, a Central de comando e o chat.
-- **Prefeitura** (agente/acessos.py, rotas em prefeitura_api.py): quem cadastra a prefeitura é o **dono** dela
+- **Organização** (agente/acessos.py, rotas em organizacao_api.py): quem cadastra a organização é o **dono** dela
   (`membros.papel = 'dono'`), entra sem aprovação da plataforma e pode tudo nela. Ele monta o organograma
   (cargos do catálogo ou criados à mão), define as **permissões de cada cargo** (`cargos.permissoes`: ver o painel,
   aprovar e devolver entregas, gerenciar os fluxos dos agentes, criar agentes, definir metas, registrar dados,
   gerenciar cargos, gerenciar a equipe, ver a auditoria) e convida a equipe por link (`convites`, 7 dias, a pessoa
   cria a senha). O membro pode o que o cargo dele pode; o dono não pode ser bloqueado; ninguém altera o próprio acesso.
-- Toda rota da prefeitura usa o município de quem está logado: nunca um id vindo da tela.
+- Toda rota da organização usa a organização de quem está logado: nunca um id vindo da tela.
 - Separação por agente: cada agente da Fábrica guarda o município dono (`fabrica_agentes.municipio_id`); quem é de
   uma prefeitura vê só os agentes dela (`escopo_painel` em painel_api.py): lista de agentes (`/agentes`), chat e
   conversas. As conversas de servidor começam com `servidor-` e levam o e-mail de quem conversou. Fábrica,
@@ -313,15 +382,10 @@ Dois níveis, separados:
 - Variáveis secretas: `GOOGLE_API_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
   `PAINEL_DONO`, `PAINEL_GOOGLE_CLIENT_ID`, `PAINEL_DOMINIOS` (opcional). `OS_SECURITY_KEY` é gerada pelo Render.
 
-### Demonstração (Itatiaia-RJ)
+### Demonstração
 
-Desligada desde 07/11/2026 (pedido: nada de dados de mentira; tudo nasce na implantação). Com
-`GESTORGOV_DEMO=itatiaia` no `.env`, o servidor monta ao subir a Secretaria de Saúde de Itatiaia
-(agente/demo.py): as unidades do CNES, os 16 setores com as atividades, o organograma de 38 cargos, pessoas
-fictícias (@itatiaia.exemplo.gov.br, sem login) como responsáveis, um agente de IA por setor (`itatiaia-<setor>`,
-publicados, marcados com o município) e a implantação concluída. Com `GESTORGOV_COMPANYOS=sim`, as 20 atividades
-de rotina viram os fluxos do Agno (Routines do CompanyOS). Cada passo só acrescenta o que falta: pode subir de novo.
-O dono é `PAINEL_DONO`. Atenção ao custo: as rotinas chamam o Gemini nos horários delas (uma a cada hora).
+Saiu em 11/11/2026 (pedido: nada de dados de mentira; tudo nasce na implantação). O código antigo
+(`agente/demo.py`) está no histórico do Git.
 
 ### Supabase
 

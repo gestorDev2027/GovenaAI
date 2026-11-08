@@ -1,6 +1,6 @@
-"""O cadastro de cada prefeitura no GestorGov: município, secretaria, setores, unidades, servidores,
-atividades, o organograma (cargos, indicadores, entregas, pendências, status e alertas), os membros de
-cada prefeitura e a auditoria.
+"""O cadastro de cada organização no GestorGov (uma Secretaria de Saúde, uma empresa...): a organização, as áreas
+(setores, departamentos), as unidades, as pessoas, as atividades, o organograma (cargos, indicadores, entregas,
+pendências, status e alertas), os membros e a auditoria. O que muda por segmento está em agente/segmentos.py.
 
 As tabelas são criadas pelas migrations em supabase/gestorgov/ (não pelo servidor): aqui elas são só
 descritas, com as mesmas colunas, para o SQLAlchemy ler e gravar. Sem DATABASE_URL (teste local), o
@@ -26,6 +26,8 @@ from sqlalchemy import (ARRAY, JSON, BigInteger, Boolean, Column, Date, DateTime
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.engine import Engine
 
+from agente import segmentos
+
 _estado: dict[str, Any] = {}
 
 USER_AGENT = "GestorGov/1.0 (gestao publica)"
@@ -47,153 +49,156 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
     fk = (lambda t: f"{schema}.{t}") if schema else (lambda t: t)
     tipo_id = String(36).with_variant(PG_UUID(as_uuid=False), "postgresql")
     uid = lambda nome, *a, **kw: Column(nome, tipo_id, *a, **kw)  # uuid no Postgres; texto no SQLite
+    org = lambda **kw: uid("organizacao_id", ForeignKey(fk("organizacoes.id")), **kw)
     criado = lambda: Column("criado_em", DateTime(timezone=True), default=_agora)
     atualizado = lambda: Column("atualizado_em", DateTime(timezone=True), default=_agora, onupdate=_agora)
+    quando = lambda nome: Column(nome, DateTime(timezone=True))
     t = {}
-    t["tipos_setor"] = Table("tipos_setor", m,
+    # ── Segmentos e catálogos ──
+    t["segmentos"] = Table("segmentos", m,
         Column("id", String(40), primary_key=True), Column("nome", Text, nullable=False), Column("descricao", Text),
-        Column("icone", Text), Column("ordem", SmallInteger, default=0), Column("padrao", Boolean, default=True))
+        Column("ordem", SmallInteger, default=0))
+    t["tipos_area"] = Table("tipos_area", m,
+        Column("id", String(40), primary_key=True), Column("segmento_id", String(40), nullable=False),
+        Column("nome", Text, nullable=False), Column("descricao", Text), Column("icone", Text),
+        Column("ordem", SmallInteger, default=0), Column("padrao", Boolean, default=True))
     t["tipos_unidade"] = Table("tipos_unidade", m,
-        Column("id", String(40), primary_key=True), Column("nome", Text, nullable=False),
-        Column("codigos_cnes", JSON().with_variant(ARRAY(Text), "postgresql")), Column("icone", Text), Column("cor", Text), Column("ordem", SmallInteger, default=0))
-    t["municipios"] = Table("municipios", m,
-        uid("id", primary_key=True, default=_id), Column("codigo_ibge", String(7), nullable=False, unique=True),
-        Column("nome", Text, nullable=False), Column("uf", String(2), nullable=False), Column("cep", String(8)),
-        Column("endereco_sede", Text), Column("latitude", Numeric(9, 6)), Column("longitude", Numeric(9, 6)),
-        Column("zoom_mapa", SmallInteger, default=12), Column("populacao", Integer),
-        Column("situacao", Text, default="onboarding"), Column("plano", Text), criado(), atualizado(),
-        Column("criado_por", Text),
-        # Migration 20261109_gestorgov_prefeitura.sql: o cadastro detalhado da prefeitura.
-        Column("prefeitura_cnpj", String(14)), Column("prefeitura_logradouro", Text), Column("prefeitura_numero", Text),
-        Column("prefeitura_bairro", Text), Column("prefeitura_telefone", Text), Column("prefeitura_email", Text),
-        Column("prefeitura_site", Text), Column("prefeito_nome", Text))
-    t["secretarias"] = Table("secretarias", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", ForeignKey(fk("municipios.id")), nullable=False),
-        Column("area", Text, default="saude"), Column("nome", Text, default="Secretaria Municipal de Saúde"),
-        Column("sigla", Text), Column("cnpj", String(14)), Column("endereco", Text), Column("cep", String(8)),
-        Column("latitude", Numeric(9, 6)), Column("longitude", Numeric(9, 6)), Column("andares", SmallInteger, default=3),
-        Column("secretario_nome", Text), Column("secretario_email", Text), criado(), atualizado(),
-        # Migration 20261109_gestorgov_prefeitura.sql: o cadastro detalhado da Secretaria de Saúde.
-        Column("fundo_cnpj", String(14)), Column("logradouro", Text), Column("numero", Text), Column("bairro", Text),
-        Column("telefone", Text), Column("email", Text), Column("secretario_telefone", Text))
-    t["setores"] = Table("setores", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", ForeignKey(fk("municipios.id")), nullable=False),
-        uid("secretaria_id", ForeignKey(fk("secretarias.id")), nullable=False),
-        Column("tipo_id", String(40), ForeignKey(fk("tipos_setor.id"))), Column("nome", Text, nullable=False),
-        Column("descricao", Text), Column("andar", SmallInteger, default=0), Column("posicao", SmallInteger, default=0),
-        Column("ativo", Boolean, default=True), uid("responsavel_id"), criado(), atualizado())
-    t["unidades"] = Table("unidades", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", ForeignKey(fk("municipios.id")), nullable=False),
-        uid("secretaria_id"), Column("tipo_id", String(40), ForeignKey(fk("tipos_unidade.id")), default="outro"),
-        Column("cnes", String(7)), Column("nome", Text, nullable=False), Column("nome_fantasia", Text),
-        Column("endereco", Text), Column("bairro", Text), Column("cep", String(8)),
-        Column("latitude", Numeric(9, 6)), Column("longitude", Numeric(9, 6)), Column("telefone", Text),
-        Column("horario", JSON), Column("gestao", Text), uid("responsavel_id"), Column("situacao", Text, default="ativa"),
-        Column("origem", Text, default="manual"), Column("dados_cnes", JSON), Column("confirmada", Boolean, default=False),
-        criado(), atualizado(),
-        # Migration 20261108_gestorgov_unidades.sql: endereço completo, de onde veio o ponto e a conferência.
-        Column("numero", Text), Column("complemento", Text), Column("email", Text), Column("coordenadas_origem", Text),
-        Column("conferida_por", Text), Column("conferida_em", DateTime(timezone=True)), Column("criado_por", Text),
-        Column("agente_id", Text))
-    t["unidade_fotos"] = Table("unidade_fotos", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("unidade_id", nullable=False),
-        Column("tipo", Text, default="fachada"), Column("caminho", Text, nullable=False), Column("mime", Text, nullable=False),
-        Column("bytes", Integer, nullable=False), Column("largura", Integer), Column("altura", Integer), Column("legenda", Text),
-        Column("principal", Boolean, default=False), Column("enviada_por", Text, nullable=False),
-        Column("enviada_em", DateTime(timezone=True), default=_agora))
-    t["servidores"] = Table("servidores", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", ForeignKey(fk("municipios.id")), nullable=False),
-        Column("email", Text, nullable=False), Column("nome", Text, nullable=False), Column("cargo", Text),
-        Column("matricula", Text), uid("setor_id"), uid("unidade_id"), Column("papel", Text, default="servidor"),
-        Column("aprova_tarefas", Boolean, default=False), Column("ativo", Boolean, default=True), criado(), atualizado())
-    t["agentes_setor"] = Table("agentes_setor", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("setor_id", nullable=False),
-        Column("agente_id", Text, nullable=False), Column("funcao", Text), Column("mesa", SmallInteger, default=0),
-        Column("ativo", Boolean, default=True), criado(), atualizado())
-    t["onboardings"] = Table("onboardings", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id"), Column("session_id", Text),
-        Column("etapa", Text, default="municipio"), Column("estado", JSON, default=dict),
-        Column("iniciado_por", Text, nullable=False), Column("iniciado_em", DateTime(timezone=True), default=_agora),
-        atualizado(), Column("concluido_em", DateTime(timezone=True)))
-    t["auditoria"] = Table("auditoria", m,
-        Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True),
-        uid("municipio_id"), Column("em", DateTime(timezone=True), default=_agora), Column("origem", Text, nullable=False),
-        Column("quem", Text, nullable=False), Column("acao", Text, nullable=False), Column("entidade", Text, nullable=False),
-        Column("entidade_id", Text), Column("antes", JSON), Column("depois", JSON), Column("session_id", Text),
-        Column("aprovado_por", Text))
+        Column("id", String(40), primary_key=True), Column("segmento_id", String(40)), Column("nome", Text, nullable=False),
+        Column("codigos_cnes", JSON().with_variant(ARRAY(Text), "postgresql")), Column("icone", Text), Column("cor", Text),
+        Column("ordem", SmallInteger, default=0))
     t["modelos_atividade"] = Table("modelos_atividade", m,
-        Column("id", String(60), primary_key=True), Column("tipo_setor_id", String(40), nullable=False),
+        Column("id", String(60), primary_key=True), Column("tipo_area_id", String(40), nullable=False),
         Column("nome", Text, nullable=False), Column("descricao", Text, nullable=False), Column("tipo", Text, nullable=False),
         Column("frequencia", Text, default="sob_demanda"), Column("cron", Text), Column("entregavel", Text),
         Column("padrao", Boolean, default=True), Column("ordem", SmallInteger, default=0))
-    t["atividades_setor"] = Table("atividades_setor", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("setor_id", nullable=False),
-        Column("modelo_id", String(60)), Column("nome", Text, nullable=False), Column("descricao", Text, nullable=False),
-        Column("tipo", Text, nullable=False), Column("frequencia", Text, default="sob_demanda"), Column("cron", Text),
-        Column("entregavel", Text), Column("agente_id", Text), uid("aprovador_id"), Column("rotina_id", Text),
-        Column("ativa", Boolean, default=True), Column("cargo_id", tipo_id), criado(), atualizado())
-
-    # ── Organograma (migration 20261107_gestorgov_organograma.sql) ──
-    t["membros"] = Table("membros", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("email", Text, nullable=False),
-        Column("nome", Text), Column("papel", Text, default="membro"), Column("ativo", Boolean, default=True), criado(),
-        Column("criado_por", Text), uid("cargo_id"))
-    t["convites"] = Table("convites", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("email", Text, nullable=False),
-        Column("nome", Text), uid("cargo_id"), Column("token_hash", Text, nullable=False, unique=True),
-        Column("criado_por", Text, nullable=False), criado(), Column("expira_em", DateTime(timezone=True), nullable=False),
-        Column("aceito_em", DateTime(timezone=True)), Column("cancelado_em", DateTime(timezone=True)),
-        # Migration 20261109: os convites do assistente esperam a aprovação do dono no painel.
-        Column("origem", Text, default="painel"), Column("aprovado_em", DateTime(timezone=True)), Column("aprovado_por", Text))
-    t["implantacao_links"] = Table("implantacao_links", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("token_hash", Text, nullable=False, unique=True),
-        Column("codigo_hash", Text, nullable=False), Column("criado_por", Text, nullable=False), criado(),
-        Column("expira_em", DateTime(timezone=True), nullable=False), Column("cancelado_em", DateTime(timezone=True)),
-        Column("usos", Integer, default=0), Column("falhas", Integer, default=0))
     t["modelos_cargo"] = Table("modelos_cargo", m,
-        Column("id", Text, primary_key=True), Column("nome", Text, nullable=False), Column("nivel", Text, nullable=False),
-        Column("tipo_setor_id", Text), Column("superior_id", Text), Column("atribuicoes", Text, nullable=False),
-        Column("rotinas", JSON, default=list), Column("entregas", JSON, default=list), Column("padrao", Boolean, default=True),
-        Column("ordem", SmallInteger, default=0))
+        Column("id", Text, primary_key=True), Column("segmento_id", String(40), nullable=False), Column("nome", Text, nullable=False),
+        Column("nivel", Text, nullable=False), Column("tipo_area_id", Text), Column("superior_id", Text),
+        Column("atribuicoes", Text, nullable=False), Column("rotinas", JSON, default=list), Column("entregas", JSON, default=list),
+        Column("padrao", Boolean, default=True), Column("ordem", SmallInteger, default=0))
     t["modelos_indicador"] = Table("modelos_indicador", m,
         Column("id", Text, primary_key=True), Column("modelo_cargo_id", Text, nullable=False), Column("nome", Text, nullable=False),
         Column("fonte", Text, nullable=False), Column("periodicidade", Text, nullable=False), Column("unidade", Text, nullable=False),
         Column("sentido", Text, nullable=False), Column("ordem", SmallInteger, default=0))
+
+    # ── A organização e o cadastro dela ──
+    t["organizacoes"] = Table("organizacoes", m,
+        uid("id", primary_key=True, default=_id), Column("segmento_id", String(40), nullable=False),
+        Column("nome", Text, nullable=False), Column("sigla", Text), Column("cnpj", String(14)), Column("cep", String(8)),
+        Column("logradouro", Text), Column("numero", Text), Column("complemento", Text), Column("bairro", Text),
+        Column("cidade", Text), Column("uf", String(2)), Column("codigo_ibge", String(7)),
+        Column("latitude", Numeric(9, 6)), Column("longitude", Numeric(9, 6)), Column("zoom_mapa", SmallInteger, default=12),
+        Column("sede_latitude", Numeric(9, 6)), Column("sede_longitude", Numeric(9, 6)),
+        Column("telefone", Text), Column("email", Text), Column("site", Text),
+        Column("responsavel_nome", Text), Column("responsavel_email", Text), Column("responsavel_telefone", Text),
+        Column("responsavel_cargo", Text), Column("populacao", Integer), Column("andares", SmallInteger, default=3),
+        Column("dados_segmento", JSON, default=dict), Column("situacao", Text, default="implantacao"), Column("plano", Text),
+        criado(), atualizado(), Column("criado_por", Text))
+    t["pessoas"] = Table("pessoas", m,
+        uid("id", primary_key=True, default=_id), org(nullable=False),
+        Column("email", Text, nullable=False), Column("nome", Text, nullable=False), Column("cargo", Text),
+        Column("matricula", Text), uid("area_id"), uid("unidade_id"), Column("papel", Text, default="membro"),
+        Column("aprova_tarefas", Boolean, default=False), Column("ativo", Boolean, default=True), criado(), atualizado())
+    t["areas"] = Table("areas", m,
+        uid("id", primary_key=True, default=_id), org(nullable=False),
+        Column("tipo_id", String(40), ForeignKey(fk("tipos_area.id"))), Column("nome", Text, nullable=False),
+        Column("descricao", Text), Column("andar", SmallInteger, default=0), Column("posicao", SmallInteger, default=0),
+        uid("responsavel_id"), Column("ativo", Boolean, default=True), criado(), atualizado())
+    t["unidades"] = Table("unidades", m,
+        uid("id", primary_key=True, default=_id), org(nullable=False),
+        Column("tipo_id", String(40), ForeignKey(fk("tipos_unidade.id")), default="outro"),
+        Column("cnes", String(7)), Column("nome", Text, nullable=False), Column("nome_fantasia", Text),
+        Column("endereco", Text), Column("numero", Text), Column("complemento", Text), Column("bairro", Text),
+        Column("cep", String(8)), Column("latitude", Numeric(9, 6)), Column("longitude", Numeric(9, 6)),
+        Column("coordenadas_origem", Text), Column("telefone", Text), Column("email", Text), Column("horario", JSON),
+        Column("gestao", Text), uid("responsavel_id"), Column("agente_id", Text), Column("situacao", Text, default="ativa"),
+        Column("origem", Text, default="manual"), Column("dados_cnes", JSON), Column("confirmada", Boolean, default=False),
+        Column("conferida_por", Text), quando("conferida_em"), Column("criado_por", Text), criado(), atualizado())
+    t["unidade_fotos"] = Table("unidade_fotos", m,
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("unidade_id", nullable=False),
+        Column("tipo", Text, default="fachada"), Column("caminho", Text, nullable=False), Column("mime", Text, nullable=False),
+        Column("bytes", Integer, nullable=False), Column("largura", Integer), Column("altura", Integer), Column("legenda", Text),
+        Column("principal", Boolean, default=False), Column("enviada_por", Text, nullable=False),
+        Column("enviada_em", DateTime(timezone=True), default=_agora))
+    t["agentes_area"] = Table("agentes_area", m,
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("area_id", nullable=False),
+        Column("agente_id", Text, nullable=False), Column("funcao", Text), Column("mesa", SmallInteger, default=0),
+        Column("ativo", Boolean, default=True), criado(), atualizado())
+    t["fichas_agente"] = Table("fichas_agente", m,
+        Column("agente_id", Text, primary_key=True), uid("organizacao_id", nullable=False),
+        Column("caracteristicas", JSON, default=dict), Column("memoria", JSON, default=dict), Column("permissoes", JSON, default=dict),
+        Column("escopo", Text, default="area"), Column("integracoes", JSON, default=list),
+        Column("atualizado_em", DateTime(timezone=True), default=_agora, onupdate=_agora), Column("atualizado_por", Text))
+    t["atividades_area"] = Table("atividades_area", m,
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("area_id", nullable=False),
+        Column("modelo_id", String(60)), Column("nome", Text, nullable=False), Column("descricao", Text, nullable=False),
+        Column("tipo", Text, nullable=False), Column("frequencia", Text, default="sob_demanda"), Column("cron", Text),
+        Column("entregavel", Text), Column("agente_id", Text), uid("aprovador_id"), uid("cargo_id"), Column("rotina_id", Text),
+        Column("ativa", Boolean, default=True), criado(), atualizado())
+
+    # ── Organograma ──
     t["cargos"] = Table("cargos", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("modelo_id", Text),
-        Column("nome", Text, nullable=False), Column("nivel", Text, nullable=False), uid("superior_id"), uid("setor_id"),
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), Column("modelo_id", Text),
+        Column("nome", Text, nullable=False), Column("nivel", Text, nullable=False), uid("superior_id"), uid("area_id"),
         uid("unidade_id"), uid("responsavel_id"), Column("agente_id", Text), Column("atribuicoes", Text),
         Column("permissoes", JSON, default=list), Column("ativo", Boolean, default=True), Column("ordem", SmallInteger, default=0),
         criado(), atualizado())
     t["indicadores_cargo"] = Table("indicadores_cargo", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("cargo_id", nullable=False),
         Column("modelo_id", Text), Column("nome", Text, nullable=False), Column("fonte", Text, nullable=False),
         Column("periodicidade", Text, nullable=False), Column("unidade", Text, nullable=False),
         Column("sentido", Text, nullable=False), Column("meta", Numeric), Column("meta_definida_por", Text),
         Column("ativo", Boolean, default=True), criado())
     t["medicoes"] = Table("medicoes", m,
         Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True),
-        uid("municipio_id", nullable=False), uid("indicador_id", nullable=False), Column("referencia", Date, nullable=False),
+        uid("organizacao_id", nullable=False), uid("indicador_id", nullable=False), Column("referencia", Date, nullable=False),
         Column("valor", Numeric, nullable=False), Column("fonte", Text), Column("registrado_por", Text, nullable=False),
         Column("registrado_em", DateTime(timezone=True), default=_agora))
     t["entregas"] = Table("entregas", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
-        Column("titulo", Text, nullable=False), Column("descricao", Text), Column("prazo", DateTime(timezone=True)),
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("cargo_id", nullable=False),
+        Column("titulo", Text, nullable=False), Column("descricao", Text), quando("prazo"),
         Column("situacao", Text, default="prevista"), Column("documento", Text), Column("produzida_por", Text),
-        Column("aprovada_por", Text), Column("aprovada_em", DateTime(timezone=True)), criado(), atualizado())
+        Column("aprovada_por", Text), quando("aprovada_em"), criado(), atualizado())
     t["pendencias"] = Table("pendencias", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("cargo_id", nullable=False),
         Column("descricao", Text, nullable=False), Column("motivo", Text), Column("desde", DateTime(timezone=True), default=_agora),
-        Column("resolvida_em", DateTime(timezone=True)), Column("resolvida_por", Text))
+        quando("resolvida_em"), Column("resolvida_por", Text))
     t["status_cargo"] = Table("status_cargo", m,
-        uid("cargo_id", primary_key=True), uid("municipio_id", nullable=False), Column("situacao", Text, default="aguardando"),
+        uid("cargo_id", primary_key=True), uid("organizacao_id", nullable=False), Column("situacao", Text, default="aguardando"),
         Column("tarefa", Text), Column("atualizado_em", DateTime(timezone=True), default=_agora, onupdate=_agora),
         Column("atualizado_por", Text))
     t["alertas_cargo"] = Table("alertas_cargo", m,
-        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), uid("cargo_id", nullable=False),
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("cargo_id", nullable=False),
         uid("destino_id"), Column("tipo", Text, nullable=False), Column("titulo", Text, nullable=False), Column("detalhe", Text),
-        Column("situacao", Text, default="aberto"), uid("escalado_de"), criado(),
-        Column("resolvido_em", DateTime(timezone=True)), Column("resolvido_por", Text))
+        Column("situacao", Text, default="aberto"), uid("escalado_de"), criado(), quando("resolvido_em"), Column("resolvido_por", Text))
+
+    # ── Membros, convites, implantação e auditoria ──
+    t["membros"] = Table("membros", m,
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), Column("email", Text, nullable=False),
+        Column("nome", Text), Column("papel", Text, default="membro"), uid("cargo_id"), Column("ativo", Boolean, default=True),
+        criado(), Column("criado_por", Text))
+    t["convites"] = Table("convites", m,
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), Column("email", Text, nullable=False),
+        Column("nome", Text), uid("cargo_id"), Column("token_hash", Text, nullable=False, unique=True),
+        Column("origem", Text, default="painel"), quando("aprovado_em"), Column("aprovado_por", Text),
+        Column("criado_por", Text, nullable=False), criado(), Column("expira_em", DateTime(timezone=True), nullable=False),
+        quando("aceito_em"), quando("cancelado_em"))
+    t["implantacao_links"] = Table("implantacao_links", m,
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), Column("token_hash", Text, nullable=False, unique=True),
+        Column("codigo_hash", Text, nullable=False), Column("criado_por", Text, nullable=False), criado(),
+        Column("expira_em", DateTime(timezone=True), nullable=False), quando("cancelado_em"),
+        Column("usos", Integer, default=0), Column("falhas", Integer, default=0))
+    t["onboardings"] = Table("onboardings", m,
+        uid("id", primary_key=True, default=_id), uid("organizacao_id"), Column("session_id", Text),
+        Column("etapa", Text, default="organizacao"), Column("estado", JSON, default=dict),
+        Column("iniciado_por", Text, nullable=False), Column("iniciado_em", DateTime(timezone=True), default=_agora),
+        atualizado(), quando("concluido_em"))
+    t["auditoria"] = Table("auditoria", m,
+        Column("id", BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True),
+        uid("organizacao_id"), Column("em", DateTime(timezone=True), default=_agora), Column("origem", Text, nullable=False),
+        Column("quem", Text, nullable=False), Column("acao", Text, nullable=False), Column("entidade", Text, nullable=False),
+        Column("entidade_id", Text), Column("antes", JSON), Column("depois", JSON), Column("session_id", Text),
+        Column("aprovado_por", Text))
     return t
 
 
@@ -206,7 +211,7 @@ def comandos_de_catalogo() -> list[str]:
     comandos = []
     for arquivo in sorted(PASTA_MIGRATIONS.glob("*.sql")):
         texto = re.sub(r"--[^\n]*", "", arquivo.read_text(encoding="utf-8"))
-        for bloco in re.findall(r"insert into gestorgov\.(?:tipos_setor|tipos_unidade|modelos_atividade|modelos_cargo|modelos_indicador)\b.*?;\s*$",
+        for bloco in re.findall(r"insert into gestorgov\.(?:segmentos|tipos_area|tipos_unidade|modelos_atividade|modelos_cargo|modelos_indicador)\b.*?;\s*$",
                                 texto, flags=re.S | re.M):
             bloco = bloco.replace("gestorgov.", "")
             # text[] do Postgres ('{01,02}') vira JSON no SQLite ('["01","02"]').
@@ -230,7 +235,6 @@ def iniciar(engine: Engine, schema: str | None) -> None:
                     if coluna.name not in existentes:
                         tipo = coluna.type.compile(dialect=engine.dialect)
                         c.exec_driver_sql(f"alter table {tabela.name} add column {coluna.name} {tipo}")
-            c.exec_driver_sql("update membros set papel = 'dono' where papel = 'secretario'")  # nome antigo
             for comando in comandos_de_catalogo():
                 c.exec_driver_sql(comando)
     _estado.update(engine=engine, schema=schema, t=tabelas)
@@ -268,11 +272,11 @@ def _json(valor):
     return valor
 
 
-def auditar(conexao, *, municipio_id: str | None, origem: str, quem: str, acao: str, entidade: str,
+def auditar(conexao, *, organizacao_id: str | None, origem: str, quem: str, acao: str, entidade: str,
             entidade_id: str | None = None, antes: dict | None = None, depois: dict | None = None,
             session_id: str | None = None) -> None:
     conexao.execute(insert(_t("auditoria")).values(
-        municipio_id=municipio_id, origem=origem, quem=quem, acao=acao, entidade=entidade,
+        organizacao_id=organizacao_id, origem=origem, quem=quem, acao=acao, entidade=entidade,
         entidade_id=str(entidade_id) if entidade_id else None, antes=_json(antes), depois=_json(depois),
         session_id=session_id))
 
@@ -436,148 +440,162 @@ def vinculo_cnes(unidade: dict) -> str | None:
     return None
 
 
-def remover_particulares(municipio_id: str, quem: str) -> int:
+def remover_particulares(organizacao_id: str, quem: str) -> int:
     """Tira do cadastro as unidades importadas do CNES que não são públicas nem conveniadas ao SUS (importações
     antigas, de antes do filtro). Devolve quantas saíram."""
     tu = _t("unidades")
-    fora = [u for u in _linhas(select(tu).where(tu.c.municipio_id == municipio_id, tu.c.origem == "cnes"))
+    fora = [u for u in _linhas(select(tu).where(tu.c.organizacao_id == organizacao_id, tu.c.origem == "cnes"))
             if isinstance(u.get("dados_cnes"), dict) and vinculo_cnes(u["dados_cnes"]) is None]
     if not fora:
         return 0
     with _estado["engine"].begin() as c:
         for u in fora:
             c.execute(tu.delete().where(tu.c.id == u["id"]))
-        auditar(c, municipio_id=municipio_id, origem="sistema", quem=quem, acao="remover_particulares",
+        auditar(c, organizacao_id=organizacao_id, origem="sistema", quem=quem, acao="remover_particulares",
                 entidade="unidades", depois={"removidas": len(fora)})
     return len(fora)
 
 
 # ───────────────────────── Leitura ─────────────────────────
 
-def tipos_setor() -> list[dict]:
-    return _linhas(select(_t("tipos_setor")).order_by(_t("tipos_setor").c.ordem))
+def segmentos_cadastrados() -> list[dict]:
+    return _linhas(select(_t("segmentos")).order_by(_t("segmentos").c.ordem))
 
 
-def tipos_unidade() -> list[dict]:
-    return _linhas(select(_t("tipos_unidade")).order_by(_t("tipos_unidade").c.ordem))
+def tipos_area(segmento_id: str | None = None) -> list[dict]:
+    t = _t("tipos_area")
+    q = select(t).order_by(t.c.ordem)
+    return _linhas(q.where(t.c.segmento_id == segmento_id) if segmento_id else q)
 
 
-def modelos_atividade(tipo_setor_id: str | None = None) -> list[dict]:
+def tipos_unidade(segmento_id: str | None = None) -> list[dict]:
+    """Os tipos de unidade do segmento (e os que servem a todos, como "outro")."""
+    t = _t("tipos_unidade")
+    q = select(t).order_by(t.c.ordem)
+    return _linhas(q.where((t.c.segmento_id == segmento_id) | t.c.segmento_id.is_(None)) if segmento_id else q)
+
+
+def modelos_atividade(tipo_area_id: str | None = None) -> list[dict]:
     t = _t("modelos_atividade")
-    q = select(t).order_by(t.c.tipo_setor_id, t.c.ordem)
-    if tipo_setor_id:
-        q = q.where(t.c.tipo_setor_id == tipo_setor_id)
+    q = select(t).order_by(t.c.tipo_area_id, t.c.ordem)
+    if tipo_area_id:
+        q = q.where(t.c.tipo_area_id == tipo_area_id)
     return _linhas(q)
 
 
-def municipios() -> list[dict]:
-    return _linhas(select(_t("municipios")).order_by(_t("municipios").c.nome))
+def organizacoes() -> list[dict]:
+    return _linhas(select(_t("organizacoes")).order_by(_t("organizacoes").c.nome))
 
 
-def municipio(municipio_id: str) -> dict | None:
-    return _uma(select(_t("municipios")).where(_t("municipios").c.id == municipio_id))
+def organizacao(organizacao_id: str) -> dict | None:
+    return _uma(select(_t("organizacoes")).where(_t("organizacoes").c.id == organizacao_id))
 
 
-def membros(municipio_id: str, so_ativos: bool = True) -> list[dict]:
+def segmento_de(organizacao_id: str) -> segmentos.Segmento:
+    return segmentos.de(organizacao(organizacao_id))
+
+
+def membros(organizacao_id: str, so_ativos: bool = True) -> list[dict]:
     t = _t("membros")
-    consulta = select(t).where(t.c.municipio_id == municipio_id)
+    consulta = select(t).where(t.c.organizacao_id == organizacao_id)
     return _linhas(consulta.where(t.c.ativo.is_(True)) if so_ativos else consulta)
 
 
-def municipios_de(email: str) -> list[dict]:
-    """Os municípios em que a pessoa é membro, com o papel dela."""
-    tm, tb = _t("municipios"), _t("membros")
-    consulta = (select(tm, tb.c.papel, tb.c.cargo_id).join(tb, tb.c.municipio_id == tm.c.id)
+def organizacoes_de(email: str) -> list[dict]:
+    """As organizações em que a pessoa é membro, com o papel dela."""
+    to, tb = _t("organizacoes"), _t("membros")
+    consulta = (select(to, tb.c.papel, tb.c.cargo_id).join(tb, tb.c.organizacao_id == to.c.id)
                 .where(tb.c.email == (email or "").strip().lower(), tb.c.ativo.is_(True)))
     return _linhas(consulta)
 
 
-def adicionar_membro(municipio_id: str, email: str, papel: str, quem: str, nome: str = "", cargo_id: str | None = None) -> None:
+def adicionar_membro(organizacao_id: str, email: str, papel: str, quem: str, nome: str = "", cargo_id: str | None = None) -> None:
     t = _t("membros")
     email = email.strip().lower()
     with _estado["engine"].begin() as c:
-        if c.execute(select(t.c.id).where(t.c.municipio_id == municipio_id, t.c.email == email)).first():
+        if c.execute(select(t.c.id).where(t.c.organizacao_id == organizacao_id, t.c.email == email)).first():
             return
-        c.execute(insert(t).values(id=_id(), municipio_id=municipio_id, email=email, papel=papel, criado_por=quem,
+        c.execute(insert(t).values(id=_id(), organizacao_id=organizacao_id, email=email, papel=papel, criado_por=quem,
                                    nome=nome or None, cargo_id=cargo_id))
-        auditar(c, municipio_id=municipio_id, origem="sistema", quem=quem, acao="adicionar_membro", entidade="membros",
+        auditar(c, organizacao_id=organizacao_id, origem="sistema", quem=quem, acao="adicionar_membro", entidade="membros",
                 depois={"email": email, "papel": papel})
 
 
-def modelos_cargo() -> list[dict]:
-    return _linhas(select(_t("modelos_cargo")).order_by(_t("modelos_cargo").c.ordem))
+def modelos_cargo(segmento_id: str | None = None) -> list[dict]:
+    t = _t("modelos_cargo")
+    q = select(t).order_by(t.c.ordem)
+    return _linhas(q.where(t.c.segmento_id == segmento_id) if segmento_id else q)
 
 
-def modelos_indicador() -> list[dict]:
-    return _linhas(select(_t("modelos_indicador")).order_by(_t("modelos_indicador").c.ordem))
+def modelos_indicador(segmento_id: str | None = None) -> list[dict]:
+    t, tc = _t("modelos_indicador"), _t("modelos_cargo")
+    q = select(t).order_by(t.c.ordem)
+    if segmento_id:
+        q = q.where(t.c.modelo_cargo_id.in_(select(tc.c.id).where(tc.c.segmento_id == segmento_id)))
+    return _linhas(q)
 
 
-def municipio_padrao() -> str | None:
-    """O município quando a conversa não diz qual: GESTORGOV_MUNICIPIO (código IBGE) ou o único cadastrado."""
-    codigo = os.getenv("GESTORGOV_MUNICIPIO", "").strip()
-    t = _t("municipios")
-    if codigo:
-        achado = _uma(select(t.c.id).where(t.c.codigo_ibge == codigo))
-        return str(achado["id"]) if achado else None
-    todos = _linhas(select(t.c.id))
-    return str(todos[0]["id"]) if len(todos) == 1 else None
+def organizacao_padrao() -> str | None:
+    """A organização quando a conversa não diz qual: GESTORGOV_ORGANIZACAO (o id) ou a única cadastrada."""
+    escolhida = os.getenv("GESTORGOV_ORGANIZACAO", "").strip()
+    t = _t("organizacoes")
+    if escolhida:
+        achada = _uma(select(t.c.id).where(t.c.id == escolhida))
+        return str(achada["id"]) if achada else None
+    todas = _linhas(select(t.c.id))
+    return str(todas[0]["id"]) if len(todas) == 1 else None
 
 
-def secretaria_saude(municipio_id: str) -> dict | None:
-    t = _t("secretarias")
-    return _uma(select(t).where(t.c.municipio_id == municipio_id, t.c.area == "saude"))
+def areas(organizacao_id: str) -> list[dict]:
+    t = _t("areas")
+    return _linhas(select(t).where(t.c.organizacao_id == organizacao_id).order_by(t.c.andar, t.c.posicao))
 
 
-def setores(municipio_id: str) -> list[dict]:
-    t = _t("setores")
-    return _linhas(select(t).where(t.c.municipio_id == municipio_id).order_by(t.c.andar, t.c.posicao))
-
-
-def setor_por_tipo_ou_nome(municipio_id: str, chave: str) -> dict | None:
+def area_por_tipo_ou_nome(organizacao_id: str, chave: str) -> dict | None:
     alvo = _sem_acento(chave)
-    for s in setores(municipio_id):
+    for s in areas(organizacao_id):
         if s["tipo_id"] == chave or _sem_acento(s["nome"]) == alvo:
             return s
     return None
 
 
-def unidades(municipio_id: str, tipo_id: str | None = None) -> list[dict]:
+def unidades(organizacao_id: str, tipo_id: str | None = None) -> list[dict]:
     t = _t("unidades")
-    q = select(t).where(t.c.municipio_id == municipio_id).order_by(t.c.tipo_id, t.c.nome)
+    q = select(t).where(t.c.organizacao_id == organizacao_id).order_by(t.c.tipo_id, t.c.nome)
     if tipo_id:
         q = q.where(t.c.tipo_id == tipo_id)
     return _linhas(q)
 
 
-def servidores(municipio_id: str) -> list[dict]:
-    t = _t("servidores")
-    return _linhas(select(t).where(t.c.municipio_id == municipio_id).order_by(t.c.nome))
+def pessoas(organizacao_id: str) -> list[dict]:
+    t = _t("pessoas")
+    return _linhas(select(t).where(t.c.organizacao_id == organizacao_id).order_by(t.c.nome))
 
 
-def atividades(municipio_id: str, setor_id: str | None = None) -> list[dict]:
-    t = _t("atividades_setor")
-    q = select(t).where(t.c.municipio_id == municipio_id).order_by(t.c.setor_id, t.c.nome)
-    if setor_id:
-        q = q.where(t.c.setor_id == setor_id)
+def atividades(organizacao_id: str, area_id: str | None = None) -> list[dict]:
+    t = _t("atividades_area")
+    q = select(t).where(t.c.organizacao_id == organizacao_id).order_by(t.c.area_id, t.c.nome)
+    if area_id:
+        q = q.where(t.c.area_id == area_id)
     return _linhas(q)
 
 
-def agentes_setor(municipio_id: str) -> list[dict]:
-    t = _t("agentes_setor")
-    return _linhas(select(t).where(t.c.municipio_id == municipio_id))
+def agentes_area(organizacao_id: str) -> list[dict]:
+    t = _t("agentes_area")
+    return _linhas(select(t).where(t.c.organizacao_id == organizacao_id))
 
 
-def onboarding_aberto(municipio_id: str) -> dict | None:
+def onboarding_aberto(organizacao_id: str) -> dict | None:
     t = _t("onboardings")
-    return _uma(select(t).where(t.c.municipio_id == municipio_id, t.c.concluido_em.is_(None))
+    return _uma(select(t).where(t.c.organizacao_id == organizacao_id, t.c.concluido_em.is_(None))
                 .order_by(t.c.iniciado_em.desc()))
 
 
-def _com_fotos(municipio_id: str, lista: list[dict]) -> list[dict]:
+def _com_fotos(organizacao_id: str, lista: list[dict]) -> list[dict]:
     """As unidades com a foto principal (foto_id) e quantas fotos cada uma tem."""
     principal: dict[str, str] = {}
     quantas: dict[str, int] = {}
-    for f in fotos(municipio_id):
+    for f in fotos(organizacao_id):
         chave = str(f["unidade_id"])
         quantas[chave] = quantas.get(chave, 0) + 1
         if f["principal"]:
@@ -585,98 +603,79 @@ def _com_fotos(municipio_id: str, lista: list[dict]) -> list[dict]:
     return [{**u, "foto_id": principal.get(str(u["id"])), "fotos": quantas.get(str(u["id"]), 0)} for u in lista]
 
 
-def panorama(municipio_id: str) -> dict:
-    """Tudo o que a tela precisa para desenhar a cidade e o prédio: município, secretaria, setores com
-    atividades, agentes e responsáveis, unidades e a etapa do onboarding."""
-    mun = municipio(municipio_id)
-    if not mun:
-        return {}
-    pessoas = {str(p["id"]): p for p in servidores(municipio_id)}
-    por_setor: dict[str, list] = {}
-    for a in atividades(municipio_id):
-        por_setor.setdefault(str(a["setor_id"]), []).append(a)
+def panorama(organizacao_id: str) -> dict:
+    """Tudo o que a tela precisa para desenhar o mapa e o prédio: a organização (com o segmento e os nomes de tela),
+    as áreas com atividades, agentes e responsáveis, as unidades, as pessoas e a fase da implantação."""
+    org = organizacao(organizacao_id)
+    if not org:
+        return {"organizacao": None}
+    gente = {str(p["id"]): p for p in pessoas(organizacao_id)}
+    por_area: dict[str, list] = {}
+    for a in atividades(organizacao_id):
+        por_area.setdefault(str(a["area_id"]), []).append(a)
     agentes_de: dict[str, list] = {}
-    for a in agentes_setor(municipio_id):
-        agentes_de.setdefault(str(a["setor_id"]), []).append(a)
-    lista_setores = []
-    for s in setores(municipio_id):
-        resp = pessoas.get(str(s["responsavel_id"])) if s.get("responsavel_id") else None
-        lista_setores.append({**s, "responsavel": resp, "atividades": por_setor.get(str(s["id"]), []),
-                              "agentes": agentes_de.get(str(s["id"]), [])})
+    for a in agentes_area(organizacao_id):
+        agentes_de.setdefault(str(a["area_id"]), []).append(a)
+    lista_areas = []
+    for s in areas(organizacao_id):
+        resp = gente.get(str(s["responsavel_id"])) if s.get("responsavel_id") else None
+        lista_areas.append({**s, "responsavel": resp, "atividades": por_area.get(str(s["id"]), []),
+                            "agentes": agentes_de.get(str(s["id"]), [])})
     return _json({
-        "municipio": mun,
-        "secretaria": secretaria_saude(municipio_id),
-        "setores": lista_setores,
-        "unidades": _com_fotos(municipio_id, unidades(municipio_id)),
-        "servidores": list(pessoas.values()),
-        "onboarding": onboarding_aberto(municipio_id),
-        "pendencias": (falta := pendencias(municipio_id)),
-        "fase": fase_atual(municipio_id, falta),
+        "organizacao": org,
+        "segmento": segmentos.de(org).para_tela(),
+        "areas": lista_areas,
+        "unidades": _com_fotos(organizacao_id, unidades(organizacao_id)),
+        "pessoas": list(gente.values()),
+        "onboarding": onboarding_aberto(organizacao_id),
+        "pendencias": (falta := pendencias(organizacao_id)),
+        "fase": fase_atual(organizacao_id, falta),
     })
 
 
 # ───────────────────────── Gravação ─────────────────────────
 
-def registrar_municipio(*, codigo_ibge: str, nome: str, uf: str, quem: str, cep: str = "", endereco_sede: str = "",
-                        latitude: float | None = None, longitude: float | None = None, secretario_nome: str = "",
-                        secretario_email: str = "", session_id: str | None = None) -> dict:
-    """Cria (ou atualiza) o município, a Secretaria de Saúde e o onboarding aberto."""
-    tm, ts, to = _t("municipios"), _t("secretarias"), _t("onboardings")
+def registrar_organizacao(*, segmento_id: str, nome: str, quem: str, codigo_ibge: str = "", cidade: str = "",
+                          uf: str = "", cep: str = "", cnpj: str = "", latitude: float | None = None,
+                          longitude: float | None = None, responsavel_nome: str = "", responsavel_email: str = "",
+                          session_id: str | None = None) -> dict:
+    """Cria (ou atualiza) a organização e abre a implantação. Saúde pública: uma Secretaria de Saúde por município
+    (pelo código IBGE). Empresa: uma por CNPJ, quando ele vem."""
+    seg = segmentos.segmento(segmento_id)
+    to, tb = _t("organizacoes"), _t("onboardings")
+    codigo_ibge = re.sub(r"\D", "", codigo_ibge or "")[:7] or None
+    cnpj = re.sub(r"\D", "", cnpj or "") or None
+    if cnpj and not cnpj_valido(cnpj):
+        raise ValueError(f"{cnpj} não é um CNPJ válido (os dígitos verificadores não conferem).")
     with _estado["engine"].begin() as c:
-        atual = c.execute(select(tm).where(tm.c.codigo_ibge == codigo_ibge)).mappings().first()
-        valores = {"nome": nome, "uf": uf.upper(), "cep": re.sub(r"\D", "", cep or "") or None,
-                   "endereco_sede": endereco_sede or None, "latitude": latitude, "longitude": longitude}
+        atual = None
+        if seg.um_por_municipio and codigo_ibge:
+            atual = c.execute(select(to).where(to.c.segmento_id == seg.id, to.c.codigo_ibge == codigo_ibge)).mappings().first()
+        elif cnpj:
+            atual = c.execute(select(to).where(to.c.segmento_id == seg.id, to.c.cnpj == cnpj)).mappings().first()
+        valores = {"nome": (nome or "").strip(), "codigo_ibge": codigo_ibge, "cidade": cidade or None,
+                   "uf": (uf or "").upper() or None, "cep": re.sub(r"\D", "", cep or "") or None, "cnpj": cnpj,
+                   "latitude": latitude, "longitude": longitude, "responsavel_nome": responsavel_nome or None,
+                   "responsavel_email": (responsavel_email or "").strip().lower() or None}
         if atual:
-            mid = str(atual["id"])
-            c.execute(update(tm).where(tm.c.id == atual["id"]).values(**{k: v for k, v in valores.items() if v}))
+            oid = str(atual["id"])
+            c.execute(update(to).where(to.c.id == atual["id"]).values(**{k: v for k, v in valores.items() if v}))
         else:
-            mid = _id()
-            c.execute(insert(tm).values(id=mid, codigo_ibge=codigo_ibge, criado_por=quem, **valores))
-        auditar(c, municipio_id=mid, origem="agente", quem=quem, acao="registrar", entidade="municipios",
-                entidade_id=mid, depois={"codigo_ibge": codigo_ibge, **valores}, session_id=session_id)
-        sec = c.execute(select(ts).where(ts.c.municipio_id == mid, ts.c.area == "saude")).mappings().first()
-        if not sec:
-            c.execute(insert(ts).values(id=_id(), municipio_id=mid, area="saude", secretario_nome=secretario_nome or None,
-                                        secretario_email=(secretario_email or "").lower() or None))
-        elif secretario_nome or secretario_email:
-            c.execute(update(ts).where(ts.c.id == sec["id"]).values(
-                secretario_nome=secretario_nome or sec["secretario_nome"],
-                secretario_email=(secretario_email or "").lower() or sec["secretario_email"]))
-        aberto = c.execute(select(to).where(to.c.municipio_id == mid, to.c.concluido_em.is_(None))).mappings().first()
+            oid = _id()
+            c.execute(insert(to).values(id=oid, segmento_id=seg.id, criado_por=quem, dados_segmento={}, **valores))
+        auditar(c, organizacao_id=oid, origem="agente", quem=quem, acao="registrar", entidade="organizacoes",
+                entidade_id=oid, depois={"segmento_id": seg.id, **valores}, session_id=session_id)
+        aberto = c.execute(select(tb).where(tb.c.organizacao_id == oid, tb.c.concluido_em.is_(None))).mappings().first()
         if not aberto:
-            c.execute(insert(to).values(id=_id(), municipio_id=mid, session_id=session_id, etapa="municipio",
+            c.execute(insert(tb).values(id=_id(), organizacao_id=oid, session_id=session_id, etapa="organizacao",
                                         estado={}, iniciado_por=quem))
-    return municipio(mid) or {}
+    return organizacao(oid) or {}
 
 
-# ───────── Cadastro detalhado da prefeitura e da secretaria (fase 1 da implantação) ─────────
-
-# Os campos que a fase 1 exige: (tabela, coluna, rótulo). "municipios" = a prefeitura; "secretarias" = a Secretaria de Saúde.
-CAMPOS_OBRIGATORIOS: list[tuple[str, str, str]] = [
-    ("municipios", "prefeitura_cnpj", "CNPJ da prefeitura"),
-    ("municipios", "cep", "CEP da prefeitura"),
-    ("municipios", "prefeitura_logradouro", "Rua da prefeitura"),
-    ("municipios", "prefeitura_numero", "Número da prefeitura"),
-    ("municipios", "prefeitura_bairro", "Bairro da prefeitura"),
-    ("municipios", "prefeitura_telefone", "Telefone da prefeitura"),
-    ("municipios", "prefeito_nome", "Nome do(a) prefeito(a)"),
-    ("secretarias", "nome", "Nome oficial da Secretaria de Saúde"),
-    ("secretarias", "fundo_cnpj", "CNPJ do Fundo Municipal de Saúde"),
-    ("secretarias", "cep", "CEP da secretaria"),
-    ("secretarias", "logradouro", "Rua da secretaria"),
-    ("secretarias", "numero", "Número da secretaria"),
-    ("secretarias", "bairro", "Bairro da secretaria"),
-    ("secretarias", "telefone", "Telefone da secretaria"),
-    ("secretarias", "email", "E-mail institucional da secretaria"),
-    ("secretarias", "secretario_nome", "Nome do(a) secretário(a) de saúde"),
-    ("secretarias", "secretario_email", "E-mail do(a) secretário(a)"),
-    ("secretarias", "secretario_telefone", "Telefone do(a) secretário(a)"),
-]
-# Os que a gravação aceita (os obrigatórios e os opcionais).
-CAMPOS_PREFEITURA = ("prefeitura_cnpj", "cep", "prefeitura_logradouro", "prefeitura_numero", "prefeitura_bairro",
-                     "prefeitura_telefone", "prefeitura_email", "prefeitura_site", "prefeito_nome", "populacao")
-CAMPOS_SECRETARIA = ("nome", "sigla", "fundo_cnpj", "cnpj", "cep", "logradouro", "numero", "bairro", "telefone", "email",
-                     "secretario_nome", "secretario_email", "secretario_telefone", "latitude", "longitude")
+# ───────── Cadastro detalhado da organização (fase 1 da implantação) ─────────
+# Os campos (e os obrigatórios) de cada segmento estão em agente/segmentos.py. Fora deles, a gravação aceita
+# também as coordenadas da sede.
+CAMPOS_EXTRAS = ("sede_latitude", "sede_longitude")
 
 
 def cnpj_valido(cnpj: str) -> bool:
@@ -692,172 +691,199 @@ def cnpj_valido(cnpj: str) -> bool:
     return n[12:] == d1 + d2
 
 
-def _normalizar(campo: str, valor):
-    """Limpa e confere um campo do cadastro. ValueError com a explicação se não vale."""
+def _normalizar(tipo: str, valor):
+    """Limpa e confere um campo do cadastro pelo tipo (segmentos.TIPOS_CAMPO). ValueError com a explicação se não vale."""
     if valor is None:
         return None
     if isinstance(valor, str):
         valor = valor.strip()
         if not valor:
             return None
-    if campo in ("prefeitura_cnpj", "fundo_cnpj", "cnpj"):
-        if not cnpj_valido(valor):
+    if tipo == "cnpj":
+        if not cnpj_valido(str(valor)):
             raise ValueError(f"{valor} não é um CNPJ válido (os dígitos verificadores não conferem).")
-        return re.sub(r"\D", "", valor)
-    if campo == "cep":
-        n = re.sub(r"\D", "", valor)
+        return re.sub(r"\D", "", str(valor))
+    if tipo == "cep":
+        n = re.sub(r"\D", "", str(valor))
         if len(n) != 8:
             raise ValueError("O CEP precisa ter 8 dígitos.")
         return n
-    if campo.endswith("telefone"):
-        n = re.sub(r"\D", "", valor)
+    if tipo == "telefone":
+        n = re.sub(r"\D", "", str(valor))
         if len(n) < 10 or len(n) > 13:
             raise ValueError(f"Telefone {valor}: informe com DDD (10 ou 11 dígitos).")
-        return valor
-    if campo.endswith("email"):
-        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", valor):
+        return str(valor)
+    if tipo == "email":
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", str(valor)):
             raise ValueError(f"{valor} não parece um e-mail.")
-        return valor.lower()
+        return str(valor).lower()
+    if tipo == "inteiro":
+        n = re.sub(r"\D", "", str(valor))
+        if not n:
+            raise ValueError(f"{valor}: informe um número.")
+        return int(n)
+    if tipo == "uf":
+        uf = str(valor).upper()
+        if not re.fullmatch(r"[A-Z]{2}", uf):
+            raise ValueError(f"{valor}: a UF tem duas letras (ex.: RJ).")
+        return uf
     return valor
 
 
-def salvar_cadastro(municipio_id: str, tabela: str, campos: dict, quem: str, session_id: str | None = None) -> dict:
-    """Grava os campos da prefeitura (tabela "municipios") ou da Secretaria de Saúde ("secretarias") que vierem
-    preenchidos. Confere CNPJ, CEP, telefone e e-mail: os inválidos voltam em `recusados`, com o motivo."""
-    aceitos = CAMPOS_PREFEITURA if tabela == "municipios" else CAMPOS_SECRETARIA
-    valores, recusados = {}, {}
-    for campo, valor in campos.items():
-        if campo not in aceitos or valor in (None, ""):
-            continue
-        try:
-            limpo = _normalizar(campo, valor)
-        except ValueError as erro:
-            recusados[campo] = str(erro)
-            continue
-        if limpo is not None:
-            valores[campo] = limpo
-    t = _t(tabela)
+def salvar_cadastro(organizacao_id: str, campos: dict, quem: str, session_id: str | None = None) -> dict:
+    """Grava os campos do cadastro da organização que vierem preenchidos (os do segmento, por chave; os de
+    dados_segmento podem vir com ou sem o prefixo "dados."). Confere CNPJ, CEP, telefone e e-mail: os inválidos
+    voltam em `recusados`, com o motivo; os que o segmento não tem, em `ignorados`."""
+    t = _t("organizacoes")
     with _estado["engine"].begin() as c:
-        if tabela == "municipios":
-            alvo = t.c.id == municipio_id
-        else:
-            alvo = (t.c.municipio_id == municipio_id) & (t.c.area == "saude")
-        atual = c.execute(select(t).where(alvo)).mappings().first()
+        atual = c.execute(select(t).where(t.c.id == organizacao_id)).mappings().first()
         if atual is None:
-            raise LookupError("Cadastro não encontrado.")
-        if valores:
-            c.execute(update(t).where(alvo).values(**valores))
-            auditar(c, municipio_id=municipio_id, origem="agente", quem=quem, acao="cadastrar", entidade=tabela,
-                    entidade_id=str(atual["id"]), antes={k: atual[k] for k in valores if k in atual}, depois=valores,
-                    session_id=session_id)
-    return {"gravados": list(valores), "recusados": recusados}
+            raise LookupError("Organização não encontrada.")
+        seg = segmentos.de(atual)
+        colunas, dados, recusados, ignorados = {}, dict(atual.get("dados_segmento") or {}), {}, []
+        for chave, valor in campos.items():
+            if valor in (None, ""):
+                continue
+            if chave in CAMPOS_EXTRAS:
+                colunas[chave] = valor
+                continue
+            campo = seg.campo(chave.removeprefix("dados."))
+            if campo is None:
+                ignorados.append(chave)
+                continue
+            try:
+                limpo = _normalizar(campo.tipo, valor)
+            except ValueError as erro:
+                recusados[chave] = str(erro)
+                continue
+            if limpo is None:
+                continue
+            if campo.chave.startswith("dados."):
+                dados[campo.chave.removeprefix("dados.")] = limpo
+            else:
+                colunas[campo.chave] = limpo
+        antes = {k: atual.get(k) for k in colunas}
+        if dados != (atual.get("dados_segmento") or {}):
+            colunas["dados_segmento"] = dados
+            antes["dados_segmento"] = atual.get("dados_segmento")
+        if colunas:
+            c.execute(update(t).where(t.c.id == organizacao_id).values(**colunas))
+            auditar(c, organizacao_id=organizacao_id, origem="agente", quem=quem, acao="cadastrar", entidade="organizacoes",
+                    entidade_id=organizacao_id, antes=antes, depois=colunas, session_id=session_id)
+    gravados = [k for k in colunas if k != "dados_segmento"] + [k for k in dados if dados.get(k) != (atual.get("dados_segmento") or {}).get(k)]
+    return {"gravados": gravados, "recusados": recusados, "ignorados": ignorados}
 
 
-def faltando_no_cadastro(municipio_id: str) -> list[str]:
-    """Os campos obrigatórios da fase 1 que ainda estão vazios (rótulos)."""
-    mun = municipio(municipio_id) or {}
-    sec = secretaria_saude(municipio_id) or {}
-    fonte = {"municipios": mun, "secretarias": sec}
-    return [rotulo for tabela, coluna, rotulo in CAMPOS_OBRIGATORIOS if not fonte[tabela].get(coluna)]
+def valor_do_campo(org: dict, chave: str):
+    if chave.startswith("dados."):
+        return (org.get("dados_segmento") or {}).get(chave.removeprefix("dados."))
+    return org.get(chave)
+
+
+def faltando_no_cadastro(organizacao_id: str) -> list[str]:
+    """Os campos obrigatórios da fase 1 (pelo segmento) que ainda estão vazios (rótulos)."""
+    org = organizacao(organizacao_id) or {}
+    return [c.rotulo for c in segmentos.de(org).campos if c.obrigatorio and valor_do_campo(org, c.chave) in (None, "")]
 
 
 # ───────── As fases da implantação: cada uma obrigatória antes da próxima ─────────
 
-FASES = ("municipio", "setores", "atividades", "cargos", "responsaveis", "agentes", "equipe", "unidades", "revisao")
+FASES = ("organizacao", "areas", "atividades", "cargos", "responsaveis", "agentes", "equipe", "unidades", "revisao")
 # A implantação conclui com as fases até a equipe completas; as unidades podem ficar para depois (o assistente
 # continua disponível para cadastrá-las).
 
 
-def pendencias(municipio_id: str) -> dict[str, list[str]]:
+def pendencias(organizacao_id: str) -> dict[str, list[str]]:
     """O que falta em cada fase (vazio = fase completa)."""
-    lista_setores = setores(municipio_id)
-    com_atividade = {str(a["setor_id"]) for a in atividades(municipio_id)}
-    com_agente = {str(a["setor_id"]) for a in agentes_setor(municipio_id)}
-    estado = (onboarding_aberto(municipio_id) or {}).get("estado") or {}
-    if ((municipio(municipio_id) or {}).get("situacao")) == "ativo":
+    org = organizacao(organizacao_id) or {}
+    r = segmentos.de(org).rotulos
+    lista_setores = areas(organizacao_id)
+    com_atividade = {str(a["area_id"]) for a in atividades(organizacao_id)}
+    com_agente = {str(a["area_id"]) for a in agentes_area(organizacao_id)}
+    estado = (onboarding_aberto(organizacao_id) or {}).get("estado") or {}
+    if org.get("situacao") == "ativo":
         estado = {**estado, "unidades_confirmadas": True}  # implantada: as unidades seguem pelo assistente, sem prazo
-    qtd_unidades = len(unidades(municipio_id))
+    qtd_unidades = len(unidades(organizacao_id))
     tc, tv, tm = _t("cargos"), _t("convites"), _t("membros")
-    com_cargo = {str(c["setor_id"]) for c in _linhas(select(tc.c.setor_id).where(tc.c.municipio_id == municipio_id,
-                                                                                tc.c.setor_id.is_not(None)))}
+    com_cargo = {str(c["area_id"]) for c in _linhas(select(tc.c.area_id).where(tc.c.organizacao_id == organizacao_id,
+                                                                                tc.c.area_id.is_not(None)))}
     # Equipe: cada responsável de setor com acesso (membro ou convite); os convites do assistente aprovados no painel.
-    pessoas = {str(p["id"]): p for p in servidores(municipio_id)}
-    membros_emails = {m["email"] for m in _linhas(select(tm.c.email).where(tm.c.municipio_id == municipio_id))}
-    convites = _linhas(select(tv).where(tv.c.municipio_id == municipio_id, tv.c.aceito_em.is_(None), tv.c.cancelado_em.is_(None)))
+    gente = {str(p["id"]): p for p in pessoas(organizacao_id)}
+    membros_emails = {m["email"] for m in _linhas(select(tm.c.email).where(tm.c.organizacao_id == organizacao_id))}
+    convites = _linhas(select(tv).where(tv.c.organizacao_id == organizacao_id, tv.c.aceito_em.is_(None), tv.c.cancelado_em.is_(None)))
     convidados = {c["email"] for c in convites}
     sem_acesso = []
     for s in lista_setores:
-        resp = pessoas.get(str(s.get("responsavel_id"))) if s.get("responsavel_id") else None
+        resp = gente.get(str(s.get("responsavel_id"))) if s.get("responsavel_id") else None
         if resp and resp.get("email") and resp["email"].lower() not in membros_emails | convidados:
             sem_acesso.append(f"Dar acesso a {resp['nome']} ({s['nome']})")
     esperando = [f"Aprovar no painel o acesso de {c['email']}" for c in convites
                  if c.get("origem") == "assistente" and not c.get("aprovado_em")]
     return {
-        "municipio": faltando_no_cadastro(municipio_id),
-        "setores": [] if lista_setores else ["Confirmar os setores da secretaria"],
+        "organizacao": faltando_no_cadastro(organizacao_id),
+        "areas": [] if lista_setores else [f"Confirmar os {r['areas']} da {r['organizacao_curta']}"],
         "atividades": [f"Atividades de {s['nome']}" for s in lista_setores if str(s["id"]) not in com_atividade],
         "cargos": [f"Cargos de {s['nome']}" for s in lista_setores if str(s["id"]) not in com_cargo],
         "responsaveis": [f"Responsável de {s['nome']}" for s in lista_setores if not s.get("responsavel_id")],
         "agentes": [f"Agente de {s['nome']}" for s in lista_setores if str(s["id"]) not in com_agente],
         "equipe": sem_acesso + esperando,
-        # Unidades: completas quando o(a) secretário(a) confirma a lista ou decide cadastrar depois.
+        # Unidades: completas quando o responsável confirma a lista ou decide cadastrar depois.
         "unidades": [] if estado.get("unidades_confirmadas") else
-                    (["Trazer as unidades de saúde (CNES ou CEP) ou deixar para depois"] if not qtd_unidades
-                     else ["O(a) secretário(a) confirmar que a lista de unidades está completa"]),
+                    ([f"Trazer as {r['unidades']} ({'CNES ou CEP' if segmentos.de(org).usa_cnes else 'pelo CEP'}) ou deixar para depois"]
+                     if not qtd_unidades else [f"O(a) {r['responsavel']} confirmar que a lista de {r['unidades']} está completa"]),
         "revisao": [],
     }
 
 
-def fase_atual(municipio_id: str, falta: dict | None = None) -> str:
+def fase_atual(organizacao_id: str, falta: dict | None = None) -> str:
     """A primeira fase que ainda tem pendência (na ordem); tudo completo, a revisão."""
-    if ((municipio(municipio_id) or {}).get("situacao")) == "ativo":
+    if ((organizacao(organizacao_id) or {}).get("situacao")) == "ativo":
         return "concluido"
-    falta = falta if falta is not None else pendencias(municipio_id)
+    falta = falta if falta is not None else pendencias(organizacao_id)
     return next((f for f in FASES if falta.get(f)), "revisao")
 
 
-def bloqueio(municipio_id: str, fase: str) -> list[str]:
+def bloqueio(organizacao_id: str, fase: str) -> list[str]:
     """O que falta nas fases ANTES de `fase` (vazio = pode trabalhar nela)."""
-    falta = pendencias(municipio_id)
+    falta = pendencias(organizacao_id)
     anteriores = FASES[:FASES.index(fase)]
     return [f"{f}: {item}" for f in anteriores for item in falta.get(f, [])]
 
 
-def sincronizar_etapa(municipio_id: str) -> str:
+def sincronizar_etapa(organizacao_id: str) -> str:
     """Grava no onboarding aberto a fase atual (a primeira incompleta). Devolve a fase."""
-    fase = fase_atual(municipio_id)
-    avancar_etapa(municipio_id, fase)
+    fase = fase_atual(organizacao_id)
+    avancar_etapa(organizacao_id, fase)
     return fase
 
 
-def marcar_unidades_confirmadas(municipio_id: str) -> None:
+def marcar_unidades_confirmadas(organizacao_id: str) -> None:
     to = _t("onboardings")
-    aberto = onboarding_aberto(municipio_id)
+    aberto = onboarding_aberto(organizacao_id)
     if not aberto:
         return
     with _estado["engine"].begin() as c:
         c.execute(update(to).where(to.c.id == aberto["id"]).values(estado={**(aberto.get("estado") or {}), "unidades_confirmadas": True}))
 
 
-def avancar_etapa(municipio_id: str, etapa: str) -> None:
+def avancar_etapa(organizacao_id: str, etapa: str) -> None:
     to = _t("onboardings")
     with _estado["engine"].begin() as c:
-        c.execute(update(to).where(to.c.municipio_id == municipio_id, to.c.concluido_em.is_(None)).values(etapa=etapa))
+        c.execute(update(to).where(to.c.organizacao_id == organizacao_id, to.c.concluido_em.is_(None)).values(etapa=etapa))
 
 
-def salvar_unidade(municipio_id: str, *, nome: str, tipo_id: str, quem: str, endereco: str = "", bairro: str = "",
+def salvar_unidade(organizacao_id: str, *, nome: str, tipo_id: str, quem: str, endereco: str = "", bairro: str = "",
                    cep: str = "", cnes: str = "", latitude: float | None = None, longitude: float | None = None,
                    origem: str = "manual", dados_cnes: dict | None = None, confirmada: bool = True,
                    gestao: str | None = None, session_id: str | None = None, numero: str = "", complemento: str = "",
                    telefone: str = "", email: str = "", coordenadas_origem: str | None = None,
                    origem_auditoria: str = "agente") -> dict:
     tu = _t("unidades")
-    sec = secretaria_saude(municipio_id)
     cnes = re.sub(r"\D", "", cnes or "")[:7] or None
     valores = {"nome": nome.strip(), "tipo_id": tipo_id, "endereco": endereco or None, "bairro": bairro or None,
                "cep": re.sub(r"\D", "", cep or "") or None, "latitude": latitude, "longitude": longitude,
                "origem": origem, "dados_cnes": dados_cnes, "confirmada": confirmada, "gestao": gestao,
-               "secretaria_id": str(sec["id"]) if sec else None, "numero": numero or None,
+               "numero": numero or None,
                "complemento": complemento or None, "telefone": telefone or None, "email": email or None,
                "coordenadas_origem": coordenadas_origem or (("cnes" if origem == "cnes" else "endereco") if latitude else None)}
     if confirmada:
@@ -865,38 +891,38 @@ def salvar_unidade(municipio_id: str, *, nome: str, tipo_id: str, quem: str, end
     with _estado["engine"].begin() as c:
         atual = None
         if cnes:
-            atual = c.execute(select(tu).where(tu.c.municipio_id == municipio_id, tu.c.cnes == cnes)).mappings().first()
+            atual = c.execute(select(tu).where(tu.c.organizacao_id == organizacao_id, tu.c.cnes == cnes)).mappings().first()
         if atual:
             uid = str(atual["id"])
             c.execute(update(tu).where(tu.c.id == atual["id"]).values(**{k: v for k, v in valores.items() if v is not None}))
         else:
             uid = _id()
-            c.execute(insert(tu).values(id=uid, municipio_id=municipio_id, cnes=cnes, criado_por=quem, **valores))
-        auditar(c, municipio_id=municipio_id, origem=origem_auditoria, quem=quem, acao="salvar", entidade="unidades",
+            c.execute(insert(tu).values(id=uid, organizacao_id=organizacao_id, cnes=cnes, criado_por=quem, **valores))
+        auditar(c, organizacao_id=organizacao_id, origem=origem_auditoria, quem=quem, acao="salvar", entidade="unidades",
                 entidade_id=uid, depois={**valores, "cnes": cnes, "dados_cnes": None}, session_id=session_id)
     return _json({"id": uid, **valores, "cnes": cnes})
 
 
-# Campos da unidade que a secretaria edita pelo painel.
+# Campos da unidade que a organização edita pelo painel.
 CAMPOS_UNIDADE = ("nome", "nome_fantasia", "tipo_id", "cnes", "endereco", "numero", "complemento", "bairro", "cep",
                   "telefone", "email", "latitude", "longitude", "coordenadas_origem", "situacao", "gestao", "horario")
 SITUACOES_UNIDADE = ("ativa", "inativa", "em_obra")
 
 
-def ligar_agente_as_unidades(municipio_id: str, agente_id: str) -> int:
-    """Põe o agente nas unidades do município que ainda não têm agente. Devolve quantas ganharam."""
+def ligar_agente_as_unidades(organizacao_id: str, agente_id: str) -> int:
+    """Põe o agente nas unidades da organização que ainda não têm agente. Devolve quantas ganharam."""
     t = _t("unidades")
     with _estado["engine"].begin() as c:
-        return c.execute(update(t).where(t.c.municipio_id == municipio_id, t.c.agente_id.is_(None))
+        return c.execute(update(t).where(t.c.organizacao_id == organizacao_id, t.c.agente_id.is_(None))
                          .values(agente_id=agente_id)).rowcount
 
 
-def unidade(municipio_id: str, unidade_id: str) -> dict | None:
+def unidade(organizacao_id: str, unidade_id: str) -> dict | None:
     t = _t("unidades")
-    return _uma(select(t).where(t.c.municipio_id == municipio_id, t.c.id == unidade_id))
+    return _uma(select(t).where(t.c.organizacao_id == organizacao_id, t.c.id == unidade_id))
 
 
-def alterar_unidade(municipio_id: str, unidade_id: str, campos: dict, quem: str, conferir: bool | None = None) -> dict:
+def alterar_unidade(organizacao_id: str, unidade_id: str, campos: dict, quem: str, conferir: bool | None = None) -> dict:
     """Altera a unidade (só os campos de CAMPOS_UNIDADE que vierem) e, com `conferir`, marca como conferida (ou
     desmarca). Vai para a auditoria com o antes e o depois. LookupError se a unidade não é do município."""
     t = _t("unidades")
@@ -915,26 +941,26 @@ def alterar_unidade(municipio_id: str, unidade_id: str, campos: dict, quem: str,
     elif conferir is False:
         valores.update(confirmada=False, conferida_por=None, conferida_em=None)
     with _estado["engine"].begin() as c:
-        atual = c.execute(select(t).where(t.c.municipio_id == municipio_id, t.c.id == unidade_id)).mappings().first()
+        atual = c.execute(select(t).where(t.c.organizacao_id == organizacao_id, t.c.id == unidade_id)).mappings().first()
         if atual is None:
             raise LookupError("Unidade não encontrada.")
         if valores:
             c.execute(update(t).where(t.c.id == atual["id"]).values(**valores))
-            auditar(c, municipio_id=municipio_id, origem="painel", quem=quem, acao="alterar", entidade="unidades",
+            auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=quem, acao="alterar", entidade="unidades",
                     entidade_id=str(atual["id"]), antes={k: atual[k] for k in valores if k in atual}, depois=valores)
-    return _json(unidade(municipio_id, unidade_id))
+    return _json(unidade(organizacao_id, unidade_id))
 
 
-# ───────── Fotos das unidades (arquivo no bucket prefeituras; agente/armazenamento.py) ─────────
+# ───────── Fotos das unidades (arquivo no bucket organizacoes; agente/armazenamento.py) ─────────
 
 TIPOS_FOTO = ("fachada", "interior", "outra")
 MAX_BYTES_FOTO = 10 * 1024 * 1024
 LADO_MAXIMO_FOTO = 1600  # px: a foto é reduzida e regravada em JPEG (sem os metadados, como a localização do celular)
 
 
-def fotos(municipio_id: str, unidade_id: str | None = None) -> list[dict]:
+def fotos(organizacao_id: str, unidade_id: str | None = None) -> list[dict]:
     t = _t("unidade_fotos")
-    q = select(t).where(t.c.municipio_id == municipio_id).order_by(t.c.principal.desc(), t.c.enviada_em.desc())
+    q = select(t).where(t.c.organizacao_id == organizacao_id).order_by(t.c.principal.desc(), t.c.enviada_em.desc())
     if unidade_id:
         q = q.where(t.c.unidade_id == unidade_id)
     return [{k: v for k, v in f.items() if k != "caminho"} for f in _linhas(q)]
@@ -957,11 +983,11 @@ def _preparar_foto(conteudo: bytes) -> tuple[bytes, int, int]:
     return saida.getvalue(), imagem.width, imagem.height
 
 
-def salvar_foto(municipio_id: str, unidade_id: str, conteudo: bytes, quem: str, tipo: str = "fachada",
+def salvar_foto(organizacao_id: str, unidade_id: str, conteudo: bytes, quem: str, tipo: str = "fachada",
                 legenda: str = "") -> dict:
     from agente import armazenamento
 
-    if not unidade(municipio_id, unidade_id):
+    if not unidade(organizacao_id, unidade_id):
         raise LookupError("Unidade não encontrada.")
     if tipo not in TIPOS_FOTO:
         raise ValueError(f"Tipo de foto inválido. Use: {', '.join(TIPOS_FOTO)}.")
@@ -969,51 +995,51 @@ def salvar_foto(municipio_id: str, unidade_id: str, conteudo: bytes, quem: str, 
         raise ValueError("A foto passa de 10 MB.")
     jpeg, largura, altura = _preparar_foto(conteudo)
     fid = _id()
-    caminho = f"{municipio_id}/unidades/{unidade_id}/{fid}.jpg"
+    caminho = f"{organizacao_id}/unidades/{unidade_id}/{fid}.jpg"
     armazenamento.guardar(caminho, jpeg, "image/jpeg")
     t = _t("unidade_fotos")
     with _estado["engine"].begin() as c:
         tem_principal = c.execute(select(t.c.id).where(t.c.unidade_id == unidade_id, t.c.principal.is_(True))).first()
         valores = {"tipo": tipo, "mime": "image/jpeg", "bytes": len(jpeg), "largura": largura, "altura": altura,
                    "legenda": legenda or None, "principal": not tem_principal}
-        c.execute(insert(t).values(id=fid, municipio_id=municipio_id, unidade_id=unidade_id, caminho=caminho,
+        c.execute(insert(t).values(id=fid, organizacao_id=organizacao_id, unidade_id=unidade_id, caminho=caminho,
                                    enviada_por=quem, enviada_em=_agora(), **valores))
-        auditar(c, municipio_id=municipio_id, origem="painel", quem=quem, acao="enviar_foto", entidade="unidade_fotos",
+        auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=quem, acao="enviar_foto", entidade="unidade_fotos",
                 entidade_id=fid, depois={**valores, "unidade_id": unidade_id})
     return _json({"id": fid, "unidade_id": unidade_id, **valores})
 
 
-def _foto(municipio_id: str, foto_id: str) -> dict | None:
+def _foto(organizacao_id: str, foto_id: str) -> dict | None:
     t = _t("unidade_fotos")
-    return _uma(select(t).where(t.c.municipio_id == municipio_id, t.c.id == foto_id))
+    return _uma(select(t).where(t.c.organizacao_id == organizacao_id, t.c.id == foto_id))
 
 
-def conteudo_foto(municipio_id: str, foto_id: str) -> bytes:
+def conteudo_foto(organizacao_id: str, foto_id: str) -> bytes:
     from agente import armazenamento
 
-    dados = _foto(municipio_id, foto_id)
+    dados = _foto(organizacao_id, foto_id)
     if not dados:
         raise LookupError("Foto não encontrada.")
     return armazenamento.ler(dados["caminho"])
 
 
-def tornar_principal(municipio_id: str, foto_id: str, quem: str) -> None:
+def tornar_principal(organizacao_id: str, foto_id: str, quem: str) -> None:
     t = _t("unidade_fotos")
-    dados = _foto(municipio_id, foto_id)
+    dados = _foto(organizacao_id, foto_id)
     if not dados:
         raise LookupError("Foto não encontrada.")
     with _estado["engine"].begin() as c:
         c.execute(update(t).where(t.c.unidade_id == dados["unidade_id"]).values(principal=False))
         c.execute(update(t).where(t.c.id == foto_id).values(principal=True))
-        auditar(c, municipio_id=municipio_id, origem="painel", quem=quem, acao="foto_principal", entidade="unidade_fotos",
+        auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=quem, acao="foto_principal", entidade="unidade_fotos",
                 entidade_id=str(foto_id))
 
 
-def apagar_foto(municipio_id: str, foto_id: str, quem: str) -> None:
+def apagar_foto(organizacao_id: str, foto_id: str, quem: str) -> None:
     from agente import armazenamento
 
     t = _t("unidade_fotos")
-    dados = _foto(municipio_id, foto_id)
+    dados = _foto(organizacao_id, foto_id)
     if not dados:
         raise LookupError("Foto não encontrada.")
     with _estado["engine"].begin() as c:
@@ -1023,7 +1049,7 @@ def apagar_foto(municipio_id: str, foto_id: str, quem: str) -> None:
                               .order_by(t.c.enviada_em.desc())).first()
             if outra:
                 c.execute(update(t).where(t.c.id == outra[0]).values(principal=True))
-        auditar(c, municipio_id=municipio_id, origem="painel", quem=quem, acao="apagar_foto", entidade="unidade_fotos",
+        auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=quem, acao="apagar_foto", entidade="unidade_fotos",
                 entidade_id=str(foto_id), antes={"unidade_id": str(dados["unidade_id"]), "tipo": dados["tipo"]})
     try:
         armazenamento.remover(dados["caminho"])
@@ -1031,13 +1057,13 @@ def apagar_foto(municipio_id: str, foto_id: str, quem: str) -> None:
         pass
 
 
-def salvar_setor(municipio_id: str, *, nome: str, tipo_id: str | None, quem: str, descricao: str = "",
+def salvar_area(organizacao_id: str, *, nome: str, tipo_id: str | None, quem: str, descricao: str = "",
                  session_id: str | None = None) -> dict:
-    ts = _t("setores")
-    sec = secretaria_saude(municipio_id)
-    if not sec:
-        raise ValueError("o município ainda não tem a Secretaria de Saúde: registre o município primeiro")
-    existentes = setores(municipio_id)
+    ts = _t("areas")
+    org = organizacao(organizacao_id)
+    if not org:
+        raise ValueError("a organização ainda não foi registrada")
+    existentes = areas(organizacao_id)
     for s in existentes:
         if _sem_acento(s["nome"]) == _sem_acento(nome) or (tipo_id and s["tipo_id"] == tipo_id):
             return s
@@ -1045,23 +1071,23 @@ def salvar_setor(municipio_id: str, *, nome: str, tipo_id: str | None, quem: str
     andar, posicao = ordem // 3, ordem % 3  # três salas por andar no prédio 3D
     sid = _id()
     with _estado["engine"].begin() as c:
-        c.execute(insert(ts).values(id=sid, municipio_id=municipio_id, secretaria_id=str(sec["id"]), tipo_id=tipo_id,
+        c.execute(insert(ts).values(id=sid, organizacao_id=organizacao_id, tipo_id=tipo_id,
                                     nome=nome.strip(), descricao=descricao or None, andar=andar, posicao=posicao))
-        tsec = _t("secretarias")
+        to = _t("organizacoes")
         andares = andar + 1
-        if andares > (sec.get("andares") or 0):
-            c.execute(update(tsec).where(tsec.c.id == sec["id"]).values(andares=andares))
-        auditar(c, municipio_id=municipio_id, origem="agente", quem=quem, acao="criar", entidade="setores",
+        if andares > (org.get("andares") or 0):
+            c.execute(update(to).where(to.c.id == organizacao_id).values(andares=andares))
+        auditar(c, organizacao_id=organizacao_id, origem="agente", quem=quem, acao="criar", entidade="areas",
                 entidade_id=sid, depois={"nome": nome, "tipo_id": tipo_id, "andar": andar}, session_id=session_id)
     return {"id": sid, "nome": nome, "tipo_id": tipo_id, "andar": andar, "posicao": posicao}
 
 
-def salvar_atividade(municipio_id: str, setor_id: str, *, nome: str, descricao: str, tipo: str, frequencia: str,
+def salvar_atividade(organizacao_id: str, area_id: str, *, nome: str, descricao: str, tipo: str, frequencia: str,
                      quem: str, modelo_id: str | None = None, cron: str | None = None, entregavel: str | None = None,
                      session_id: str | None = None) -> dict:
-    ta = _t("atividades_setor")
+    ta = _t("atividades_area")
     with _estado["engine"].begin() as c:
-        atual = c.execute(select(ta).where(ta.c.setor_id == setor_id, ta.c.nome == nome)).mappings().first()
+        atual = c.execute(select(ta).where(ta.c.area_id == area_id, ta.c.nome == nome)).mappings().first()
         valores = {"descricao": descricao, "tipo": tipo, "frequencia": frequencia, "cron": cron,
                    "entregavel": entregavel, "modelo_id": modelo_id, "ativa": True}
         if atual:
@@ -1069,55 +1095,55 @@ def salvar_atividade(municipio_id: str, setor_id: str, *, nome: str, descricao: 
             c.execute(update(ta).where(ta.c.id == atual["id"]).values(**valores))
         else:
             aid = _id()
-            c.execute(insert(ta).values(id=aid, municipio_id=municipio_id, setor_id=setor_id, nome=nome, **valores))
-        auditar(c, municipio_id=municipio_id, origem="agente", quem=quem, acao="salvar", entidade="atividades_setor",
+            c.execute(insert(ta).values(id=aid, organizacao_id=organizacao_id, area_id=area_id, nome=nome, **valores))
+        auditar(c, organizacao_id=organizacao_id, origem="agente", quem=quem, acao="salvar", entidade="atividades_area",
                 entidade_id=aid, depois={"nome": nome, **valores}, session_id=session_id)
     return {"id": aid, "nome": nome, **valores}
 
 
-def salvar_servidor(municipio_id: str, *, nome: str, email: str, quem: str, cargo: str = "", setor_id: str | None = None,
-                    papel: str = "coordenador", aprova_tarefas: bool = True, responsavel_do_setor: bool = False,
+def salvar_pessoa(organizacao_id: str, *, nome: str, email: str, quem: str, cargo: str = "", area_id: str | None = None,
+                    papel: str = "coordenador", aprova_tarefas: bool = True, responsavel_da_area: bool = False,
                     session_id: str | None = None) -> dict:
-    tp, ts = _t("servidores"), _t("setores")
+    tp, ts = _t("pessoas"), _t("areas")
     email = email.strip().lower()
     with _estado["engine"].begin() as c:
-        atual = c.execute(select(tp).where(tp.c.municipio_id == municipio_id, tp.c.email == email)).mappings().first()
-        valores = {"nome": nome.strip(), "cargo": cargo or None, "setor_id": setor_id, "papel": papel,
+        atual = c.execute(select(tp).where(tp.c.organizacao_id == organizacao_id, tp.c.email == email)).mappings().first()
+        valores = {"nome": nome.strip(), "cargo": cargo or None, "area_id": area_id, "papel": papel,
                    "aprova_tarefas": aprova_tarefas}
         if atual:
             pid = str(atual["id"])
             c.execute(update(tp).where(tp.c.id == atual["id"]).values(**valores))
         else:
             pid = _id()
-            c.execute(insert(tp).values(id=pid, municipio_id=municipio_id, email=email, **valores))
-        if responsavel_do_setor and setor_id:
-            c.execute(update(ts).where(ts.c.id == setor_id).values(responsavel_id=pid))
-            ta = _t("atividades_setor")
-            c.execute(update(ta).where(ta.c.setor_id == setor_id, ta.c.aprovador_id.is_(None)).values(aprovador_id=pid))
-        auditar(c, municipio_id=municipio_id, origem="agente", quem=quem, acao="salvar", entidade="servidores",
+            c.execute(insert(tp).values(id=pid, organizacao_id=organizacao_id, email=email, **valores))
+        if responsavel_da_area and area_id:
+            c.execute(update(ts).where(ts.c.id == area_id).values(responsavel_id=pid))
+            ta = _t("atividades_area")
+            c.execute(update(ta).where(ta.c.area_id == area_id, ta.c.aprovador_id.is_(None)).values(aprovador_id=pid))
+        auditar(c, organizacao_id=organizacao_id, origem="agente", quem=quem, acao="salvar", entidade="pessoas",
                 entidade_id=pid, depois={"email": email, **valores}, session_id=session_id)
     return {"id": pid, "email": email, **valores}
 
 
-def ligar_agente_ao_setor(municipio_id: str, setor_id: str, agente_id: str, funcao: str, quem: str,
+def ligar_agente_a_area(organizacao_id: str, area_id: str, agente_id: str, funcao: str, quem: str,
                           session_id: str | None = None) -> None:
-    tg, ta = _t("agentes_setor"), _t("atividades_setor")
+    tg, ta = _t("agentes_area"), _t("atividades_area")
     with _estado["engine"].begin() as c:
-        existe = c.execute(select(tg.c.id).where(tg.c.setor_id == setor_id, tg.c.agente_id == agente_id)).first()
+        existe = c.execute(select(tg.c.id).where(tg.c.area_id == area_id, tg.c.agente_id == agente_id)).first()
         if not existe:
-            mesa = len(c.execute(select(tg.c.id).where(tg.c.setor_id == setor_id)).all())
-            c.execute(insert(tg).values(id=_id(), municipio_id=municipio_id, setor_id=setor_id, agente_id=agente_id,
+            mesa = len(c.execute(select(tg.c.id).where(tg.c.area_id == area_id)).all())
+            c.execute(insert(tg).values(id=_id(), organizacao_id=organizacao_id, area_id=area_id, agente_id=agente_id,
                                         funcao=funcao, mesa=mesa))
-        c.execute(update(ta).where(ta.c.setor_id == setor_id, ta.c.agente_id.is_(None)).values(agente_id=agente_id))
-        auditar(c, municipio_id=municipio_id, origem="agente", quem=quem, acao="ligar_agente", entidade="agentes_setor",
-                entidade_id=setor_id, depois={"agente_id": agente_id, "funcao": funcao}, session_id=session_id)
+        c.execute(update(ta).where(ta.c.area_id == area_id, ta.c.agente_id.is_(None)).values(agente_id=agente_id))
+        auditar(c, organizacao_id=organizacao_id, origem="agente", quem=quem, acao="ligar_agente", entidade="agentes_area",
+                entidade_id=area_id, depois={"agente_id": agente_id, "funcao": funcao}, session_id=session_id)
 
 
-def concluir_onboarding(municipio_id: str, quem: str, session_id: str | None = None) -> None:
-    tm, to = _t("municipios"), _t("onboardings")
+def concluir_onboarding(organizacao_id: str, quem: str, session_id: str | None = None) -> None:
+    tm, to = _t("organizacoes"), _t("onboardings")
     with _estado["engine"].begin() as c:
-        c.execute(update(tm).where(tm.c.id == municipio_id).values(situacao="ativo"))
-        c.execute(update(to).where(to.c.municipio_id == municipio_id, to.c.concluido_em.is_(None))
+        c.execute(update(tm).where(tm.c.id == organizacao_id).values(situacao="ativo"))
+        c.execute(update(to).where(to.c.organizacao_id == organizacao_id, to.c.concluido_em.is_(None))
                   .values(etapa="concluido", concluido_em=_agora()))
-        auditar(c, municipio_id=municipio_id, origem="agente", quem=quem, acao="concluir", entidade="onboardings",
-                entidade_id=municipio_id, session_id=session_id)
+        auditar(c, organizacao_id=organizacao_id, origem="agente", quem=quem, acao="concluir", entidade="onboardings",
+                entidade_id=organizacao_id, session_id=session_id)

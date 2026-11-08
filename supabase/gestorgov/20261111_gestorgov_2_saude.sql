@@ -1,207 +1,302 @@
 -- =============================================================================
--- GestorGov — organograma, contas e acompanhamento (rode DEPOIS de 20261106_gestorgov_atividades.sql)
--- Pode rodar de novo: nada é duplicado.
+-- GestorGov — catálogo do segmento Saúde pública (rode DEPOIS de 20261111_gestorgov_1_base.sql)
+-- Pode rodar de novo: cada linha é atualizada pelo id.
 --
--- A lógica (documento "Secretaria de Saúde Virtual — Organograma, Atribuições e Indicadores"):
---   Cada CARGO da secretaria vira um agente, com a mesma ficha: atribuições, indicadores, rotinas,
---   entregas, a quem se reporta, alertas e status atual. O organograma tem 5 níveis: direção,
---   superintendências, coordenações, unidades e instâncias de controle e apoio.
---   Os alertas sobem pela hierarquia (coordenação → superintendência → Adjunto → Secretário).
+--   tipos_area         os setores que uma Secretaria Municipal de Saúde costuma ter (16)
+--   tipos_unidade      os tipos de unidade de saúde do mapa, ligados aos códigos do CNES (14)
+--   modelos_atividade  as atividades de cada setor: rotinas (o agente faz sozinho, num horário) e sob demanda
+--   modelos_cargo      o organograma do documento "Secretaria de Saúde Virtual" (38 cargos)
+--   modelos_indicador  os indicadores de cada cargo, com fonte, periodicidade e sentido (125)
 --
--- Tabelas:
---   membros            quem acessa cada prefeitura: o dono (quem a cadastrou) e os membros que ele convida,
---                      cada um num cargo
---   convites           os convites do dono para a equipe (link com validade; a pessoa define a própria senha)
---   modelos_cargo      catálogo dos cargos do documento (o onboarding sugere estes)
---   modelos_indicador  catálogo dos indicadores de cada cargo, com fonte e periodicidade
---   cargos             os cargos de cada município, com o superior (a hierarquia), o setor, o agente e as
---                      PERMISSÕES de quem ocupa o cargo (aprovar entregas, gerenciar fluxos, criar agentes...)
---   indicadores_cargo  os indicadores de cada cargo, com a meta que o município define
---   medicoes           cada valor medido de um indicador (para a tendência)
---   entregas           documentos e relatórios com prazo e situação, e quem aprovou
---   pendencias         itens parados, desde quando e por quê
---   status_cargo       o que o agente do cargo está fazendo agora
---   alertas_cargo      os alertas, de quem para quem, e o caminho de escalonamento
---   atividades_setor   ganha cargo_id: a rotina passa a ser do cargo
---
--- As contas de login (e-mail e senha) ficam em painel_contas, que o servidor cria ao subir.
+-- Os códigos do CNES em tipos_unidade.codigos_cnes precisam ser conferidos com a tabela oficial antes da primeira
+-- importação.
 -- =============================================================================
 
 
--- ─────────────────────────────────────────────────────────────────────────────
--- 1. Membros: quem é quem em cada prefeitura
--- ─────────────────────────────────────────────────────────────────────────────
-create table if not exists gestorgov.membros (
-  id              uuid primary key default extensions.gen_random_uuid(),
-  municipio_id    uuid not null references gestorgov.municipios(id) on delete cascade,
-  email           text not null,
-  nome            text,
-  papel           text not null default 'membro' check (papel in ('dono', 'membro')),
-  ativo           boolean not null default true,                -- false = bloqueado pelo dono
-  criado_em       timestamptz not null default now(),
-  criado_por      text,
-  unique (municipio_id, email)
-);
-create index if not exists ix_membros_email on gestorgov.membros (email);
-comment on table gestorgov.membros is
-  'Quem acessa cada prefeitura. O dono é quem a cadastrou: convida a equipe e define o cargo (e as permissões) de cada um. '
-  'O cargo da pessoa fica em cargo_id (coluna criada depois da tabela cargos).';
+-- Setores ──────────────────────────────────────────────────────────────────────
+insert into gestorgov.tipos_area (id, segmento_id, nome, descricao, icone, ordem, padrao) values
+  ('gabinete', 'saude_publica',          'Gabinete do Secretário',        'Direção, agenda e decisões da Secretaria.',                     'landmark',        1, true),
+  ('atencao_primaria', 'saude_publica',  'Atenção Primária',              'UBS, equipes de Saúde da Família e indicadores da APS.',        'house-plus',      2, true),
+  ('atencao_especializada', 'saude_publica','Atenção Especializada',      'Policlínicas, especialidades e exames.',                         'stethoscope',     3, true),
+  ('urgencia', 'saude_publica',          'Urgência e Emergência',         'UPA, pronto atendimento e SAMU.',                                'siren',           4, true),
+  ('regulacao', 'saude_publica',         'Regulação',                     'Filas de consultas, exames e cirurgias.',                        'list-ordered',    5, true),
+  ('farmacia', 'saude_publica',          'Assistência Farmacêutica',      'Estoque, dispensação e compras de medicamentos.',               'pill',            6, true),
+  ('vigilancia', 'saude_publica',        'Vigilância em Saúde',           'Epidemiológica, sanitária, ambiental e imunização.',             'shield-alert',    7, true),
+  ('saude_mental', 'saude_publica',      'Saúde Mental',                  'CAPS e rede de atenção psicossocial.',                           'brain',           8, false),
+  ('compras', 'saude_publica',           'Compras e Licitações',          'Processos de compra, atas e contratos.',                         'file-signature',  9, true),
+  ('financeiro', 'saude_publica',        'Financeiro e Orçamento',        'Fundo Municipal de Saúde, empenhos e prestação de contas.',     'wallet',         10, true),
+  ('rh', 'saude_publica',                'Gestão de Pessoas',             'Servidores, escalas e plantões.',                                'users',          11, true),
+  ('faturamento', 'saude_publica',       'Faturamento e Informação',      'Produção SUS, sistemas oficiais e prazos de envio.',            'bar-chart-3',    12, true),
+  ('transporte', 'saude_publica',        'Transporte Sanitário',          'Veículos, agendamento de viagens e TFD.',                        'ambulance',      13, false),
+  ('ouvidoria', 'saude_publica',         'Ouvidoria',                     'Reclamações, sugestões e respostas ao cidadão.',                 'megaphone',      14, true),
+  ('almoxarifado', 'saude_publica',      'Almoxarifado e Patrimônio',     'Materiais, insumos e bens.',                                     'package',        15, false),
+  ('ti', 'saude_publica',                'Tecnologia da Informação',      'Sistemas, computadores e rede das unidades.',                    'monitor',        16, false)
+on conflict (id) do update
+  set segmento_id = excluded.segmento_id, nome = excluded.nome, descricao = excluded.descricao, icone = excluded.icone, ordem = excluded.ordem;
 
 
--- ─────────────────────────────────────────────────────────────────────────────
--- 2. Catálogo de cargos e indicadores
--- ─────────────────────────────────────────────────────────────────────────────
-create table if not exists gestorgov.modelos_cargo (
-  id               text primary key,                          -- ex.: sup_aps
-  nome             text not null,
-  nivel            text not null
-                   check (nivel in ('direcao', 'superintendencia', 'coordenacao', 'unidade', 'controle')),
-  tipo_setor_id    text references gestorgov.tipos_setor(id) on delete set null,  -- a sala do prédio
-  superior_id      text references gestorgov.modelos_cargo(id) on delete set null,  -- a quem se reporta
-  atribuicoes      text not null,
-  rotinas          jsonb not null default '[]'::jsonb,       -- [{frequencia, texto}]
-  entregas         jsonb not null default '[]'::jsonb,       -- [{frequencia, texto}]
-  padrao           boolean not null default true,
-  ordem            smallint not null default 0
-);
-comment on table gestorgov.modelos_cargo is 'Catálogo de cargos da Secretaria de Saúde (o organograma padrão).';
 
-create table if not exists gestorgov.modelos_indicador (
-  id               text primary key,                          -- ex.: sup_aps__absenteismo_nas_consultas
-  modelo_cargo_id  text not null references gestorgov.modelos_cargo(id) on delete cascade,
-  nome             text not null,
-  fonte            text not null,                             -- e-SUS APS, SIAPS, SIM, SINAN, SIA/SIH, CNES, SIOPS, interno
-  periodicidade    text not null
-                   check (periodicidade in ('diaria', 'semanal', 'mensal', 'trimestral', 'quadrimestral', 'anual')),
-  unidade          text not null,                             -- %, dias, número, R$...
-  sentido          text not null check (sentido in ('maior', 'menor')),  -- maior = subir é bom
-  ordem            smallint not null default 0
-);
-create index if not exists ix_modelos_indicador_cargo on gestorgov.modelos_indicador (modelo_cargo_id, ordem);
-comment on table gestorgov.modelos_indicador is
-  'Catálogo de indicadores por cargo. A meta é do município (indicadores_cargo.meta), a partir do Plano Municipal de Saúde.';
 
+-- Tipos de unidade de saúde ────────────────────────────────────────────────────
+insert into gestorgov.tipos_unidade (id, segmento_id, nome, codigos_cnes, icone, cor, ordem) values
+  ('ubs', 'saude_publica',           'UBS / Unidade de Saúde da Família', '{01,02}',  'house-plus',   '#1A63D8',  1),
+  ('upa', 'saude_publica',           'UPA / Pronto Atendimento',          '{73}',     'siren',        '#F4B800',  2),
+  ('pronto_socorro', 'saude_publica','Pronto-Socorro',                    '{20,21}',  'siren',        '#F4B800',  3),
+  ('hospital', 'saude_publica',      'Hospital',                          '{05,07,15}','hospital',    '#0D1B38',  4),
+  ('policlinica', 'saude_publica',   'Policlínica / Centro de Especialidades', '{04,36}', 'stethoscope', '#52A2FF', 5),
+  ('caps', 'saude_publica',          'CAPS',                              '{70}',     'brain',        '#52A2FF',  6),
+  ('farmacia', 'saude_publica',      'Farmácia',                          '{43}',     'pill',         '#1A63D8',  7),
+  ('laboratorio', 'saude_publica',   'Laboratório / Apoio Diagnóstico',   '{39}',     'flask-conical','#52A2FF',  8),
+  ('samu', 'saude_publica',          'SAMU / Base Móvel de Urgência',     '{42}',     'ambulance',    '#F4B800',  9),
+  ('vigilancia', 'saude_publica',    'Vigilância em Saúde',               '{50}',     'shield-alert', '#424E6B', 10),
+  ('imunizacao', 'saude_publica',    'Centro de Imunização',              '{85}',     'syringe',      '#1A63D8', 11),
+  ('academia', 'saude_publica',      'Academia da Saúde',                 '{74}',     'heart-pulse',  '#52A2FF', 12),
+  ('gestao', 'saude_publica',        'Central de Gestão / Sede',          '{68}',     'landmark',     '#0D1B38', 13),
+  ('regulacao', 'saude_publica',     'Central de Regulação',              '{76,81}',  'list-ordered', '#424E6B', 14)
+on conflict (id) do update
+  set segmento_id = excluded.segmento_id, nome = excluded.nome, codigos_cnes = excluded.codigos_cnes, icone = excluded.icone,
+      cor = excluded.cor, ordem = excluded.ordem;
+
+
+
+-- Atividades de cada setor ─────────────────────────────────────────────────────
+insert into gestorgov.modelos_atividade
+  (id, tipo_area_id, nome, descricao, tipo, frequencia, cron, entregavel, padrao, ordem) values
+
+  -- Compras e Licitações
+  ('compras_pedido',            'compras', 'Pedido de compra',
+   'Monta o pedido de compra a partir da necessidade do setor: itens, quantidades, justificativa e estimativa.',
+   'sob_demanda', 'sob_demanda', null, 'Pedido de compra para revisão', true, 1),
+  ('compras_termo_referencia',  'compras', 'Termo de referência',
+   'Elabora o termo de referência de produtos e serviços: objeto, especificação, quantidades, prazos e obrigações.',
+   'sob_demanda', 'sob_demanda', null, 'Minuta do termo de referência', true, 2),
+  ('compras_edital',            'compras', 'Edital de licitação',
+   'Prepara a minuta do edital a partir do termo de referência e do modelo da prefeitura.',
+   'sob_demanda', 'sob_demanda', null, 'Minuta do edital', true, 3),
+  ('compras_contratos_vencendo','compras', 'Contratos vencendo',
+   'Confere os contratos e atas que vencem nos próximos 90 dias e propõe renovação ou nova licitação.',
+   'rotina', 'diaria', '0 7 * * 1-5', 'Lista de contratos a renovar, com rascunho do termo aditivo', true, 4),
+  ('compras_atas_saldo',        'compras', 'Saldo das atas de registro de preço',
+   'Acompanha o saldo das atas e avisa quando um item está perto de acabar.',
+   'rotina', 'semanal', '0 7 * * 1', 'Itens com saldo baixo nas atas', true, 5),
+
+  -- Atenção Primária
+  ('aps_indicadores',           'atencao_primaria', 'Indicadores das equipes',
+   'Confere os indicadores das equipes de Saúde da Família: metas de visitas, atendimentos e cadastros.',
+   'rotina', 'semanal', '0 7 * * 1', 'Relatório das equipes abaixo da meta, com o que fazer', true, 1),
+  ('aps_visitas_acs',           'atencao_primaria', 'Visitas dos agentes comunitários',
+   'Compara as visitas domiciliares feitas com a meta de cada agente comunitário.',
+   'rotina', 'semanal', '0 8 * * 1', 'Microáreas com visitas atrasadas', true, 2),
+  ('aps_gestantes',             'atencao_primaria', 'Acompanhamento de gestantes',
+   'Aponta gestantes com consultas de pré-natal ou exames em atraso.',
+   'rotina', 'semanal', '0 8 * * 2', 'Lista de gestantes para busca ativa', true, 3),
+  ('aps_cronicos',              'atencao_primaria', 'Hipertensos e diabéticos',
+   'Aponta hipertensos e diabéticos sem consulta ou exame no período.',
+   'rotina', 'mensal', '0 8 1 * *', 'Lista para busca ativa por equipe', false, 4),
+
+  -- Regulação
+  ('reg_fila_espera',           'regulacao', 'Fila de espera',
+   'Olha a fila de consultas, exames e cirurgias e aponta quem espera além do prazo (ex.: mais de 90 dias).',
+   'rotina', 'a_cada_hora', '0 * * * *', 'Alerta: pacientes acima do prazo por especialidade', true, 1),
+  ('reg_vagas_ociosas',         'regulacao', 'Vagas sem uso',
+   'Confere as vagas ofertadas que não foram preenchidas ou tiveram falta.',
+   'rotina', 'diaria', '0 18 * * 1-5', 'Vagas perdidas no dia e sugestão de remanejamento', true, 2),
+  ('reg_prioridades',           'regulacao', 'Prioridades clínicas',
+   'Revisa a classificação de prioridade das solicitações novas.',
+   'rotina', 'diaria', '0 9 * * 1-5', 'Solicitações para o médico regulador conferir', false, 3),
+
+  -- Assistência Farmacêutica
+  ('farm_estoque',              'farmacia', 'Estoque de medicamentos',
+   'Compara o estoque de cada unidade com o consumo médio e aponta o que vai acabar.',
+   'rotina', 'diaria', '0 7 * * *', 'Itens que acabam em até 15 dias e proposta de remanejamento', true, 1),
+  ('farm_validade',             'farmacia', 'Validade',
+   'Aponta lotes que vencem nos próximos 60 dias.',
+   'rotina', 'semanal', '0 7 * * 1', 'Lotes a remanejar antes de vencer', true, 2),
+  ('farm_programacao',          'farmacia', 'Programação de compras',
+   'Calcula a necessidade de compra do período a partir do consumo.',
+   'rotina', 'mensal', '0 7 1 * *', 'Programação de compra para o setor de Compras', true, 3),
+
+  -- Vigilância em Saúde
+  ('vig_notificacoes',          'vigilancia', 'Notificações',
+   'Acompanha as notificações de agravos e aponta aumento fora do esperado.',
+   'rotina', 'diaria', '0 8 * * *', 'Boletim do dia e alertas', true, 1),
+  ('vig_vacinacao',             'vigilancia', 'Cobertura vacinal',
+   'Confere a cobertura vacinal por vacina e por unidade.',
+   'rotina', 'semanal', '0 8 * * 1', 'Unidades e vacinas abaixo da meta', true, 2),
+
+  -- Gestão de Pessoas
+  ('rh_escalas',                'rh', 'Escalas e plantões',
+   'Confere as escalas do mês seguinte e aponta furos e excesso de horas.',
+   'rotina', 'semanal', '0 9 * * 3', 'Escala com os furos marcados', true, 1),
+  ('rh_ferias',                 'rh', 'Férias e afastamentos',
+   'Cruza férias e afastamentos com as escalas das unidades.',
+   'rotina', 'mensal', '0 9 1 * *', 'Unidades com falta de pessoal previstas', false, 2),
+
+  -- Financeiro e Orçamento
+  ('fin_execucao',              'financeiro', 'Execução orçamentária',
+   'Acompanha o empenhado e o pago do Fundo Municipal de Saúde por fonte e programa.',
+   'rotina', 'semanal', '0 8 * * 1', 'Resumo da execução e alertas de saldo', true, 1),
+  ('fin_prestacao_contas',      'financeiro', 'Prestação de contas',
+   'Lembra os prazos de prestação de contas e monta o rascunho dos relatórios.',
+   'rotina', 'mensal', '0 8 1 * *', 'Prazos do mês e rascunhos', true, 2),
+
+  -- Faturamento e Informação
+  ('fat_prazos_envio',          'faturamento', 'Prazos de envio da produção',
+   'Lembra os prazos de envio da produção aos sistemas oficiais e confere o que falta.',
+   'rotina', 'semanal', '0 8 * * 1', 'Unidades com produção pendente', true, 1),
+  ('fat_inconsistencias',       'faturamento', 'Inconsistências na produção',
+   'Aponta registros com erro antes do envio (procedimento incompatível, campo faltando).',
+   'rotina', 'diaria', '0 19 * * 1-5', 'Registros a corrigir por unidade', true, 2),
+
+  -- Ouvidoria
+  ('ouv_manifestacoes',         'ouvidoria', 'Manifestações',
+   'Classifica as manifestações novas e encaminha para o setor certo.',
+   'rotina', 'a_cada_hora', '30 * * * *', 'Manifestações encaminhadas', true, 1),
+  ('ouv_prazos',                'ouvidoria', 'Prazos de resposta',
+   'Aponta manifestações perto do prazo de resposta.',
+   'rotina', 'diaria', '0 8 * * 1-5', 'Respostas pendentes por setor', true, 2),
+
+  -- Gabinete
+  ('gab_resumo',                'gabinete', 'Resumo do dia do secretário',
+   'Junta o que cada setor apontou: alertas, aprovações pendentes e prazos.',
+   'rotina', 'diaria', '30 7 * * 1-5', 'Resumo da manhã', true, 1),
+  ('gab_oficios',               'gabinete', 'Ofícios e respostas',
+   'Redige ofícios, respostas a órgãos de controle e comunicações internas.',
+   'sob_demanda', 'sob_demanda', null, 'Minuta do documento', true, 2)
+
+on conflict (id) do update
+  set tipo_area_id = excluded.tipo_area_id, nome = excluded.nome, descricao = excluded.descricao,
+      tipo = excluded.tipo, frequencia = excluded.frequencia, cron = excluded.cron,
+      entregavel = excluded.entregavel, padrao = excluded.padrao, ordem = excluded.ordem;
+
+
+
+
+-- Cargos (organograma) ─────────────────────────────────────────────────────────
 insert into gestorgov.modelos_cargo
-  (id, nome, nivel, tipo_setor_id, superior_id, atribuicoes, rotinas, entregas, padrao, ordem) values
-  ('secretario', 'Secretário(a) de Saúde', 'direcao', 'gabinete', null,
+  (id, segmento_id, nome, nivel, tipo_area_id, superior_id, atribuicoes, rotinas, entregas, padrao, ordem) values
+  ('secretario', 'saude_publica', 'Secretário(a) de Saúde', 'direcao', 'gabinete', null,
    'Gestor do SUS municipal; ordena despesas; preside o Fundo Municipal de Saúde; representa a secretaria no Conselho, na CIR e na CIB.',
    '[{"frequencia": "diaria", "texto": "Painel executivo"}, {"frequencia": "semanal", "texto": "Reunião de superintendentes"}, {"frequencia": "mensal", "texto": "Prestação ao Conselho Municipal de Saúde"}, {"frequencia": "quadrimestral", "texto": "Audiência pública"}]', '[{"frequencia": "mensal", "texto": "Prestação de contas ao Conselho"}, {"frequencia": "quadrimestral", "texto": "Apresentação na audiência pública"}]', true, 1),
-  ('secretario_adjunto', 'Secretário(a) Adjunto(a)', 'direcao', 'gabinete', 'secretario',
+  ('secretario_adjunto', 'saude_publica', 'Secretário(a) Adjunto(a)', 'direcao', 'gabinete', 'secretario',
    'Substitui o Secretário; coordena as superintendências no dia a dia; cobra prazos e entregas.',
    '[{"frequencia": "diaria", "texto": "Acompanhamento de pendências"}, {"frequencia": "semanal", "texto": "Pauta da reunião de superintendentes"}]', '[{"frequencia": "semanal", "texto": "Pauta da reunião de superintendentes"}]', true, 2),
-  ('chefe_gabinete', 'Chefe de Gabinete / Assessoria Técnica', 'direcao', 'gabinete', 'secretario',
+  ('chefe_gabinete', 'saude_publica', 'Chefe de Gabinete / Assessoria Técnica', 'direcao', 'gabinete', 'secretario',
    'Agenda e despacho do Secretário; ofícios e processos; ponte com Câmara, Ministério Público e Estado; preparo de pareceres.',
    '[{"frequencia": "diaria", "texto": "Triagem de documentos"}, {"frequencia": "semanal", "texto": "Fila de ofícios e requerimentos"}]', '[{"frequencia": "diaria", "texto": "Respostas a ofícios"}, {"frequencia": "semanal", "texto": "Pareceres para o Secretário"}]', true, 3),
-  ('sup_aps', 'Superintendente de Atenção Primária (APS)', 'superintendencia', 'atencao_primaria', 'secretario',
+  ('sup_aps', 'saude_publica', 'Superintendente de Atenção Primária (APS)', 'superintendencia', 'atencao_primaria', 'secretario',
    'Coordena UBS e equipes de Saúde da Família, eMulti e ACS; gestão de desempenho das equipes; cobertura territorial; ações de promoção e prevenção.',
    '[{"frequencia": "diaria", "texto": "Produção por unidade"}, {"frequencia": "semanal", "texto": "Ranking de equipes"}, {"frequencia": "mensal", "texto": "Reunião de desempenho com gerentes de UBS"}]', '[{"frequencia": "mensal", "texto": "Relatório de desempenho das equipes"}]', true, 4),
-  ('sup_especializada', 'Superintendente de Atenção Especializada', 'superintendencia', 'atencao_especializada', 'secretario',
+  ('sup_especializada', 'saude_publica', 'Superintendente de Atenção Especializada', 'superintendencia', 'atencao_especializada', 'secretario',
    'Ambulatórios, policlínica, CEO, hospital municipal e SADT; contratos com prestadores; fila de especialidades.',
    '[{"frequencia": "diaria", "texto": "Censo de leitos e agenda"}, {"frequencia": "semanal", "texto": "Fila por especialidade"}, {"frequencia": "mensal", "texto": "Produção e faturamento"}]', '[{"frequencia": "mensal", "texto": "Relatório de produção SIA/SIH"}]', true, 5),
-  ('sup_urgencia', 'Superintendente de Urgência e Emergência', 'superintendencia', 'urgencia', 'secretario',
+  ('sup_urgencia', 'saude_publica', 'Superintendente de Urgência e Emergência', 'superintendencia', 'urgencia', 'secretario',
    'UPA, SAMU, pronto-socorro e transporte de urgência; classificação de risco; integração com a regulação.',
    '[{"frequencia": "diaria", "texto": "Boletim de plantões e fluxo"}, {"frequencia": "semanal", "texto": "Ocorrências críticas"}, {"frequencia": "mensal", "texto": "Protocolos (AVC, IAM, sepse, trauma)"}]', '[{"frequencia": "diaria", "texto": "Boletim de plantões"}]', true, 6),
-  ('sup_vigilancia', 'Superintendente de Vigilância em Saúde', 'superintendencia', 'vigilancia', 'secretario',
+  ('sup_vigilancia', 'saude_publica', 'Superintendente de Vigilância em Saúde', 'superintendencia', 'vigilancia', 'secretario',
    'Coordena as cinco vigilâncias; resposta a surtos; notificações compulsórias; metas pactuadas com o Estado.',
    '[{"frequencia": "diaria", "texto": "Monitoramento de notificações"}, {"frequencia": "semanal", "texto": "Boletim epidemiológico"}, {"frequencia": "mensal", "texto": "Relatório ao Estado"}]', '[{"frequencia": "semanal", "texto": "Boletim epidemiológico"}, {"frequencia": "mensal", "texto": "Relatório ao Estado"}]', true, 7),
-  ('vig_epidemiologica', 'Vigilância Epidemiológica', 'coordenacao', 'vigilancia', 'sup_vigilancia',
+  ('vig_epidemiologica', 'saude_publica', 'Vigilância Epidemiológica', 'coordenacao', 'vigilancia', 'sup_vigilancia',
    'Doenças de notificação, óbitos infantis, maternos e por causa mal definida; SIM e SINASC.',
    '[{"frequencia": "diaria", "texto": "Fila de notificações"}, {"frequencia": "semanal", "texto": "Boletim"}]', '[{"frequencia": "semanal", "texto": "Boletim de agravos"}]', true, 8),
-  ('vig_sanitaria', 'Vigilância Sanitária', 'coordenacao', 'vigilancia', 'sup_vigilancia',
+  ('vig_sanitaria', 'saude_publica', 'Vigilância Sanitária', 'coordenacao', 'vigilancia', 'sup_vigilancia',
    'Licenciamento e inspeção de estabelecimentos; denúncias; alvarás.',
    '[{"frequencia": "diaria", "texto": "Agenda de fiscais"}, {"frequencia": "mensal", "texto": "Relatório de inspeções"}]', '[{"frequencia": "mensal", "texto": "Relatório de inspeções"}]', true, 9),
-  ('vig_ambiental', 'Vigilância Ambiental e Zoonoses (CCZ)', 'coordenacao', 'vigilancia', 'sup_vigilancia',
+  ('vig_ambiental', 'saude_publica', 'Vigilância Ambiental e Zoonoses (CCZ)', 'coordenacao', 'vigilancia', 'sup_vigilancia',
    'Controle de vetores (dengue, chikungunya, zika); vacinação antirrábica; qualidade da água.',
    '[{"frequencia": "diaria", "texto": "Roteiros dos agentes de endemias"}, {"frequencia": "semanal", "texto": "Mapa de focos"}]', '[{"frequencia": "semanal", "texto": "Mapa de focos"}]', true, 10),
-  ('saude_trabalhador', 'Saúde do Trabalhador', 'coordenacao', 'vigilancia', 'sup_vigilancia',
+  ('saude_trabalhador', 'saude_publica', 'Saúde do Trabalhador', 'coordenacao', 'vigilancia', 'sup_vigilancia',
    'Notificação de acidentes e doenças do trabalho; CEREST de referência; apoio à NR-1.',
    '[{"frequencia": "mensal", "texto": "Relatório de agravos"}]', '[{"frequencia": "mensal", "texto": "Relatório de agravos do trabalho"}]', true, 11),
-  ('imunizacao', 'Imunização', 'coordenacao', 'vigilancia', 'sup_vigilancia',
+  ('imunizacao', 'saude_publica', 'Imunização', 'coordenacao', 'vigilancia', 'sup_vigilancia',
    'Salas de vacina; cadeia de frio; campanhas; busca ativa de faltosos.',
    '[{"frequencia": "diaria", "texto": "Registros no sistema"}, {"frequencia": "semanal", "texto": "Busca ativa de faltosos"}, {"frequencia": "anual", "texto": "Campanhas"}]', '[{"frequencia": "semanal", "texto": "Lista de busca ativa"}]', true, 12),
-  ('sup_farmacia', 'Superintendente de Assistência Farmacêutica', 'superintendencia', 'farmacia', 'secretario',
+  ('sup_farmacia', 'saude_publica', 'Superintendente de Assistência Farmacêutica', 'superintendencia', 'farmacia', 'secretario',
    'Seleção, programação, compra e dispensação de medicamentos (REMUME); CAF; medicamentos especiais; farmácias das unidades.',
    '[{"frequencia": "diaria", "texto": "Estoque crítico"}, {"frequencia": "semanal", "texto": "Pedidos às unidades"}, {"frequencia": "mensal", "texto": "Inventário e consumo"}]', '[{"frequencia": "semanal", "texto": "Pedido de reposição"}, {"frequencia": "mensal", "texto": "Relatório de inventário e consumo"}]', true, 13),
-  ('sup_regulacao', 'Superintendente de Regulação, Controle e Avaliação', 'superintendencia', 'regulacao', 'secretario',
+  ('sup_regulacao', 'saude_publica', 'Superintendente de Regulação, Controle e Avaliação', 'superintendencia', 'regulacao', 'secretario',
    'Central de regulação de consultas, exames e internações; TFD; faturamento SUS; auditoria; contratualização.',
    '[{"frequencia": "diaria", "texto": "Fila de regulação"}, {"frequencia": "semanal", "texto": "Pendências de TFD"}, {"frequencia": "mensal", "texto": "Faturamento e auditoria"}]', '[{"frequencia": "mensal", "texto": "Relatório de faturamento e auditoria"}]', true, 14),
-  ('sup_planejamento', 'Superintendente de Planejamento e Gestão', 'superintendencia', 'gabinete', 'secretario',
+  ('sup_planejamento', 'saude_publica', 'Superintendente de Planejamento e Gestão', 'superintendencia', 'gabinete', 'secretario',
    'PMS, PAS e RAG; indicadores (Previne Brasil, SIAPS); convênios e emendas; projetos e captação de recursos.',
    '[{"frequencia": "mensal", "texto": "Painel de indicadores"}, {"frequencia": "quadrimestral", "texto": "RDQA"}, {"frequencia": "anual", "texto": "PAS e RAG"}]', '[{"frequencia": "quadrimestral", "texto": "RDQA"}, {"frequencia": "anual", "texto": "Programação Anual de Saúde (PAS)"}, {"frequencia": "anual", "texto": "Relatório Anual de Gestão (RAG)"}]', true, 15),
-  ('sup_administrativo', 'Superintendente Administrativo e Financeiro', 'superintendencia', 'financeiro', 'secretario',
+  ('sup_administrativo', 'saude_publica', 'Superintendente Administrativo e Financeiro', 'superintendencia', 'financeiro', 'secretario',
    'Compras, licitações e contratos; orçamento; Fundo Municipal de Saúde; almoxarifado e patrimônio.',
    '[{"frequencia": "diaria", "texto": "Empenhos e pagamentos"}, {"frequencia": "semanal", "texto": "Processos de compra"}, {"frequencia": "mensal", "texto": "Conciliação financeira"}]', '[{"frequencia": "mensal", "texto": "Conciliação financeira do FMS"}]', true, 16),
-  ('sup_pessoas', 'Superintendente de Gestão de Pessoas', 'superintendencia', 'rh', 'secretario',
+  ('sup_pessoas', 'saude_publica', 'Superintendente de Gestão de Pessoas', 'superintendencia', 'rh', 'secretario',
    'RH, escalas, férias, folha, educação permanente (NEP); dimensionamento de equipes.',
    '[{"frequencia": "diaria", "texto": "Cobertura de escalas"}, {"frequencia": "mensal", "texto": "Folha e frequência"}, {"frequencia": "trimestral", "texto": "Plano de educação permanente"}]', '[{"frequencia": "mensal", "texto": "Folha e frequência"}, {"frequencia": "trimestral", "texto": "Plano de educação permanente"}]', true, 17),
-  ('sup_ti', 'Superintendente de TI e Informação em Saúde', 'superintendencia', 'ti', 'secretario',
+  ('sup_ti', 'saude_publica', 'Superintendente de TI e Informação em Saúde', 'superintendencia', 'ti', 'secretario',
    'Prontuário eletrônico, e-SUS, CNES; infraestrutura; segurança e LGPD; integração entre sistemas; base de dados da secretaria.',
    '[{"frequencia": "diaria", "texto": "Monitoramento de sistemas e backup"}, {"frequencia": "semanal", "texto": "Chamados"}, {"frequencia": "mensal", "texto": "Auditoria de acessos"}]', '[{"frequencia": "mensal", "texto": "Relatório de auditoria de acessos"}]', true, 18),
-  ('coord_mulher', 'Saúde da Mulher', 'coordenacao', 'atencao_primaria', 'sup_aps',
+  ('coord_mulher', 'saude_publica', 'Saúde da Mulher', 'coordenacao', 'atencao_primaria', 'sup_aps',
    'Pré-natal, planejamento familiar, rastreamento de câncer de colo e mama, violência contra a mulher.',
    '[]', '[]', true, 19),
-  ('coord_crianca', 'Saúde da Criança e do Adolescente', 'coordenacao', 'atencao_primaria', 'sup_aps',
+  ('coord_crianca', 'saude_publica', 'Saúde da Criança e do Adolescente', 'coordenacao', 'atencao_primaria', 'sup_aps',
    'Puericultura, crescimento e desenvolvimento, saúde escolar, teste do pezinho.',
    '[]', '[]', true, 20),
-  ('coord_idoso', 'Saúde do Idoso', 'coordenacao', 'atencao_primaria', 'sup_aps',
+  ('coord_idoso', 'saude_publica', 'Saúde do Idoso', 'coordenacao', 'atencao_primaria', 'sup_aps',
    'Cuidado longitudinal, fragilidade, quedas, polifarmácia.',
    '[]', '[]', true, 21),
-  ('coord_homem', 'Saúde do Homem', 'coordenacao', 'atencao_primaria', 'sup_aps',
+  ('coord_homem', 'saude_publica', 'Saúde do Homem', 'coordenacao', 'atencao_primaria', 'sup_aps',
    'Rastreamentos, pré-natal do parceiro, prevenção de violência e acidentes.',
    '[]', '[]', true, 22),
-  ('coord_has_dm', 'Hipertensão e Diabetes', 'coordenacao', 'atencao_primaria', 'sup_aps',
+  ('coord_has_dm', 'saude_publica', 'Hipertensão e Diabetes', 'coordenacao', 'atencao_primaria', 'sup_aps',
    'Linha de cuidado de hipertensão e diabetes.',
    '[]', '[]', true, 23),
-  ('coord_bucal', 'Saúde Bucal', 'coordenacao', 'atencao_primaria', 'sup_aps',
+  ('coord_bucal', 'saude_publica', 'Saúde Bucal', 'coordenacao', 'atencao_primaria', 'sup_aps',
    'Equipes de saúde bucal, CEO, primeira consulta programática.',
    '[]', '[]', true, 24),
-  ('coord_mental', 'Saúde Mental (RAPS e CAPS)', 'coordenacao', 'saude_mental', 'sup_especializada',
+  ('coord_mental', 'saude_publica', 'Saúde Mental (RAPS e CAPS)', 'coordenacao', 'saude_mental', 'sup_especializada',
    'CAPS, matriciamento na APS, acolhimento de crise, uso de álcool e drogas.',
    '[]', '[]', true, 25),
-  ('coord_deficiencia', 'Saúde da Pessoa com Deficiência', 'coordenacao', 'atencao_especializada', 'sup_especializada',
+  ('coord_deficiencia', 'saude_publica', 'Saúde da Pessoa com Deficiência', 'coordenacao', 'atencao_especializada', 'sup_especializada',
    'Reabilitação, concessão de órteses e próteses, acessibilidade.',
    '[]', '[]', true, 26),
-  ('coord_tb_hans', 'Tuberculose e Hanseníase', 'coordenacao', 'vigilancia', 'sup_vigilancia',
+  ('coord_tb_hans', 'saude_publica', 'Tuberculose e Hanseníase', 'coordenacao', 'vigilancia', 'sup_vigilancia',
    'Busca de sintomáticos, tratamento supervisionado, contatos.',
    '[]', '[]', true, 27),
-  ('coord_ist_hiv', 'IST e HIV', 'coordenacao', 'vigilancia', 'sup_vigilancia',
+  ('coord_ist_hiv', 'saude_publica', 'IST e HIV', 'coordenacao', 'vigilancia', 'sup_vigilancia',
    'Testagem, tratamento, prevenção combinada.',
    '[]', '[]', true, 28),
-  ('coord_enfermagem', 'Coordenação de Enfermagem', 'coordenacao', 'atencao_primaria', 'sup_aps',
+  ('coord_enfermagem', 'saude_publica', 'Coordenação de Enfermagem', 'coordenacao', 'atencao_primaria', 'sup_aps',
    'Escalas, protocolos e supervisão da enfermagem.',
    '[]', '[]', true, 29),
-  ('coord_acs_ace', 'Coordenação de ACS e ACE', 'coordenacao', 'atencao_primaria', 'sup_aps',
+  ('coord_acs_ace', 'saude_publica', 'Coordenação de ACS e ACE', 'coordenacao', 'atencao_primaria', 'sup_aps',
    'Cadastro, visitas, territorialização (responde também à Vigilância).',
    '[]', '[]', true, 30),
-  ('coord_transporte', 'Transporte Sanitário', 'coordenacao', 'transporte', 'sup_administrativo',
+  ('coord_transporte', 'saude_publica', 'Transporte Sanitário', 'coordenacao', 'transporte', 'sup_administrativo',
    'Frota, ambulâncias, rotas de pacientes.',
    '[]', '[]', true, 31),
-  ('gerente_unidade', 'Gerência de unidade (UBS, UPA, hospital)', 'unidade', 'atencao_primaria', 'sup_aps',
+  ('gerente_unidade', 'saude_publica', 'Gerência de unidade (UBS, UPA, hospital)', 'unidade', 'atencao_primaria', 'sup_aps',
    'Gestão da unidade: equipe, insumos, produção e qualidade. Responde à superintendência da área da unidade.',
    '[]', '[]', true, 32),
-  ('conselho', 'Conselho Municipal de Saúde', 'controle', 'gabinete', null,
+  ('conselho', 'saude_publica', 'Conselho Municipal de Saúde', 'controle', 'gabinete', null,
    'Controle social; aprova PMS, PAS, RAG e prestações de contas. Independente: a secretaria presta contas a ele.',
    '[]', '[]', true, 33),
-  ('controle_interno', 'Controle Interno e Auditoria', 'controle', 'gabinete', 'secretario',
+  ('controle_interno', 'saude_publica', 'Controle Interno e Auditoria', 'controle', 'gabinete', 'secretario',
    'Auditoria de processos, contratos e despesas; recomendações. Responde também à Controladoria do município.',
    '[]', '[]', true, 34),
-  ('juridico', 'Assessoria Jurídica', 'controle', 'gabinete', 'secretario',
+  ('juridico', 'saude_publica', 'Assessoria Jurídica', 'controle', 'gabinete', 'secretario',
    'Pareceres, contratos, processos administrativos e judicializações.',
    '[]', '[]', true, 35),
-  ('comunicacao', 'Comunicação', 'controle', 'gabinete', 'secretario',
+  ('comunicacao', 'saude_publica', 'Comunicação', 'controle', 'gabinete', 'secretario',
    'Campanhas, avisos à população, imprensa, redes sociais.',
    '[]', '[]', true, 36),
-  ('ouvidoria', 'Ouvidoria do SUS', 'controle', 'ouvidoria', 'secretario',
+  ('ouvidoria', 'saude_publica', 'Ouvidoria do SUS', 'controle', 'ouvidoria', 'secretario',
    'Reclamações, sugestões e elogios; resposta ao cidadão.',
    '[]', '[]', true, 37),
-  ('comissoes', 'Comissões (CIB/CIR, Farmácia e Terapêutica, Óbitos, CCIH, NEP)', 'controle', 'gabinete', 'secretario',
+  ('comissoes', 'saude_publica', 'Comissões (CIB/CIR, Farmácia e Terapêutica, Óbitos, CCIH, NEP)', 'controle', 'gabinete', 'secretario',
    'Decisões técnicas e pactuações específicas.',
    '[]', '[]', true, 38)
 on conflict (id) do update set
-  nome = excluded.nome, nivel = excluded.nivel, tipo_setor_id = excluded.tipo_setor_id,
+  segmento_id = excluded.segmento_id, nome = excluded.nome, nivel = excluded.nivel, tipo_area_id = excluded.tipo_area_id,
   superior_id = excluded.superior_id, atribuicoes = excluded.atribuicoes, rotinas = excluded.rotinas,
   entregas = excluded.entregas, padrao = excluded.padrao, ordem = excluded.ordem;
 
+
+
+-- Indicadores de cada cargo ────────────────────────────────────────────────────
 insert into gestorgov.modelos_indicador
   (id, modelo_cargo_id, nome, fonte, periodicidade, unidade, sentido, ordem) values
   ('secretario__execucao_orcamentaria_do_fms', 'secretario', 'Execução orçamentária do FMS', 'SIOPS', 'mensal', '%', 'maior', 1),
@@ -335,173 +430,3 @@ on conflict (id) do update set
   ordem = excluded.ordem;
 
 
--- ─────────────────────────────────────────────────────────────────────────────
--- 3. Os cargos de cada município e o acompanhamento
--- ─────────────────────────────────────────────────────────────────────────────
-create table if not exists gestorgov.cargos (
-  id               uuid primary key default extensions.gen_random_uuid(),
-  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
-  modelo_id        text references gestorgov.modelos_cargo(id) on delete set null,  -- vazio = criado pelo município
-  nome             text not null,
-  nivel            text not null
-                   check (nivel in ('direcao', 'superintendencia', 'coordenacao', 'unidade', 'controle')),
-  superior_id      uuid references gestorgov.cargos(id) on delete set null,
-  setor_id         uuid references gestorgov.setores(id) on delete set null,
-  unidade_id       uuid references gestorgov.unidades(id) on delete set null,      -- gerência de unidade
-  responsavel_id   uuid references gestorgov.servidores(id) on delete set null,    -- a pessoa que responde pelo cargo
-  agente_id        text,                                                          -- o agente da Fábrica do cargo
-  atribuicoes      text,
-  permissoes       jsonb not null default '[]'::jsonb,        -- o que quem ocupa o cargo pode fazer no sistema
-  ativo            boolean not null default true,
-  ordem            smallint not null default 0,
-  criado_em        timestamptz not null default now(),
-  atualizado_em    timestamptz not null default now()
-);
-create index if not exists ix_cargos_municipio on gestorgov.cargos (municipio_id);
-create index if not exists ix_cargos_superior on gestorgov.cargos (superior_id);
-comment on table gestorgov.cargos is 'Os cargos de cada secretaria: a hierarquia (superior_id), a sala (setor) e o agente.';
-
-drop trigger if exists tg_cargos_atualizado on gestorgov.cargos;
-create trigger tg_cargos_atualizado before update on gestorgov.cargos
-  for each row execute function gestorgov.tocar_atualizado_em();
-
-create table if not exists gestorgov.indicadores_cargo (
-  id               uuid primary key default extensions.gen_random_uuid(),
-  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
-  cargo_id         uuid not null references gestorgov.cargos(id) on delete cascade,
-  modelo_id        text references gestorgov.modelos_indicador(id) on delete set null,
-  nome             text not null,
-  fonte            text not null,
-  periodicidade    text not null,
-  unidade          text not null,
-  sentido          text not null check (sentido in ('maior', 'menor')),
-  meta             numeric,                                   -- definida pelo município
-  meta_definida_por text,
-  ativo            boolean not null default true,
-  criado_em        timestamptz not null default now(),
-  unique (cargo_id, nome)
-);
-create index if not exists ix_indicadores_cargo_municipio on gestorgov.indicadores_cargo (municipio_id);
-
-create table if not exists gestorgov.medicoes (
-  id               bigint generated always as identity primary key,
-  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
-  indicador_id     uuid not null references gestorgov.indicadores_cargo(id) on delete cascade,
-  referencia       date not null,                             -- o dia, semana ou mês medido
-  valor            numeric not null,
-  fonte            text,                                      -- de onde veio (planilha, sistema, agente)
-  registrado_por   text not null,                             -- e-mail ou id do agente
-  registrado_em    timestamptz not null default now(),
-  unique (indicador_id, referencia)
-);
-create index if not exists ix_medicoes_indicador on gestorgov.medicoes (indicador_id, referencia desc);
-
-create table if not exists gestorgov.entregas (
-  id               uuid primary key default extensions.gen_random_uuid(),
-  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
-  cargo_id         uuid not null references gestorgov.cargos(id) on delete cascade,
-  titulo           text not null,
-  descricao        text,
-  prazo            timestamptz,
-  situacao         text not null default 'prevista'
-                   check (situacao in ('prevista', 'em_andamento', 'aguardando_aprovacao', 'aprovada', 'devolvida', 'cancelada')),
-  documento        text,                                      -- caminho no Storage ou link
-  produzida_por    text,                                      -- id do agente ou e-mail
-  aprovada_por     text,
-  aprovada_em      timestamptz,
-  criado_em        timestamptz not null default now(),
-  atualizado_em    timestamptz not null default now()
-);
-create index if not exists ix_entregas_cargo on gestorgov.entregas (cargo_id, prazo);
-
-drop trigger if exists tg_entregas_atualizado on gestorgov.entregas;
-create trigger tg_entregas_atualizado before update on gestorgov.entregas
-  for each row execute function gestorgov.tocar_atualizado_em();
-
-create table if not exists gestorgov.pendencias (
-  id               uuid primary key default extensions.gen_random_uuid(),
-  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
-  cargo_id         uuid not null references gestorgov.cargos(id) on delete cascade,
-  descricao        text not null,
-  motivo           text,
-  desde            timestamptz not null default now(),
-  resolvida_em     timestamptz,
-  resolvida_por    text
-);
-create index if not exists ix_pendencias_cargo on gestorgov.pendencias (cargo_id) where resolvida_em is null;
-
-create table if not exists gestorgov.status_cargo (
-  cargo_id         uuid primary key references gestorgov.cargos(id) on delete cascade,
-  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
-  situacao         text not null default 'aguardando'
-                   check (situacao in ('em_andamento', 'aguardando', 'bloqueado', 'concluido')),
-  tarefa           text,                                      -- o que está fazendo, em uma linha
-  atualizado_em    timestamptz not null default now(),
-  atualizado_por   text
-);
-
-create table if not exists gestorgov.alertas_cargo (
-  id               uuid primary key default extensions.gen_random_uuid(),
-  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
-  cargo_id         uuid not null references gestorgov.cargos(id) on delete cascade,      -- de onde vem
-  destino_id       uuid references gestorgov.cargos(id) on delete set null,              -- o superior que recebe
-  tipo             text not null
-                   check (tipo in ('meta_fora', 'entrega_vencendo', 'pendencia_parada', 'sem_atualizacao', 'evento_critico')),
-  titulo           text not null,
-  detalhe          text,
-  situacao         text not null default 'aberto' check (situacao in ('aberto', 'visto', 'resolvido', 'escalado')),
-  escalado_de      uuid references gestorgov.alertas_cargo(id) on delete set null,
-  criado_em        timestamptz not null default now(),
-  resolvido_em     timestamptz,
-  resolvido_por    text
-);
-create index if not exists ix_alertas_destino on gestorgov.alertas_cargo (destino_id, situacao);
-comment on table gestorgov.alertas_cargo is
-  'Alertas ao superior direto: meta fora por 2 ciclos, entrega vencendo em 48 h, pendência parada há 7 dias, '
-  'cargo sem atualização há 24 h úteis, evento crítico. Sobem pela hierarquia quando ninguém trata.';
-
--- O cargo de cada membro (as permissões dele vêm do cargo).
-alter table gestorgov.membros add column if not exists cargo_id uuid references gestorgov.cargos(id) on delete set null;
-
--- Convites do dono para a equipe: o link leva o token; aqui fica só o hash dele.
-create table if not exists gestorgov.convites (
-  id               uuid primary key default extensions.gen_random_uuid(),
-  municipio_id     uuid not null references gestorgov.municipios(id) on delete cascade,
-  email            text not null,
-  nome             text,
-  cargo_id         uuid references gestorgov.cargos(id) on delete set null,
-  token_hash       text not null unique,
-  criado_por       text not null,
-  criado_em        timestamptz not null default now(),
-  expira_em        timestamptz not null,
-  aceito_em        timestamptz,
-  cancelado_em     timestamptz
-);
-create index if not exists ix_convites_municipio on gestorgov.convites (municipio_id);
-
--- A rotina passa a ser do cargo (o setor continua sendo a sala).
-alter table gestorgov.atividades_setor add column if not exists cargo_id uuid references gestorgov.cargos(id) on delete set null;
-
-
--- ─────────────────────────────────────────────────────────────────────────────
--- 4. Permissões e segurança
--- ─────────────────────────────────────────────────────────────────────────────
-grant select on gestorgov.modelos_cargo, gestorgov.modelos_indicador to gestorgov_app;
-grant select, insert, update, delete on
-  gestorgov.membros, gestorgov.convites, gestorgov.cargos, gestorgov.indicadores_cargo, gestorgov.medicoes, gestorgov.entregas,
-  gestorgov.pendencias, gestorgov.status_cargo, gestorgov.alertas_cargo
-  to gestorgov_app;
-grant usage, select on all sequences in schema gestorgov to gestorgov_app;
-
-do $$
-declare
-  t text;
-begin
-  foreach t in array array['membros', 'convites', 'modelos_cargo', 'modelos_indicador', 'cargos', 'indicadores_cargo', 'medicoes',
-                           'entregas', 'pendencias', 'status_cargo', 'alertas_cargo']
-  loop
-    execute format('alter table gestorgov.%I enable row level security', t);
-    execute format('drop policy if exists servidor_gestorgov on gestorgov.%I', t);
-    execute format('create policy servidor_gestorgov on gestorgov.%I for all to gestorgov_app using (true) with check (true)', t);
-  end loop;
-end $$;

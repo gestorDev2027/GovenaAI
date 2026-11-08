@@ -12,11 +12,11 @@ import { CampoSenha } from "@/components/publico/campo-senha";
 /** Para onde vai quem acabou de entrar: implantação (ainda montando ou aguardando aprovação) ou o Painel. */
 export async function destinoDepoisDeEntrar(): Promise<"/implantacao" | "/" | "/cidade"> {
   const acesso = await api<Acesso>("/acesso");
-  // Membro convidado (não é dono): vai direto à prefeitura dele.
-  if (acesso.prefeitura && acesso.prefeitura.papel !== "dono") return "/cidade";
-  if (acesso.usuario?.situacao !== "ativo") return acesso.prefeitura?.situacao_municipio === "ativo" ? "/cidade" : "/implantacao";
-  const dela = await api<{ panorama: { municipio: { situacao: string | null } } | null }>("/implantacao").catch(() => null);
-  const situacao = dela?.panorama?.municipio?.situacao;
+  // Membro convidado (não é dono): vai direto à organização dele.
+  if (acesso.organizacao && acesso.organizacao.papel !== "dono") return "/cidade";
+  if (acesso.usuario?.situacao !== "ativo") return acesso.organizacao?.situacao_organizacao === "ativo" ? "/cidade" : "/implantacao";
+  const dela = await api<{ panorama: { organizacao: { situacao: string | null } | null } | null }>("/implantacao").catch(() => null);
+  const situacao = dela?.panorama?.organizacao?.situacao;
   return dela && situacao !== "ativo" && dela.panorama ? "/implantacao" : "/";
 }
 
@@ -126,7 +126,7 @@ export function Entrar() {
         <p className="text-center text-sm text-muted-foreground">
           Ainda não tem conta?{" "}
           <Link to="/cadastro" className="inline-flex items-center gap-1 font-semibold text-primary-text hover:underline">
-            <UserPlus className="size-3.5" /> Cadastrar prefeitura
+            <UserPlus className="size-3.5" /> Cadastrar organização
           </Link>
         </p>
         {acesso.data?.aceita_chave && <EntrarComChave aoEntrar={() => navegar({ to: "/" })} />}

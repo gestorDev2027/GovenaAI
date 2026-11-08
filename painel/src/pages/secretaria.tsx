@@ -2,8 +2,9 @@ import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Bot, Building2, Building, Loader2, MapPin, Maximize2, MessagesSquare, Minus, Plus, Users } from "lucide-react";
-import { api, type AgentePainel, type EventoCentral } from "@/lib/api";
-import { useAcesso } from "@/hooks/use-permissoes";
+import { api, type AgentePainel, type EventoCentral, type RespostaPanorama, type Rotulos } from "@/lib/api";
+import { useAcesso, useRotulos } from "@/hooks/use-permissoes";
+import { totemDe } from "@/lib/rotulos";
 import { useCentralAoVivo } from "@/hooks/use-central-ao-vivo";
 import { cn } from "@/lib/utils";
 import { fmtDataHora } from "@/lib/formato";
@@ -15,50 +16,50 @@ import type { ApiCamera } from "@/components/central/escritorio";
 import type { SelecaoPredio } from "@/components/central/predio-secretaria";
 
 /*
- * Secretaria virtual: o prédio da Secretaria de Saúde pelo cadastro da prefeitura. Cada setor é uma sala, com o
- * agente do setor na mesa e o responsável na placa; no centro, o CCO. Tudo nasce na implantação. Quando um agente
- * trabalha (ao vivo: agente/ao_vivo.py → /secretaria/eventos), o rosto dele muda. A janela "Setores" é a mesma
- * informação em lista (o 3D nunca é obrigatório). O mapa da cidade (Central de comando) fica com as unidades.
+ * O prédio virtual (Secretaria virtual na saúde, Escritório virtual na empresa) pelo cadastro da organização. Cada
+ * área é uma sala, com o agente da área na mesa e o responsável na placa; no centro, o CCO (ou a sala de comando).
+ * Tudo nasce na implantação. Quando um agente trabalha (ao vivo: agente/ao_vivo.py → /secretaria/eventos), o rosto
+ * dele muda. A janela das áreas é a mesma informação em lista (o 3D nunca é obrigatório). O mapa (Central de
+ * comando) fica com as unidades.
  */
 
 const Cena = lazy(() => import("@/components/central/predio-secretaria"));
 
-interface Setor {
+interface Area {
   id: string;
   nome: string;
   descricao?: string | null;
-  responsavel: { nome: string; email?: string | null; cargo: string | null } | null;
+  responsavel: { nome: string; email?: string | null; cargo?: string | null } | null;
   agentes: { agente_id: string }[];
-  atividades: { id: string; nome: string; tipo: "rotina" | "sob_demanda"; frequencia: string }[];
-}
-interface Panorama {
-  municipio: { nome: string; uf: string } | null;
-  setores?: Setor[];
+  atividades: { id: string; nome: string; tipo?: string | null; frequencia?: string | null }[];
 }
 
 const LARGURA_PAINEL = 440;
 
 export function Secretaria3D() {
   const acesso = useAcesso().data;
-  const daPrefeitura = !!acesso?.prefeitura;
+  const daOrganizacao = !!acesso?.organizacao;
   const panorama = useQuery({
-    queryKey: ["gestao-panorama", daPrefeitura],
-    queryFn: () => api<Panorama>(daPrefeitura ? "/prefeitura/panorama" : "/gestao/panorama"),
+    queryKey: ["gestao-panorama", daOrganizacao],
+    queryFn: () => api<RespostaPanorama>(daOrganizacao ? "/organizacao/panorama" : "/gestao/panorama"),
   });
+  const pan = panorama.data?.organizacao ? panorama.data : null;
+  const r = useRotulos(pan?.segmento.rotulos);
   const visiveis = useQuery({ queryKey: ["agentes-visiveis"], queryFn: () => api<{ agentes: AgentePainel[] }>("/agentes"), staleTime: 60_000 });
   const aoVivo = useCentralAoVivo();
   const camera = useRef<ApiCamera | null>(null);
   const [aberto, setAberto] = useState(false);
   const [selecao, setSelecao] = useState<SelecaoPredio>(null);
-  const [setoresAbertos, setSetoresAbertos] = useState(true);
+  const [areasAbertas, setAreasAbertas] = useState(true);
 
   useEffect(() => {
-    document.title = "Secretaria virtual · GestorGov";
-  }, []);
+    document.title = `${r.predio} · GestorGov`;
+  }, [r.predio]);
 
   const agentes = useMemo(() => visiveis.data?.agentes ?? [], [visiveis.data]);
-  const setores = panorama.data?.setores ?? [];
-  const mun = panorama.data?.municipio;
+  const areas: Area[] = pan?.areas ?? [];
+  const org = pan?.organizacao;
+  const local = org ? [org.cidade, org.uf].filter(Boolean).join("-") : "";
   const selecionar = (s: SelecaoPredio) => {
     setSelecao(s);
     if (s) setAberto(true);
@@ -67,7 +68,7 @@ export function Secretaria3D() {
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#0D1B38] text-white">
-      {setores.length > 0 ? (
+      {areas.length > 0 ? (
         <Suspense
           fallback={
             <div className="grid h-full place-items-center text-sm text-white/70">
@@ -76,8 +77,11 @@ export function Secretaria3D() {
           }
         >
           <Cena
-            setores={setores}
+            areas={areas}
             agentes={agentes}
+            nomePredio={org?.sigla || org?.nome || r.organizacao}
+            rotuloCentro={r.centro}
+            totem={totemDe(r)}
             eventos={aoVivo.eventos}
             inicio={aoVivo.inicio}
             selecao={selecao}
@@ -94,7 +98,7 @@ export function Secretaria3D() {
             <Loader2 className="size-5 animate-spin" />
           ) : (
             <span className="max-w-sm text-center">
-              A secretaria ainda não tem setores. Eles são criados na{" "}
+              A {r.organizacao_curta} ainda não tem {r.areas}. Eles são criados na{" "}
               <Link to="/implantacao" className="underline">
                 implantação
               </Link>
@@ -106,21 +110,21 @@ export function Secretaria3D() {
 
       {/* Barra flutuante */}
       <nav
-        aria-label="Secretaria virtual"
+        aria-label={r.predio}
         className="absolute top-4 left-1/2 z-[100] flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-[#0D1B38]/85 p-1.5 pl-3 shadow-[0_18px_50px_-15px_rgba(0,0,0,0.6)] backdrop-blur-md"
       >
         <Link to="/" aria-label="Voltar ao painel" className="flex items-center gap-2 rounded-full pr-2 outline-none focus-visible:ring-2 focus-visible:ring-white">
           <SimboloGestorGov sobreEscuro className="size-7" />
           <span className="hidden flex-col leading-tight sm:flex">
-            <span className="text-sm font-bold">Secretaria virtual</span>
-            <span className="text-[10px] text-white/60">{mun ? `${mun.nome}-${mun.uf}` : "GestorGov"}</span>
+            <span className="text-sm font-bold">{r.predio}</span>
+            <span className="text-[10px] text-white/60">{org ? [org.sigla || org.nome, local].filter(Boolean).join(" · ") : "GestorGov"}</span>
           </span>
         </Link>
         <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
         <Botao rotulo={aberto ? "Fechar o prédio (vista de fora)" : "Abrir o prédio"} ativo={aberto} onClick={() => setAberto((a) => !a)}>
           {aberto ? <Building className="size-4" /> : <Building2 className="size-4" />}
         </Botao>
-        <Botao rotulo="Setores" ativo={setoresAbertos} onClick={() => setSetoresAbertos((s) => !s)}>
+        <Botao rotulo={r.Areas} ativo={areasAbertas} onClick={() => setAreasAbertas((s) => !s)}>
           <Users className="size-4" />
         </Botao>
         <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
@@ -138,7 +142,7 @@ export function Secretaria3D() {
           to="/comando"
           className="flex h-9 items-center gap-2 rounded-full bg-white/10 px-3 text-xs text-white/85 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
         >
-          <MapPin className="size-3.5" /> Cidade
+          <MapPin className="size-3.5" /> {r.mapa}
         </Link>
       </nav>
 
@@ -152,10 +156,10 @@ export function Secretaria3D() {
         {aoVivo.conectado ? "Ao vivo" : "Conectando"}
       </span>
 
-      {setoresAbertos && (
-        <Janela id="secretaria-setores" titulo="Setores da secretaria" icone={Users} padrao={{ x: 24, y: 96, w: 340, h: 460 }} aoFechar={() => setSetoresAbertos(false)}>
+      {areasAbertas && (
+        <Janela id="secretaria-setores" titulo={`${r.Areas} da ${r.organizacao_curta}`} icone={Users} padrao={{ x: 24, y: 96, w: 340, h: 460 }} aoFechar={() => setAreasAbertas(false)}>
           <ul className="divide-y divide-border">
-            {setores.map((s) => {
+            {areas.map((s) => {
               const agente = s.agentes[0]?.agente_id;
               return (
                 <li key={s.id}>
@@ -173,7 +177,7 @@ export function Secretaria3D() {
                 </li>
               );
             })}
-            {!setores.length && <li className="px-4 py-6 text-center text-sm text-muted-foreground">Os setores aparecem depois da implantação.</li>}
+            {!areas.length && <li className="px-4 py-6 text-center text-sm text-muted-foreground">Os {r.areas} aparecem depois da implantação.</li>}
           </ul>
         </Janela>
       )}
@@ -181,14 +185,15 @@ export function Secretaria3D() {
       {selecao?.tipo === "agente" && (
         <PainelAgente
           agente={agentes.find((a) => a.id === selecao.id)}
-          setores={setores.filter((s) => s.agentes.some((a) => a.agente_id === selecao.id))}
+          areas={areas.filter((s) => s.agentes.some((a) => a.agente_id === selecao.id))}
+          rotulos={r}
           eventos={aoVivo.eventos.filter((e) => e.agente === selecao.id)}
           aoFechar={() => setSelecao(null)}
         />
       )}
-      {selecao?.tipo === "setor" && (
-        <PainelSetor
-          setor={setores.find((s) => s.id === selecao.id)}
+      {selecao?.tipo === "area" && (
+        <PainelArea
+          area={areas.find((s) => s.id === selecao.id)}
           agentes={agentes}
           eventos={aoVivo.eventos}
           aoVerAgente={(id) => selecionar({ tipo: "agente", id })}
@@ -196,7 +201,11 @@ export function Secretaria3D() {
         />
       )}
       {selecao?.tipo === "cco" && (
-        <Slideover titulo="CCO · Centro de Comando e Operações" subtitulo="O que a secretaria inteira está fazendo agora" aoFechar={() => setSelecao(null)}>
+        <Slideover
+          titulo={r.centro === "CCO" ? "CCO · Centro de Comando e Operações" : r.centro}
+          subtitulo={`O que a ${r.organizacao_curta} inteira está fazendo agora`}
+          aoFechar={() => setSelecao(null)}
+        >
           <ListaEventos eventos={aoVivo.eventos} agentes={agentes} />
         </Slideover>
       )}
@@ -257,12 +266,14 @@ function ListaEventos({ eventos, agentes }: { eventos: EventoCentral[]; agentes?
 
 function PainelAgente({
   agente,
-  setores,
+  areas,
+  rotulos: r,
   eventos,
   aoFechar,
 }: {
   agente?: AgentePainel;
-  setores: Setor[];
+  areas: Area[];
+  rotulos: Rotulos;
   eventos: EventoCentral[];
   aoFechar: () => void;
 }) {
@@ -285,11 +296,11 @@ function PainelAgente({
       <div className="space-y-5">
         <section>
           <h3 className="mb-2 flex items-center gap-2 text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
-            <Users className="size-3.5" /> Setores
+            <Users className="size-3.5" /> {r.Areas}
           </h3>
-          {setores.length ? (
+          {areas.length ? (
             <ul className="space-y-1.5 text-sm">
-              {setores.map((s) => (
+              {areas.map((s) => (
                 <li key={s.id}>
                   {s.nome}
                   <span className="text-xs text-muted-foreground"> · {s.responsavel?.nome ?? "sem responsável"}</span>
@@ -297,7 +308,7 @@ function PainelAgente({
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">Ainda não está ligado a um setor.</p>
+            <p className="text-sm text-muted-foreground">Ainda não está ligado a um {r.area}.</p>
           )}
         </section>
         <section>
@@ -319,14 +330,14 @@ const FREQUENCIA: Record<string, string> = {
   sob_demanda: "sob demanda",
 };
 
-function PainelSetor({
-  setor,
+function PainelArea({
+  area: setor,
   agentes,
   eventos,
   aoVerAgente,
   aoFechar,
 }: {
-  setor?: Setor;
+  area?: Area;
   agentes: AgentePainel[];
   eventos: EventoCentral[];
   aoVerAgente: (id: string) => void;
@@ -359,7 +370,7 @@ function PainelSetor({
             {setor.atividades.map((a) => (
               <li key={a.id}>
                 {a.nome}
-                <span className="text-xs text-muted-foreground"> · {a.tipo === "rotina" ? `rotina ${FREQUENCIA[a.frequencia] ?? a.frequencia}` : "sob demanda"}</span>
+                <span className="text-xs text-muted-foreground"> · {a.tipo === "rotina" ? `rotina ${FREQUENCIA[a.frequencia ?? ""] ?? a.frequencia ?? ""}` : "sob demanda"}</span>
               </li>
             ))}
           </ul>

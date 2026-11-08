@@ -155,8 +155,8 @@ export interface Usuario {
   permissoes?: Permissao[];
 }
 
-/** A prefeitura de quem está logado (dono ou membro) e o que ele pode fazer nela (agente/acessos.py). */
-export type PermissaoPrefeitura =
+/** A organização de quem está logado (dono ou membro) e o que ele pode fazer nela (agente/acessos.py). */
+export type PermissaoOrganizacao =
   | "ver_painel"
   | "aprovar_entregas"
   | "gerenciar_fluxos"
@@ -168,21 +168,157 @@ export type PermissaoPrefeitura =
   | "gerenciar_equipe"
   | "ver_auditoria";
 
-export interface ContextoPrefeitura {
-  municipio_id: string;
-  municipio: string | null;
+export interface ContextoOrganizacao {
+  organizacao_id: string;
+  /** O nome da organização. */
+  organizacao: string | null;
+  sigla?: string | null;
+  cidade?: string | null;
   uf: string | null;
-  situacao_municipio: string | null;
+  segmento_id?: string | null;
+  situacao_organizacao: string | null;
   papel: "dono" | "membro";
   cargo_id: string | null;
   cargo: string | null;
-  permissoes: PermissaoPrefeitura[];
+  permissoes: PermissaoOrganizacao[];
 }
+
+/* ───────── O cadastro da organização (GET /gestao/panorama e /organizacao/panorama) ───────── */
+
+/** Os nomes de tela de cada segmento (agente/segmentos.py). */
+export interface Rotulos {
+  organizacao: string;
+  organizacao_curta: string;
+  area: string;
+  areas: string;
+  Area: string;
+  Areas: string;
+  unidade: string;
+  unidades: string;
+  Unidade: string;
+  Unidades: string;
+  pessoa: string;
+  pessoas: string;
+  Pessoas: string;
+  responsavel: string;
+  predio: string;
+  mapa: string;
+  centro: string;
+}
+
+/** Um campo do cadastro: `chave` é coluna de `organizacao` ou, com "dados.", chave de `dados_segmento`. */
+export interface CampoSegmento {
+  chave: string;
+  rotulo: string;
+  tipo: "texto" | "cnpj" | "cep" | "telefone" | "email" | "inteiro" | "uf" | "site" | string;
+  obrigatorio: boolean;
+  grupo: string;
+}
+
+export interface Segmento {
+  id: string;
+  nome: string;
+  usa_cnes: boolean;
+  rotulos: Rotulos;
+  campos: CampoSegmento[];
+}
+
+export interface Organizacao {
+  id: string;
+  segmento_id: string;
+  nome: string;
+  sigla?: string | null;
+  cnpj?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
+  cidade?: string | null;
+  uf?: string | null;
+  codigo_ibge?: string | null;
+  /** O centro do mapa. */
+  latitude: string | number | null;
+  longitude: string | number | null;
+  zoom_mapa?: number | null;
+  sede_latitude?: string | number | null;
+  sede_longitude?: string | number | null;
+  telefone?: string | null;
+  email?: string | null;
+  site?: string | null;
+  responsavel_nome?: string | null;
+  responsavel_email?: string | null;
+  responsavel_telefone?: string | null;
+  responsavel_cargo?: string | null;
+  populacao?: number | null;
+  andares?: number | null;
+  dados_segmento?: Record<string, unknown> | null;
+  situacao: string | null;
+  plano?: string | null;
+}
+
+export interface PessoaOrganizacao {
+  id: string;
+  nome: string;
+  email?: string | null;
+  cargo?: string | null;
+  area_id?: string | null;
+  aprova_tarefas?: boolean | null;
+}
+
+export interface AtividadeArea {
+  id: string;
+  area_id: string;
+  nome: string;
+  descricao?: string | null;
+  tipo?: string | null;
+  frequencia?: string | null;
+}
+
+export interface AgenteArea {
+  agente_id: string;
+  area_id: string;
+  funcao?: string | null;
+  mesa?: number | null;
+}
+
+/** Uma área da organização (setor na saúde, departamento na empresa): uma sala do prédio. */
+export interface AreaOrganizacao {
+  id: string;
+  tipo_id: string | null;
+  nome: string;
+  descricao?: string | null;
+  andar: number | null;
+  posicao: number | null;
+  responsavel_id?: string | null;
+  responsavel: PessoaOrganizacao | null;
+  atividades: AtividadeArea[];
+  agentes: AgenteArea[];
+}
+
+/** As fases da implantação, na ordem (gestao.fase_atual). */
+export type FaseImplantacao = "organizacao" | "areas" | "atividades" | "cargos" | "responsaveis" | "agentes" | "equipe" | "unidades" | "revisao";
+
+export interface PanoramaOrganizacao<U = Record<string, unknown>> {
+  organizacao: Organizacao;
+  segmento: Segmento;
+  areas: AreaOrganizacao[];
+  unidades: U[];
+  pessoas: PessoaOrganizacao[];
+  onboarding: { etapa: string | null } | null;
+  /** O que falta em cada fase (vazio = completa). */
+  pendencias?: Partial<Record<FaseImplantacao, string[]>>;
+  /** A fase atual (a primeira incompleta) ou "concluido". */
+  fase?: FaseImplantacao | "concluido";
+}
+
+/** O panorama vazio (sem organização) vem como {organizacao: null}. */
+export type RespostaPanorama<U = Record<string, unknown>> = PanoramaOrganizacao<U> | { organizacao: null };
 
 export interface Acesso {
   requer_chave: boolean;
-  /** A prefeitura da pessoa logada, se ela é dona ou membro ativo de uma. */
-  prefeitura?: ContextoPrefeitura | null;
+  /** A organização da pessoa logada, se ela é dona ou membro ativo de uma. */
+  organizacao?: ContextoOrganizacao | null;
   /** Cadastro e login com e-mail e senha ligados (o servidor tem a OS_SECURITY_KEY). */
   aceita_senha?: boolean;
   google_client_id: string | null;
@@ -687,7 +823,7 @@ export interface BaseCompartilhada {
   atualizado_por: string | null;
 }
 
-/* ───────── Secretaria 3D (o escritório dos agentes e o que eles fazem ao vivo) ───────── */
+/* ───────── Prédio 3D (o escritório dos agentes e o que eles fazem ao vivo) ───────── */
 
 /** Central de atendimento em 3D (GET /central). */
 export interface ConversaCentral {

@@ -9,14 +9,14 @@ import { CampoSenha } from "@/components/publico/campo-senha";
 import { TelaDeAcesso } from "@/components/publico/tela-de-acesso";
 import { Campo } from "./entrar";
 
-/** Aceite do convite da prefeitura: a pessoa confirma o nome, cria a senha e entra no cargo. */
+/** Aceite do convite da organização: a pessoa confirma o nome, cria a senha e entra no cargo. */
 export function AceitarConvite() {
   const { token } = useParams({ strict: false }) as { token: string };
   const qc = useQueryClient();
   const navegar = useNavigate();
   const convite = useQuery({
     queryKey: ["convite", token],
-    queryFn: () => api<{ email: string; nome: string; municipio: string; cargo: string | null }>(`/convite/${encodeURIComponent(token)}`),
+    queryFn: () => api<{ email: string; nome: string; organizacao: string; cargo: string | null }>(`/convite/${encodeURIComponent(token)}`),
     retry: false,
   });
   const [nome, setNome] = useState("");
@@ -65,7 +65,7 @@ export function AceitarConvite() {
   const d = convite.data;
   return (
     <TelaDeAcesso
-      titulo={`Você foi convidado para a Secretaria de Saúde de ${d.municipio}`}
+      titulo={`Você foi convidado para ${d.organizacao}`}
       descricao={d.cargo ? <>No cargo <strong className="text-foreground">{d.cargo}</strong>. Crie a sua senha para entrar.</> : "Crie a sua senha para entrar."}
     >
       <form onSubmit={aceitar} className="space-y-4">

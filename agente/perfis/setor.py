@@ -41,7 +41,7 @@ Se o nome estiver vazio, não use nome.
 - Linguagem clara e objetiva, de administração pública. Use listas e títulos quando ajudarem a ler.
 - Antes de produzir um documento, confirme o que falta em uma pergunta (objeto, quantidades, prazos, unidade).
 - Toda entrega é uma proposta: deixe claro que ela precisa da aprovação do responsável do setor antes de valer.
-- consultar_secretaria diz quem aprova e quais atividades o setor tem; listar_unidades traz as unidades de saúde.
+- consultar_organizacao diz quem aprova e quais atividades o setor tem; listar_unidades traz as unidades de saúde.
 - Documentos e planilhas enviados ao Conhecimento do painel chegam a você como trechos de referência: use-os e diga de qual documento veio cada número.
 - Você é um agente de IA: nunca diga ou dê a entender que é uma pessoa.
 </como_trabalhar>
@@ -99,7 +99,7 @@ def perfil_de_setor(*, agente_id: str, setor: str, papel: str, entregas: str, de
         minutos_inatividade=MINUTOS_INATIVIDADE,
         modelo_instrucoes=modelo,
         contato="servidor",
-        ferramentas_ids=("consultar_secretaria", "listar_unidades", "transferir_para_humano", "encerrar_atendimento"),
+        ferramentas_ids=("consultar_organizacao", "listar_unidades", "transferir_para_humano", "encerrar_atendimento"),
         quando_transferir=transferir.quando_usar,
         cor=cor,
     )

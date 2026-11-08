@@ -151,8 +151,8 @@ export function AccessGate({ children }: { children: ReactNode }) {
   // Decide já neste desenho (o efeito que marca "liberado" só roda depois): sem isso, quem está logado
   // passaria um instante como "não entrou" e seria mandado para a landing page.
   const logado = liberado || !acesso.data?.requer_chave || !!usuario || !!lerChave();
-  // Dono ou membro de uma prefeitura entra no painel dela, mesmo sem aprovação da plataforma.
-  if (usuario && usuario.situacao !== "ativo" && acesso.data?.prefeitura) return <>{children}</>;
+  // Dono ou membro de uma organização entra no painel dela, mesmo sem aprovação da plataforma.
+  if (usuario && usuario.situacao !== "ativo" && acesso.data?.organizacao) return <>{children}</>;
   if (logado && usuario?.situacao === "pendente")
     return (
       <Aviso
@@ -167,7 +167,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
           </Link>
         }
       >
-        O dono do painel precisa aprovar o seu e-mail ({usuario.email}). Enquanto isso, você já pode implantar a sua prefeitura com o
+        O dono do painel precisa aprovar o seu e-mail ({usuario.email}). Enquanto isso, você já pode implantar a sua organização com o
         assistente.
       </Aviso>
     );
@@ -222,7 +222,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
             <div>
               <h1 className="text-xl font-bold">Chave de acesso</h1>
               <p className="mt-1 text-sm text-muted-foreground">
-                O painel mostra conversas de servidores. Informe a chave de acesso do agente (a mesma usada no
+                O painel mostra as conversas com os agentes. Informe a chave de acesso do agente (a mesma usada no
                 AgentOS) para continuar.
               </p>
             </div>

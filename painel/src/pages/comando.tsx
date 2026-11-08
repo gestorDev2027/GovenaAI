@@ -12,8 +12,8 @@ import {
   MessagesSquare,
   Search,
 } from "lucide-react";
-import { api } from "@/lib/api";
-import { useAcesso } from "@/hooks/use-permissoes";
+import { api, type RespostaPanorama, type Rotulos } from "@/lib/api";
+import { useAcesso, useRotulos } from "@/hooks/use-permissoes";
 import { cn } from "@/lib/utils";
 import { SimboloGestorGov } from "@/components/layout/logo";
 import { MapaCidade, type UnidadeNoMapa } from "@/components/mapa/mapa-cidade";
@@ -24,7 +24,7 @@ import { FichaUnidade, type UnidadeSaude } from "@/components/unidades/ficha-uni
 import { GerenciarUnidades } from "@/components/unidades/gerenciar-unidades";
 
 /*
- * Central de comando do GestorGov: o mapa da cidade com as unidades de saúde, em tela inteira, e, por cima, janelas flutuantes (arrastar,
+ * Central de comando do GestorGov: o mapa com as unidades da organização, em tela inteira, e, por cima, janelas flutuantes (arrastar,
  * redimensionar, minimizar), slide-overs para ver e editar sem sair, a paleta de comandos (Ctrl+K) e o modo foco
  * (F), que esconde tudo e deixa só o mapa. As janelas abertas ficam guardadas neste navegador.
  */
@@ -36,18 +36,17 @@ interface TipoUnidade {
   ordem: number | null;
 }
 type Unidade = UnidadeSaude;
-interface Panorama {
-  municipio: { nome: string; uf: string; latitude: string | number | null; longitude: string | number | null; situacao: string | null } | null;
-  unidades?: Unidade[];
-}
 
 type Painel = "unidades" | "alertas";
 type Detalhe = { tipo: "unidade"; id: string } | null;
 
 const PAINEIS: Record<Painel, { titulo: string; icone: ComponentType<{ className?: string }>; padrao: Geometria }> = {
-  unidades: { titulo: "Unidades de saúde", icone: MapPin, padrao: { x: 24, y: 96, w: 340, h: 460 } },
+  unidades: { titulo: "Unidades", icone: MapPin, padrao: { x: 24, y: 96, w: 340, h: 460 } },
   alertas: { titulo: "Alertas das unidades", icone: Bell, padrao: { x: 380, y: 96, w: 340, h: 300 } },
 }
+
+/** O título da janela no segmento (Unidades de saúde, Unidades). */
+const tituloDo = (p: Painel, r: Rotulos) => (p === "unidades" ? r.Unidades : PAINEIS[p].titulo);
 
 function lerAbertos(): Painel[] {
   try {
@@ -63,11 +62,13 @@ export function CentralDeComando() {
   const navegar = useNavigate();
   const acesso = useAcesso().data;
   const token = acesso?.mapbox_token;
-  const daPrefeitura = !!acesso?.prefeitura;
+  const daOrganizacao = !!acesso?.organizacao;
   const panorama = useQuery({
-    queryKey: ["gestao-panorama", daPrefeitura],
-    queryFn: () => api<Panorama>(daPrefeitura ? "/prefeitura/panorama" : "/gestao/panorama"),
+    queryKey: ["gestao-panorama", daOrganizacao],
+    queryFn: () => api<RespostaPanorama<Unidade>>(daOrganizacao ? "/organizacao/panorama" : "/gestao/panorama"),
   });
+  const pan = panorama.data?.organizacao ? panorama.data : null;
+  const r = useRotulos(pan?.segmento.rotulos);
   const catalogo = useQuery({
     queryKey: ["gestao-catalogo"],
     queryFn: () => api<{ tipos_unidade: TipoUnidade[] }>("/implantacao/catalogo"),
@@ -84,8 +85,8 @@ export function CentralDeComando() {
   const [conferir, setConferir] = useState(false);
 
   useEffect(() => {
-    document.title = "Cidade · GestorGov";
-  }, []);
+    document.title = `${r.mapa} · GestorGov`;
+  }, [r.mapa]);
   useEffect(() => {
     try {
       localStorage.setItem("gestorgov.comando.abertos", JSON.stringify(abertos));
@@ -113,8 +114,9 @@ export function CentralDeComando() {
   }, []);
 
   const tipos = useMemo(() => new Map((catalogo.data?.tipos_unidade ?? []).map((t) => [t.id, t])), [catalogo.data]);
-  const mun = panorama.data?.municipio;
-  const unidades = useMemo(() => panorama.data?.unidades ?? [], [panorama.data]);
+  const org = pan?.organizacao;
+  const local = org ? [org.sigla || org.nome, [org.cidade, org.uf].filter(Boolean).join("-")].filter(Boolean).join(" · ") : "";
+  const unidades = useMemo(() => pan?.unidades ?? [], [pan]);
   const noMapa: UnidadeNoMapa[] = useMemo(
     () =>
       unidades
@@ -139,7 +141,7 @@ export function CentralDeComando() {
     () => [
       ...(Object.keys(PAINEIS) as Painel[]).map((p) => ({
         id: `painel-${p}`,
-        titulo: `${abertos.includes(p) ? "Fechar" : "Abrir"} ${PAINEIS[p].titulo}`,
+        titulo: `${abertos.includes(p) ? "Fechar" : "Abrir"} ${tituloDo(p, r)}`,
         grupo: "Janelas",
         icone: PAINEIS[p].icone,
         executar: () => alternar(p),
@@ -154,14 +156,14 @@ export function CentralDeComando() {
         dica: tipos.get(u.tipo_id ?? "")?.nome,
         executar: () => verUnidade(u.id),
       })),
-      { id: "secretaria", titulo: "Abrir a Secretaria virtual (setores e agentes)", grupo: "Navegar", icone: Building2, executar: () => navegar({ to: "/secretaria" }) },
+      { id: "secretaria", titulo: `Abrir a ${r.predio} (${r.areas} e agentes)`, grupo: "Navegar", icone: Building2, executar: () => navegar({ to: "/secretaria" }) },
       { id: "painel", titulo: "Ir para o Painel", grupo: "Navegar", icone: LayoutDashboard, executar: () => navegar({ to: "/" }) },
       { id: "chat", titulo: "Conversar com os agentes", grupo: "Navegar", icone: MessagesSquare, executar: () => navegar({ to: "/chat" }) },
     ],
-    [abertos, alternar, foco, unidades, tipos, verUnidade, navegar],
+    [abertos, alternar, foco, unidades, tipos, verUnidade, navegar, r],
   );
 
-  const centro = mun?.latitude != null && mun?.longitude != null ? ([Number(mun.latitude), Number(mun.longitude)] as [number, number]) : null;
+  const centro = org?.latitude != null && org?.longitude != null ? ([Number(org.latitude), Number(org.longitude)] as [number, number]) : null;
 
   return (
     <div className="fixed inset-0 overflow-hidden bg-[#0D1B38] text-foreground">
@@ -171,6 +173,7 @@ export function CentralDeComando() {
           token={token}
           unidades={noMapa}
           centro={centro}
+          zoom={org?.zoom_mapa ?? null}
           selecionada={selecionada}
           aoSelecionar={verUnidade}
           satelite
@@ -178,7 +181,7 @@ export function CentralDeComando() {
         />
       ) : (
         <div className="absolute inset-0 grid place-items-center text-sm text-white/70">
-          Defina o MAPBOX_TOKEN no servidor para ver o mapa da cidade.
+          Defina o MAPBOX_TOKEN no servidor para ver o mapa.
         </div>
       )}
 
@@ -186,19 +189,20 @@ export function CentralDeComando() {
         <>
           {/* Barra flutuante */}
           <nav
-            aria-label="Cidade"
+            aria-label={r.mapa}
             className="absolute top-4 left-1/2 z-[100] flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-[#0D1B38]/85 p-1.5 pl-3 text-white shadow-[0_18px_50px_-15px_rgba(0,0,0,0.6)] backdrop-blur-md"
           >
             <Link to="/" aria-label="Voltar ao painel" className="flex items-center gap-2 rounded-full pr-2 outline-none focus-visible:ring-2 focus-visible:ring-white">
               <SimboloGestorGov sobreEscuro className="size-7" />
               <span className="hidden flex-col leading-tight sm:flex">
-                <span className="text-sm font-bold">Cidade</span>
-                <span className="text-[10px] text-white/60">{mun ? `${mun.nome}-${mun.uf}` : "GestorGov"}</span>
+                <span className="text-sm font-bold">{r.mapa}</span>
+                <span className="text-[10px] text-white/60">{local || "GestorGov"}</span>
               </span>
             </Link>
             <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
             {(Object.keys(PAINEIS) as Painel[]).map((p) => {
-              const { titulo, icone: Icone } = PAINEIS[p];
+              const { icone: Icone } = PAINEIS[p];
+              const titulo = tituloDo(p, r);
               const aberto = abertos.includes(p);
               const n = p === "alertas" ? alertas.length : 0;
               return (
@@ -213,7 +217,7 @@ export function CentralDeComando() {
               to="/secretaria"
               className="flex h-9 items-center gap-2 rounded-full bg-white/10 px-3 text-xs text-white/85 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
             >
-              <Building2 className="size-3.5" /> Secretaria virtual
+              <Building2 className="size-3.5" /> {r.predio}
             </Link>
             <button
               type="button"
@@ -244,7 +248,7 @@ export function CentralDeComando() {
           {abertos.includes("unidades") && (
             <Janela
               id="unidades"
-              titulo={PAINEIS.unidades.titulo}
+              titulo={r.Unidades}
               icone={MapPin}
               padrao={PAINEIS.unidades.padrao}
               aoFechar={() => alternar("unidades")}
@@ -292,11 +296,12 @@ export function CentralDeComando() {
           unidade={unidades.find((u) => u.id === detalhe.id)}
           tipo={tipos.get(unidades.find((u) => u.id === detalhe.id)?.tipo_id ?? "")}
           tipos={[...tipos.values()]}
+          rotuloUnidade={r.Unidade}
           aoFechar={() => setDetalhe(null)}
         />
       )}
       {conferir && (
-        <Slideover titulo="Unidades de saúde" subtitulo="Conferência e cadastro pela secretaria" aoFechar={() => setConferir(false)}>
+        <Slideover titulo={r.Unidades} subtitulo={`Conferência e cadastro pela ${r.organizacao_curta}`} aoFechar={() => setConferir(false)}>
           <GerenciarUnidades />
         </Slideover>
       )}
@@ -380,7 +385,19 @@ function ListaUnidades({
   );
 }
 
-function DetalheUnidade({ unidade, tipo, tipos, aoFechar }: { unidade?: Unidade; tipo?: TipoUnidade; tipos: TipoUnidade[]; aoFechar: () => void }) {
+function DetalheUnidade({
+  unidade,
+  tipo,
+  tipos,
+  rotuloUnidade,
+  aoFechar,
+}: {
+  unidade?: Unidade;
+  tipo?: TipoUnidade;
+  tipos: TipoUnidade[];
+  rotuloUnidade: string;
+  aoFechar: () => void;
+}) {
   const qc = useQueryClient();
   if (!unidade) return null;
   return (
@@ -389,7 +406,7 @@ function DetalheUnidade({ unidade, tipo, tipos, aoFechar }: { unidade?: Unidade;
       subtitulo={
         <span className="inline-flex items-center gap-1.5">
           <span className="size-2 rounded-full" style={{ background: tipo?.cor ?? "#424E6B" }} />
-          {tipo?.nome ?? "Unidade de saúde"}
+          {tipo?.nome ?? rotuloUnidade}
         </span>
       }
       aoFechar={aoFechar}

@@ -30,14 +30,14 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from agente import companyos, demo, perfis, registro
+from agente import companyos, perfis, registro
 from agente.equipes import EQUIPES
 from agente.agente import _modelo, criar_agentes, montar_agente
 from banco_api import criar_rotas_banco
 from conhecimento_api import criar_rotas_conhecimento
 from fabrica_api import criar_rotas_fabrica
 from gestao_api import criar_rotas_gestao
-from prefeitura_api import criar_rotas_prefeitura
+from organizacao_api import criar_rotas_organizacao
 from painel_api import criar_rotas
 
 PASTA_PAINEL = Path(__file__).parent / "painel" / "dist"
@@ -52,11 +52,6 @@ os.environ["AGENTOS_TOKEN_INTERNO"] = TOKEN_INTERNO
 agentes = criar_agentes()
 agente = agentes[perfis.PADRAO]
 
-# Demonstração pronta (GESTORGOV_DEMO=itatiaia): a secretaria de Itatiaia-RJ montada, com os agentes de cada setor.
-# Os agentes criados agora entram no registro antes de o AgentOS e o CompanyOS serem montados.
-for _novo in demo.semear():
-    agentes[_novo] = montar_agente(perfis.PERFIS[_novo], agente.db)
-
 # Sem a telemetria por requisição do FastAPI: ela gravava um trace a cada chamada e herdava o `traceparent`
 # de quem chama. Os traces
 # que importam são os das respostas do agente, gravados pelo Agno (ver atendimento._trace_proprio).
@@ -66,7 +61,7 @@ base_app = FastAPI(
 )
 base_app.include_router(criar_rotas(agente, agentes))
 base_app.include_router(criar_rotas_gestao())
-base_app.include_router(criar_rotas_prefeitura())
+base_app.include_router(criar_rotas_organizacao())
 base_app.include_router(criar_rotas_conhecimento(agentes))
 base_app.include_router(criar_rotas_banco(agentes))
 
@@ -96,7 +91,7 @@ base_app.include_router(criar_rotas_fabrica(agentes, ao_mudar=_trocar_no_agentos
 
 
 def _montar_agora(agente_id: str) -> None:
-    """Um agente criado na implantação (agente/agentes_prefeitura.py) entra no painel e no AgentOS sem reiniciar."""
+    """Um agente criado na implantação (agente/agentes_organizacao.py) entra no painel e no AgentOS sem reiniciar."""
     agentes[agente_id] = montar_agente(perfis.PERFIS[agente_id], agente.db)
     _trocar_no_agentos(agentes[agente_id])
 

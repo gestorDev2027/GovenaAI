@@ -3,13 +3,13 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, CheckCircle2, Image as ImageIcon, Plus, Search, TriangleAlert } from "lucide-react";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { usePodeNaPrefeitura } from "@/hooks/use-permissoes";
+import { usePodeNaOrganizacao } from "@/hooks/use-permissoes";
 import { Button } from "@/components/ui/button";
 import { FichaUnidade, FormUnidade, type TipoUnidadeSaude, type UnidadeSaude } from "./ficha-unidade";
 
 /*
- * A conferência das unidades pela secretaria: a lista (a conferir primeiro), a ficha de cada uma e o cadastro de uma
- * nova pelo CEP. Usada na implantação e na Central de comando. Os dados vêm do panorama da prefeitura de quem está
+ * A conferência das unidades pela organização: a lista (a conferir primeiro), a ficha de cada uma e o cadastro de uma
+ * nova pelo CEP. Usada na implantação e na Central de comando. Os dados vêm do panorama da organização de quem está
  * logado; depois de cada mudança, o panorama é recarregado (o mapa e o quadro da implantação acompanham).
  */
 
@@ -17,10 +17,10 @@ type Filtro = "conferir" | "todas";
 
 export function GerenciarUnidades({ inicial }: { inicial?: string | "nova" }) {
   const qc = useQueryClient();
-  const pode = usePodeNaPrefeitura()("gerenciar_unidades");
+  const pode = usePodeNaOrganizacao()("gerenciar_unidades");
   const panorama = useQuery({
     queryKey: ["gestao-panorama", true],
-    queryFn: () => api<{ unidades?: UnidadeSaude[] }>("/prefeitura/panorama"),
+    queryFn: () => api<{ organizacao: unknown; unidades?: UnidadeSaude[] }>("/organizacao/panorama"),
   });
   const catalogo = useQuery({
     queryKey: ["gestao-catalogo"],

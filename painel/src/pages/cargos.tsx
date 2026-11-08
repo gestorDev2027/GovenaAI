@@ -1,16 +1,16 @@
 import { useMemo, useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Loader2, Network, Plus, ShieldCheck, Sparkles, Users } from "lucide-react";
-import { api, type PermissaoPrefeitura } from "@/lib/api";
+import { api, type PermissaoOrganizacao } from "@/lib/api";
 import { fmtInt } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import { usePodeNaPrefeitura } from "@/hooks/use-permissoes";
+import { usePodeNaOrganizacao, useRotulos } from "@/hooks/use-permissoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/fields";
 import { EmptyState, PageHeader, PageLoader } from "@/components/widgets/widgets";
 
 /*
- * Organograma e cargos da prefeitura: a hierarquia (quem se reporta a quem), quem ocupa cada cargo e as
+ * Organograma e cargos da organização: a hierarquia (quem se reporta a quem), quem ocupa cada cargo e as
  * PERMISSÕES de cada um no sistema. O dono (ou quem tem "gerenciar_cargos") monta o organograma padrão do
  * catálogo, cria cargos e marca as permissões; os demais só veem.
  */
@@ -21,12 +21,12 @@ export interface Cargo {
   nivel: string;
   superior_id: string | null;
   atribuicoes: string | null;
-  permissoes: PermissaoPrefeitura[];
+  permissoes: PermissaoOrganizacao[];
   ativo: boolean;
   ocupantes: { email: string; nome: string | null; ativo: boolean }[];
 }
 interface CatalogoPermissoes {
-  permissoes: { id: PermissaoPrefeitura; rotulo: string; descricao: string }[];
+  permissoes: { id: PermissaoOrganizacao; rotulo: string; descricao: string }[];
   niveis: string[];
 }
 
@@ -39,25 +39,26 @@ export const NIVEIS: Record<string, string> = {
 };
 
 export function useCargos() {
-  return useQuery({ queryKey: ["prefeitura-cargos"], queryFn: () => api<{ cargos: Cargo[] }>("/prefeitura/cargos") });
+  return useQuery({ queryKey: ["organizacao-cargos"], queryFn: () => api<{ cargos: Cargo[] }>("/organizacao/cargos") });
 }
 
 export function Cargos() {
   const qc = useQueryClient();
-  const podeNaPrefeitura = usePodeNaPrefeitura();
-  const gerencia = podeNaPrefeitura("gerenciar_cargos");
+  const podeNaOrganizacao = usePodeNaOrganizacao();
+  const gerencia = podeNaOrganizacao("gerenciar_cargos");
+  const r = useRotulos();
   const cargos = useCargos();
   const catalogo = useQuery({
-    queryKey: ["prefeitura-permissoes"],
-    queryFn: () => api<CatalogoPermissoes>("/prefeitura/permissoes"),
+    queryKey: ["organizacao-permissoes"],
+    queryFn: () => api<CatalogoPermissoes>("/organizacao/permissoes"),
     staleTime: Infinity,
   });
   const [aberto, setAberto] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
 
   const padrao = useMutation({
-    mutationFn: () => api<{ criados: number }>("/prefeitura/cargos/padrao", { method: "POST" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["prefeitura-cargos"] }),
+    mutationFn: () => api<{ criados: number }>("/organizacao/cargos/padrao", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["organizacao-cargos"] }),
   });
 
   const lista = cargos.data?.cargos ?? [];
@@ -108,7 +109,7 @@ export function Cargos() {
         <div className="surface-card has-waves">
           <EmptyState icon={<Network className="size-5" />} title="O organograma ainda está vazio">
             <p>
-              O organograma padrão da Secretaria de Saúde tem 38 cargos em 5 níveis (direção, superintendências, coordenações, unidades e
+              O organograma padrão da {r.organizacao_curta} traz os cargos do segmento em níveis (direção, superintendências ou gerências, coordenações, unidades e
               controle), cada um com as atribuições, os indicadores e as permissões sugeridas. Depois você ajusta cargo por cargo.
             </p>
             {gerencia ? (
@@ -117,7 +118,7 @@ export function Cargos() {
                 Montar o organograma padrão
               </Button>
             ) : (
-              <p className="mt-2 text-xs">Peça ao dono da prefeitura para montar o organograma.</p>
+              <p className="mt-2 text-xs">Peça ao dono da {r.organizacao_curta} para montar o organograma.</p>
             )}
             {padrao.isError && <p className="mt-2 text-sm text-destructive">{(padrao.error as Error).message}</p>}
           </EmptyState>
@@ -182,15 +183,15 @@ function DetalheDoCargo({
   podeEditar: boolean;
 }) {
   const qc = useQueryClient();
-  const [permissoes, setPermissoes] = useState<PermissaoPrefeitura[]>(cargo.permissoes);
+  const [permissoes, setPermissoes] = useState<PermissaoOrganizacao[]>(cargo.permissoes);
   const [superior, setSuperior] = useState(cargo.superior_id ?? "");
   const mudou = superior !== (cargo.superior_id ?? "") || [...permissoes].sort().join() !== [...cargo.permissoes].sort().join();
   const salvar = useMutation({
     mutationFn: () =>
-      api(`/prefeitura/cargos/${cargo.id}`, { method: "PUT", body: JSON.stringify({ permissoes, superior_id: superior || null }) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["prefeitura-cargos"] }),
+      api(`/organizacao/cargos/${cargo.id}`, { method: "PUT", body: JSON.stringify({ permissoes, superior_id: superior || null }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["organizacao-cargos"] }),
   });
-  const alternar = (p: PermissaoPrefeitura) => setPermissoes((atual) => (atual.includes(p) ? atual.filter((x) => x !== p) : [...atual, p]));
+  const alternar = (p: PermissaoOrganizacao) => setPermissoes((atual) => (atual.includes(p) ? atual.filter((x) => x !== p) : [...atual, p]));
 
   return (
     <div className="grid gap-5 border-t border-border bg-muted/30 px-4 py-4 sm:px-6 lg:grid-cols-[1fr_1.2fr]">
@@ -270,12 +271,12 @@ function NovoCargo({ cargos, catalogo, aoFechar }: { cargos: Cargo[]; catalogo: 
   const [atribuicoes, setAtribuicoes] = useState("");
   const criar = useMutation({
     mutationFn: () =>
-      api("/prefeitura/cargos", {
+      api("/organizacao/cargos", {
         method: "POST",
         body: JSON.stringify({ nome: nome.trim(), nivel, superior_id: superior || null, atribuicoes }),
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["prefeitura-cargos"] });
+      qc.invalidateQueries({ queryKey: ["organizacao-cargos"] });
       aoFechar();
     },
   });

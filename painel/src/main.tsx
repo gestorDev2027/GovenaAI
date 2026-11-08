@@ -26,6 +26,7 @@ import { Cadastro } from "@/pages/cadastro";
 import { PaginaImplantacao } from "@/pages/implantacao";
 import { Cargos } from "@/pages/cargos";
 import { Equipe } from "@/pages/equipe";
+import { AgentesDaOrganizacao } from "@/pages/agentes";
 import { AceitarConvite } from "@/pages/convite";
 import { ColaborarNaImplantacao } from "@/pages/colaborar";
 import { CentralDeComando } from "@/pages/comando";
@@ -74,6 +75,7 @@ const rotas = [
   createRoute({ getParentRoute: () => painel, path: "/cidade", component: Cidade }),
   createRoute({ getParentRoute: () => painel, path: "/cargos", component: Cargos }),
   createRoute({ getParentRoute: () => painel, path: "/equipe", component: Equipe }),
+  createRoute({ getParentRoute: () => painel, path: "/agentes", component: AgentesDaOrganizacao }),
   createRoute({
     getParentRoute: () => painel,
     path: "/chat",
@@ -81,7 +83,7 @@ const rotas = [
     validateSearch: (s: Record<string, unknown>): { agente?: string } => ({
       agente: typeof s.agente === "string" ? s.agente : undefined,
     }),
-    component: () => <ExigePermissao permissao="usar_chat" ouNaPrefeitura="ver_painel"><Chat /></ExigePermissao>,
+    component: () => <ExigePermissao permissao="usar_chat" ouNaOrganizacao="ver_painel"><Chat /></ExigePermissao>,
   }),
   createRoute({
     getParentRoute: () => painel,

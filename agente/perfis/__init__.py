@@ -3,7 +3,7 @@
 - onboarding: o assistente de implantação (conversa com o secretário e monta a secretaria). É o padrão.
 - compras, atencao_primaria, regulacao: os primeiros agentes de setor (agente/perfis/setor.py).
 - unidade: o agente das unidades de saúde. Estes quatro são modelos: cada prefeitura ganha a sua cópia na
-  implantação (agente/agentes_prefeitura.py).
+  implantação (agente/agentes_organizacao.py).
 
 Para acrescentar um agente: crie-o pela fábrica de agentes no painel (agente/fabrica.py), ou crie
 `agente/perfis/<id>.py` com um PERFIL e inclua aqui. O servidor passa a servi-lo no AgentOS e no painel.

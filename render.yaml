@@ -54,6 +54,6 @@ services:
       # CompanyOS: as atividades de rotina dos setores viram Rotinas do Agno (agente/companyos.py).
       - key: GESTORGOV_COMPANYOS
         value: sim
-      # Sem demonstração: cada prefeitura é montada na implantação (GESTORGOV_DEMO=itatiaia liga a de Itatiaia-RJ).
+      # Sem demonstração: cada organização é montada na implantação.
       - key: INATIVIDADE_MINUTOS
         value: "480"

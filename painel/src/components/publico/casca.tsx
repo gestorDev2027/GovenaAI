@@ -26,7 +26,7 @@ export function CascaPublica({ children, semAcoes = false, escuro = false }: { c
                 to="/cadastro"
                 className="inline-flex h-10 items-center rounded-full bg-[#F4B800] px-5 text-sm font-bold text-[#0D1B38] outline-none hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring"
               >
-                Cadastrar prefeitura
+                Cadastrar organização
               </Link>
             </nav>
           )}
@@ -36,7 +36,7 @@ export function CascaPublica({ children, semAcoes = false, escuro = false }: { c
       <footer className="border-t border-border bg-card">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-2 px-4 py-5 text-xs text-muted-foreground sm:px-6">
           <span>GestorGov · Gestão Pública Inteligente</span>
-          <span>Dados de saúde tratados conforme a LGPD. Toda entrega dos agentes passa pela aprovação de um servidor.</span>
+          <span>Dados tratados conforme a LGPD. Toda entrega dos agentes passa pela aprovação de uma pessoa responsável.</span>
         </div>
       </footer>
     </div>

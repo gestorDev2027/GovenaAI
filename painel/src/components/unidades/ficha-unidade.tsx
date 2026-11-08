@@ -7,13 +7,13 @@ import { useAgentes } from "@/hooks/use-agentes";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { fmtDataHora } from "@/lib/formato";
-import { useAcesso, usePodeNaPrefeitura } from "@/hooks/use-permissoes";
+import { useAcesso, usePodeNaOrganizacao, useRotulos } from "@/hooks/use-permissoes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/fields";
 
 /*
- * A ficha de uma unidade de saúde, a mesma na Central de comando, na Cidade e na implantação: a foto principal (ou a
- * vista de satélite do Mapbox, pelo ponto no mapa), os dados, a conferência pela secretaria e as fotos. Quem tem
+ * A ficha de uma unidade da organização, a mesma na Central de comando, na lista de unidades e na implantação: a foto
+ * principal (ou a vista de satélite do Mapbox, pelo ponto no mapa), os dados, a conferência e as fotos. Quem tem
  * "Cadastrar unidades" edita (o CEP busca o endereço no ViaCEP e põe o ponto no mapa), confere e envia fotos.
  */
 
@@ -58,14 +58,17 @@ interface Foto {
 }
 interface Endereco {
   cep: string;
-  municipio: string;
+  /** A cidade do CEP (ViaCEP). */
+  municipio?: string | null;
+  cidade?: string | null;
   uf: string;
   logradouro: string | null;
   bairro: string | null;
   latitude: number | null;
   longitude: number | null;
   coordenadas_origem: string | null;
-  do_municipio: boolean;
+  /** O CEP é da cidade da organização de quem pede. */
+  da_cidade: boolean;
 }
 
 const VINCULO: Record<string, string> = { publica: "Pública (municipal)", conveniada: "Conveniada ao SUS" };
@@ -78,7 +81,7 @@ const ORIGEM_PONTO: Record<string, string> = {
 };
 const TIPO_FOTO: Record<Foto["tipo"], string> = { fachada: "Fachada", interior: "Interior", outra: "Outra" };
 
-export const urlFoto = (id: string) => `/painel/api/prefeitura/fotos/${encodeURIComponent(id)}`;
+export const urlFoto = (id: string) => `/painel/api/organizacao/fotos/${encodeURIComponent(id)}`;
 
 /** Vista de satélite (Mapbox Static Images) com o pino da unidade. Nada é guardado: a imagem vem do ponto no mapa. */
 export function urlSatelite(lat: number, lon: number, token: string, largura = 600, altura = 300, zoom = 17) {
@@ -124,6 +127,11 @@ function Dado({ rotulo, children }: { rotulo: string; children: ReactNode }) {
   );
 }
 
+/** Na saúde, a unidade tem CNES e vínculo com o SUS; nos outros segmentos, não. */
+function useDaSaude(): boolean {
+  return (useAcesso().data?.organizacao?.segmento_id ?? "saude_publica") === "saude_publica";
+}
+
 /** O conteúdo da ficha (o recipiente, slide-over ou cartão, é de quem usa). */
 export function FichaUnidade({
   unidade,
@@ -135,12 +143,14 @@ export function FichaUnidade({
   /** Depois de salvar, conferir ou mexer nas fotos: quem usa recarrega o panorama. */
   aoMudar: () => void;
 }) {
-  const pode = usePodeNaPrefeitura()("gerenciar_unidades");
+  const pode = usePodeNaOrganizacao()("gerenciar_unidades");
+  const r = useRotulos();
+  const daSaude = useDaSaude();
   const [editando, setEditando] = useState(false);
   const tipo = tipos.find((t) => t.id === unidade.tipo_id);
   const conferir = useMutation({
     mutationFn: (conferida: boolean) =>
-      api(`/prefeitura/unidades/${unidade.id}`, { method: "PUT", body: JSON.stringify({ conferida }) }),
+      api(`/organizacao/unidades/${unidade.id}`, { method: "PUT", body: JSON.stringify({ conferida }) }),
     onSuccess: (_, conferida) => {
       toast.success(conferida ? "Unidade conferida" : "Conferência desfeita");
       aoMudar();
@@ -190,7 +200,7 @@ export function FichaUnidade({
               {unidade.conferida_em ? <span className="text-xs text-muted-foreground"> · {fmtDataHora(unidade.conferida_em)}</span> : null}
             </>
           ) : (
-            "A conferir pela secretaria"
+            `A conferir pela ${r.organizacao_curta}`
           )}
         </span>
         {pode &&
@@ -225,7 +235,7 @@ export function FichaUnidade({
         </Dado>
         <Dado rotulo="Telefone">{unidade.telefone}</Dado>
         <Dado rotulo="E-mail">{unidade.email}</Dado>
-        <Dado rotulo="CNES">{unidade.cnes}</Dado>
+        {daSaude && <Dado rotulo="CNES">{unidade.cnes}</Dado>}
       </dl>
 
       {pode && (
@@ -239,9 +249,10 @@ export function FichaUnidade({
   );
 }
 
-/** O agente de IA da unidade: quem conversa com a equipe e reporta à secretaria. */
+/** O agente de IA da unidade: quem conversa com a equipe e reporta à organização. */
 function AgenteDaUnidade({ agenteId }: { agenteId?: string | null }) {
   const agente = useAgentes().find((a) => a.id === agenteId);
+  const r = useRotulos();
   if (!agenteId) return <p className="text-xs text-muted-foreground">Esta unidade ainda não tem agente de IA.</p>;
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border px-3 py-2.5">
@@ -250,7 +261,7 @@ function AgenteDaUnidade({ agenteId }: { agenteId?: string | null }) {
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{agente?.nome ?? agenteId}</span>
-        <span className="block text-xs text-muted-foreground">Agente da unidade: conversa com a equipe e reporta à secretaria</span>
+        <span className="block text-xs text-muted-foreground">Agente da unidade: conversa com a equipe e reporta à {r.organizacao_curta}</span>
       </span>
       <Link to="/chat" search={{ agente: agenteId }} className="inline-flex h-8 items-center gap-1.5 rounded-full bg-primary px-3 text-xs font-medium text-primary-foreground hover:bg-primary/90">
         <MessagesSquare className="size-3.5" /> Conversar
@@ -263,7 +274,7 @@ function AgenteDaUnidade({ agenteId }: { agenteId?: string | null }) {
 function FotosUnidade({ unidade, pode, aoMudar }: { unidade: UnidadeSaude; pode: boolean; aoMudar: () => void }) {
   const qc = useQueryClient();
   const chave = ["unidade-fotos", unidade.id];
-  const fotos = useQuery({ queryKey: chave, queryFn: () => api<{ fotos: Foto[] }>(`/prefeitura/unidades/${unidade.id}/fotos`) });
+  const fotos = useQuery({ queryKey: chave, queryFn: () => api<{ fotos: Foto[] }>(`/organizacao/unidades/${unidade.id}/fotos`) });
   const entrada = useRef<HTMLInputElement>(null);
   const [tipo, setTipo] = useState<Foto["tipo"]>("fachada");
   const depois = () => {
@@ -276,7 +287,7 @@ function FotosUnidade({ unidade, pode, aoMudar }: { unidade: UnidadeSaude; pode:
         const corpo = new FormData();
         corpo.append("arquivo", arquivo);
         corpo.append("tipo", tipo);
-        await api(`/prefeitura/unidades/${unidade.id}/fotos`, { method: "POST", body: corpo });
+        await api(`/organizacao/unidades/${unidade.id}/fotos`, { method: "POST", body: corpo });
       }
     },
     onSuccess: (_, arquivos) => {
@@ -286,12 +297,12 @@ function FotosUnidade({ unidade, pode, aoMudar }: { unidade: UnidadeSaude; pode:
     onError: (e: Error) => toast.error("Não foi possível enviar", { description: e.message }),
   });
   const principal = useMutation({
-    mutationFn: (id: string) => api(`/prefeitura/fotos/${id}/principal`, { method: "POST" }),
+    mutationFn: (id: string) => api(`/organizacao/fotos/${id}/principal`, { method: "POST" }),
     onSuccess: depois,
     onError: (e: Error) => toast.error("Não foi possível alterar", { description: e.message }),
   });
   const apagar = useMutation({
-    mutationFn: (id: string) => api(`/prefeitura/fotos/${id}`, { method: "DELETE" }),
+    mutationFn: (id: string) => api(`/organizacao/fotos/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       toast.success("Foto apagada");
       depois();
@@ -400,6 +411,7 @@ export function FormUnidade({
   aoCancelar: () => void;
 }) {
   const token = useAcesso().data?.mapbox_token;
+  const daSaude = useDaSaude();
   const [campos, setCampos] = useState({
     nome: unidade?.nome_fantasia || unidade?.nome || "",
     tipo_id: unidade?.tipo_id ?? "",
@@ -423,14 +435,14 @@ export function FormUnidade({
   const buscar = useMutation({
     mutationFn: () => {
       const cep = campos.cep.replace(/\D/g, "");
-      return api<Endereco>(`/prefeitura/cep/${cep}?numero=${encodeURIComponent(campos.numero.trim())}`);
+      return api<Endereco>(`/organizacao/cep/${cep}?numero=${encodeURIComponent(campos.numero.trim())}`);
     },
     onSuccess: (r) => {
       setCampos((c) => ({ ...c, endereco: r.logradouro || c.endereco, bairro: r.bairro || c.bairro }));
       if (r.latitude != null && r.longitude != null) setPonto({ latitude: r.latitude, longitude: r.longitude, origem: r.coordenadas_origem });
       setAviso(
-        !r.do_municipio
-          ? `Este CEP é de ${r.municipio}-${r.uf}, não do seu município. Confira.`
+        r.da_cidade === false
+          ? `Este CEP é de ${r.cidade ?? r.municipio ?? "outra cidade"}-${r.uf}, não da cidade da organização. Confira.`
           : r.latitude == null
             ? "Endereço encontrado, mas sem o ponto no mapa. Confira o número."
             : null,
@@ -456,8 +468,8 @@ export function FormUnidade({
         conferida: true,
       };
       return unidade
-        ? api<UnidadeSaude>(`/prefeitura/unidades/${unidade.id}`, { method: "PUT", body: JSON.stringify(corpo) })
-        : api<UnidadeSaude>("/prefeitura/unidades", { method: "POST", body: JSON.stringify(corpo) });
+        ? api<UnidadeSaude>(`/organizacao/unidades/${unidade.id}`, { method: "PUT", body: JSON.stringify(corpo) })
+        : api<UnidadeSaude>("/organizacao/unidades", { method: "POST", body: JSON.stringify(corpo) });
     },
     onSuccess: (salva) => {
       toast.success(unidade ? "Unidade salva e conferida" : "Unidade cadastrada");
@@ -478,7 +490,7 @@ export function FormUnidade({
   const id = unidade?.id ?? "nova";
 
   return (
-    <form onSubmit={enviar} className="space-y-3" aria-label={unidade ? `Editar ${nomeDe(unidade)}` : "Nova unidade de saúde"}>
+    <form onSubmit={enviar} className="space-y-3" aria-label={unidade ? `Editar ${nomeDe(unidade)}` : "Nova unidade"}>
       <Campo rotulo="Nome da unidade" id={`nome-${id}`}>
         <Input id={`nome-${id}`} value={campos.nome} onChange={muda("nome")} required placeholder="Ex.: UBS Jardim Primavera" />
       </Campo>
@@ -549,9 +561,11 @@ export function FormUnidade({
         <Campo rotulo="Telefone" id={`tel-${id}`}>
           <Input id={`tel-${id}`} inputMode="tel" value={campos.telefone} onChange={muda("telefone")} />
         </Campo>
-        <Campo rotulo="CNES" id={`cnes-${id}`}>
-          <Input id={`cnes-${id}`} inputMode="numeric" value={campos.cnes} onChange={muda("cnes")} maxLength={7} />
-        </Campo>
+        {daSaude && (
+          <Campo rotulo="CNES" id={`cnes-${id}`}>
+            <Input id={`cnes-${id}`} inputMode="numeric" value={campos.cnes} onChange={muda("cnes")} maxLength={7} />
+          </Campo>
+        )}
       </div>
       <Campo rotulo="E-mail da unidade" id={`email-${id}`}>
         <Input id={`email-${id}`} type="email" value={campos.email} onChange={muda("email")} />
