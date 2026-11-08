@@ -27,6 +27,7 @@ import { PaginaImplantacao } from "@/pages/implantacao";
 import { Cargos } from "@/pages/cargos";
 import { Equipe } from "@/pages/equipe";
 import { AceitarConvite } from "@/pages/convite";
+import { ColaborarNaImplantacao } from "@/pages/colaborar";
 import { CentralDeComando } from "@/pages/comando";
 import { Secretaria3D } from "@/pages/secretaria";
 import { Unidade3D } from "@/pages/unidade";
@@ -136,6 +137,8 @@ const router = createRouter({
     createRoute({ getParentRoute: () => raiz, path: "/cadastro", component: Cadastro }),
     createRoute({ getParentRoute: () => raiz, path: "/implantacao", component: PaginaImplantacao }),
     createRoute({ getParentRoute: () => raiz, path: "/convite/$token", component: AceitarConvite }),
+    // O link da implantação compartilhada: um colaborador entra com o código de segurança e continua a implantação.
+    createRoute({ getParentRoute: () => raiz, path: "/colaborar/$token", component: ColaborarNaImplantacao }),
   ]),
   basepath: "/painel",
   defaultNotFoundComponent: () => <div className="p-6 text-sm text-muted-foreground">Página não encontrada.</div>,

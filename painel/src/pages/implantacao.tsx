@@ -1,7 +1,8 @@
 import { Fragment, lazy, Suspense, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowUp, Building2, Landmark, LayoutDashboard, Loader2, LogOut, MapPinned, Timer, Users } from "lucide-react";
+import { ArrowUp, Building2, Check, Copy, Landmark, LayoutDashboard, Loader2, LogOut, MapPinned, Share2, Timer, Users } from "lucide-react";
+import { Input } from "@/components/ui/fields";
 import { api, ErroAcesso, sair, type Acesso } from "@/lib/api";
 import { fmtInt } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -42,8 +43,37 @@ interface Setor {
   agentes: { agente_id: string }[];
 }
 interface Panorama {
-  municipio: { nome: string; uf: string; codigo_ibge: string; situacao: string | null; latitude: string | number | null; longitude: string | number | null };
-  secretaria: { secretario_nome: string | null } | null;
+  municipio: {
+    nome: string;
+    uf: string;
+    codigo_ibge: string;
+    situacao: string | null;
+    latitude: string | number | null;
+    longitude: string | number | null;
+    cep?: string | null;
+    prefeitura_cnpj?: string | null;
+    prefeitura_logradouro?: string | null;
+    prefeitura_numero?: string | null;
+    prefeitura_bairro?: string | null;
+    prefeitura_telefone?: string | null;
+    prefeito_nome?: string | null;
+  };
+  secretaria: {
+    nome?: string | null;
+    fundo_cnpj?: string | null;
+    cep?: string | null;
+    logradouro?: string | null;
+    numero?: string | null;
+    bairro?: string | null;
+    telefone?: string | null;
+    email?: string | null;
+    secretario_nome: string | null;
+    secretario_email?: string | null;
+    secretario_telefone?: string | null;
+  } | null;
+  /** O que falta em cada fase (vazio = completa) e a fase atual (a primeira incompleta). */
+  pendencias?: Record<string, string[]>;
+  fase?: string;
   setores: Setor[];
   unidades: Unidade[];
   onboarding: { etapa: string | null } | null;
@@ -63,16 +93,18 @@ interface TipoUnidade {
 }
 
 const ETAPAS = [
-  ["municipio", "Município"],
+  ["municipio", "Prefeitura e secretaria"],
   ["setores", "Setores"],
   ["atividades", "Atividades"],
+  ["cargos", "Cargos"],
   ["responsaveis", "Responsáveis"],
   ["agentes", "Agentes"],
+  ["equipe", "Pessoas com acesso"],
   ["unidades", "Unidades de saúde"],
   ["revisao", "Revisão"],
 ] as const;
-// Até os agentes, o quadro mostra o prédio; das unidades em diante, a cidade.
-const ETAPAS_DO_PREDIO = new Set(["setores", "atividades", "responsaveis", "agentes"]);
+// Dos setores à equipe, o quadro mostra o prédio; nas unidades, a cidade.
+const ETAPAS_DO_PREDIO = new Set(["setores", "atividades", "cargos", "responsaveis", "agentes", "equipe"]);
 const Predio = lazy(() => import("@/components/central/predio-secretaria"));
 
 /** `segundos`: quanto o assistente trabalhou nesta resposta (só nas respostas desta visita). */
@@ -184,7 +216,7 @@ export function PaginaImplantacao() {
   const rapidas = !enviando && ultima?.papel === "agente" && ultima.texto.trim().endsWith("?") ? RESPOSTAS_RAPIDAS : [];
 
   return (
-    <div className="flex h-dvh flex-col bg-[#F6F7F9] text-foreground dark:bg-[#0A1328]">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#F6F7F9] text-foreground dark:bg-[#0A1328]">
       <header className="flex h-12 shrink-0 items-center justify-between gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link to="/inicio" aria-label="GestorGov — início" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -199,6 +231,7 @@ export function PaginaImplantacao() {
           )}
         </div>
         <div className="flex items-center gap-1.5">
+          {panorama && <Compartilhar />}
           <span className="hidden text-xs text-muted-foreground md:inline">{conta?.email}</span>
           {aprovado && (
             <Link
@@ -217,7 +250,7 @@ export function PaginaImplantacao() {
       <div className="flex min-h-0 flex-1 gap-0 lg:gap-1">
         {/* O chat: uma coluna fina */}
         <section aria-label="Conversa com o Assistente de Implantação" className="flex min-h-0 w-full flex-col lg:w-[420px] lg:shrink-0">
-          <div className="thin-scroll flex-1 space-y-6 overflow-y-auto px-5 pt-4 pb-6" aria-live="polite">
+          <div className="thin-scroll relative flex-1 space-y-6 overflow-y-auto px-5 pt-4 pb-6" aria-live="polite">
             {mensagens.map((m, i) => (m.papel === "agente" ? <RespostaDoAssistente key={i} m={m} /> : <MensagemDoServidor key={i} texto={m.texto} />))}
             {enviando && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -347,9 +380,9 @@ type Aba = "predio" | "cidade" | "resumo";
 
 /** O canvas: a barra fina (vistas e progresso) e, embaixo, a vista inteira. */
 function Canvas({ panorama, tipos, token }: { panorama: Panorama | null; tipos: TipoUnidade[]; token: string | null }) {
-  const etapa = panorama ? (panorama.municipio.situacao === "ativo" ? "concluido" : panorama.onboarding?.etapa ?? "setores") : "municipio";
+  const etapa = panorama ? (panorama.municipio.situacao === "ativo" ? "concluido" : panorama.fase ?? panorama.onboarding?.etapa ?? "municipio") : "municipio";
   const indice = etapa === "concluido" ? ETAPAS.length : Math.max(0, ETAPAS.findIndex(([id]) => id === etapa));
-  const sugerida: Aba = ETAPAS_DO_PREDIO.has(etapa) || (etapa === "municipio" && (panorama?.setores.length ?? 0) > 0) ? "predio" : panorama ? "cidade" : "predio";
+  const sugerida: Aba = ETAPAS_DO_PREDIO.has(etapa) ? "predio" : etapa === "municipio" || etapa === "revisao" || etapa === "concluido" ? "resumo" : "cidade";
   const [escolhida, setEscolhida] = useState<Aba | null>(null);
   useEffect(() => setEscolhida(null), [sugerida]); // etapa nova: volta a vista dela
   const aba = escolhida ?? sugerida;
@@ -420,6 +453,7 @@ function Canvas({ panorama, tipos, token }: { panorama: Panorama | null; tipos: 
         ) : (
           <Vista panorama={panorama} tipos={tipos} token={token} aba={aba} />
         )}
+        {panorama && etapa !== "concluido" && aba !== "resumo" && <Checklist titulo={rotuloEtapa} itens={panorama.pendencias?.[etapa] ?? []} />}
       </div>
     </div>
   );
@@ -439,11 +473,28 @@ function Resumo({ panorama, tipos }: { panorama: Panorama; tipos: TipoUnidade[] 
   }, [panorama, tipos]);
   return (
     <div className="mx-auto max-w-3xl space-y-4">
-      <Bloco icone={<Landmark className="size-5" />} titulo={`${panorama.municipio.nome}-${panorama.municipio.uf}`}>
-        <p className="text-sm text-muted-foreground">
-          Código IBGE {panorama.municipio.codigo_ibge}
-          {panorama.secretaria?.secretario_nome ? ` · Secretário(a): ${panorama.secretaria.secretario_nome}` : ""}
-        </p>
+      <Fases panorama={panorama} />
+      <Bloco icone={<Landmark className="size-5" />} titulo={`Prefeitura de ${panorama.municipio.nome}-${panorama.municipio.uf}`}>
+        <Dados
+          linhas={[
+            ["CNPJ", fmtCnpj(panorama.municipio.prefeitura_cnpj)],
+            ["Endereço", endereco(panorama.municipio.prefeitura_logradouro, panorama.municipio.prefeitura_numero, panorama.municipio.prefeitura_bairro, panorama.municipio.cep)],
+            ["Telefone", panorama.municipio.prefeitura_telefone],
+            ["Prefeito(a)", panorama.municipio.prefeito_nome],
+            ["Código IBGE", panorama.municipio.codigo_ibge],
+          ]}
+        />
+      </Bloco>
+      <Bloco icone={<Building2 className="size-5" />} titulo={panorama.secretaria?.nome || "Secretaria Municipal de Saúde"}>
+        <Dados
+          linhas={[
+            ["CNPJ do Fundo Municipal de Saúde", fmtCnpj(panorama.secretaria?.fundo_cnpj)],
+            ["Endereço", endereco(panorama.secretaria?.logradouro, panorama.secretaria?.numero, panorama.secretaria?.bairro, panorama.secretaria?.cep)],
+            ["Telefone", panorama.secretaria?.telefone],
+            ["E-mail", panorama.secretaria?.email],
+            ["Secretário(a)", [panorama.secretaria?.secretario_nome, panorama.secretaria?.secretario_email, panorama.secretaria?.secretario_telefone].filter(Boolean).join(" · ") || null],
+          ]}
+        />
       </Bloco>
       <Bloco icone={<Users className="size-5" />} titulo={`Setores · ${fmtInt(panorama.setores.length)}`}>
         {panorama.setores.length ? (
@@ -549,6 +600,7 @@ function Vista({ panorama, tipos, token, aba }: { panorama: Panorama; tipos: Tip
             margemDireita={0}
             api={camera}
             aberto
+            tetoDeVidro
             aoAbrir={() => undefined}
           />
         </Suspense>
@@ -566,5 +618,141 @@ function Vista({ panorama, tipos, token, aba }: { panorama: Panorama; tipos: Tip
     <MapaCidade token={token} unidades={noMapa} centro={centro} satelite className="absolute inset-0 h-full w-full" />
   ) : (
     <p className="grid h-full place-items-center px-6 text-center text-sm text-muted-foreground">Defina o MAPBOX_TOKEN no servidor para ver o mapa da cidade.</p>
+  );
+}
+
+const fmtCnpj = (c?: string | null) =>
+  c && c.length === 14 ? `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}` : (c ?? null);
+const endereco = (rua?: string | null, numero?: string | null, bairro?: string | null, cep?: string | null) =>
+  [[rua, numero].filter(Boolean).join(", "), bairro, cep && cep.length === 8 ? `CEP ${cep.slice(0, 5)}-${cep.slice(5)}` : cep].filter(Boolean).join(" · ") || null;
+
+/** Os dados de um bloco do Resumo; o que falta aparece como "a preencher". */
+function Dados({ linhas }: { linhas: [string, string | null | undefined][] }) {
+  return (
+    <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+      {linhas.map(([rotulo, valor]) => (
+        <div key={rotulo}>
+          <dt className="text-xs text-muted-foreground">{rotulo}</dt>
+          <dd className={cn("text-sm", !valor && "text-warning")}>{valor || "a preencher"}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+/** As fases da implantação, com o que falta em cada uma. */
+function Fases({ panorama }: { panorama: Panorama }) {
+  const atual = panorama.municipio.situacao === "ativo" ? "concluido" : panorama.fase;
+  return (
+    <section className="rounded-xl border border-border p-4">
+      <h2 className="mb-3 text-sm font-semibold">Fases da implantação</h2>
+      <ol className="space-y-2">
+        {ETAPAS.map(([id, rotulo], i) => {
+          const falta = panorama.pendencias?.[id] ?? [];
+          const feita = atual === "concluido" || (falta.length === 0 && ETAPAS.findIndex(([e]) => e === atual) > i);
+          return (
+            <li key={id} className="flex items-start gap-3 text-sm">
+              <span
+                className={cn(
+                  "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full text-[10px] font-bold",
+                  feita ? "bg-success text-white" : id === atual ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                )}
+              >
+                {feita ? <Check className="size-3" /> : i + 1}
+              </span>
+              <span className="min-w-0">
+                <span className={cn(id === atual ? "font-semibold" : feita ? "text-foreground" : "text-muted-foreground")}>{rotulo}</span>
+                {id === atual && falta.length > 0 && (
+                  <span className="block text-xs text-muted-foreground">
+                    Falta: {falta.slice(0, 4).join(" · ")}
+                    {falta.length > 4 ? ` e mais ${falta.length - 4}` : ""}
+                  </span>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+}
+
+/** O que falta na fase atual, por cima da vista (some quando a fase está completa). */
+function Checklist({ titulo, itens }: { titulo: string; itens: string[] }) {
+  if (!itens.length) return null;
+  return (
+    <div className="pointer-events-auto absolute bottom-3 left-3 z-10 w-72 rounded-xl border border-border bg-card/95 p-3 shadow-lg backdrop-blur">
+      <p className="text-xs font-semibold">
+        {titulo} <span className="font-normal text-muted-foreground">· falta {itens.length}</span>
+      </p>
+      <ul className="mt-2 space-y-1">
+        {itens.slice(0, 6).map((item) => (
+          <li key={item} className="flex items-start gap-2 text-xs text-muted-foreground">
+            <span className="mt-1 size-1.5 shrink-0 rounded-full bg-warning" aria-hidden="true" />
+            {item}
+          </li>
+        ))}
+        {itens.length > 6 && <li className="text-xs text-muted-foreground">e mais {itens.length - 6}…</li>}
+      </ul>
+    </div>
+  );
+}
+
+/** Compartilhar a implantação: o link e o código de segurança (só aparecem uma vez). */
+function Compartilhar() {
+  const [aberto, setAberto] = useState(false);
+  const [dados, setDados] = useState<{ link: string; codigo: string; validade_dias: number } | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [gerando, setGerando] = useState(false);
+  async function gerar() {
+    setErro(null);
+    setGerando(true);
+    try {
+      setDados(await api<{ link: string; codigo: string; validade_dias: number }>("/prefeitura/implantacao/link", { method: "POST" }));
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível gerar o link.");
+    } finally {
+      setGerando(false);
+    }
+  }
+  return (
+    <>
+      <Button variant="outline" size="sm" onClick={() => setAberto(true)} className="h-8">
+        <Share2 /> Compartilhar
+      </Button>
+      {aberto && (
+        <Slideover titulo="Compartilhar a implantação" subtitulo="Para outro colaborador da secretaria continuar daqui" aoFechar={() => { setAberto(false); setDados(null); }}>
+          <div className="space-y-4 text-sm">
+            <p className="text-muted-foreground">
+              Quem receber o link e o código entra com a própria conta, passa a fazer parte da prefeitura e continua a implantação de onde parou.
+              Mande o link e o código por canais diferentes (por exemplo, o link por e-mail e o código por telefone).
+            </p>
+            {!dados ? (
+              <Button onClick={gerar} disabled={gerando}>
+                {gerando ? <Loader2 className="animate-spin" /> : <Share2 />} Gerar link e código
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Link (vale {dados.validade_dias} dias)</p>
+                  <div className="flex gap-2">
+                    <Input readOnly value={dados.link} className="h-9 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} aria-label="Link" />
+                    <Button variant="outline" size="sm" onClick={() => navigator.clipboard?.writeText(dados.link)}>
+                      <Copy /> Copiar
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Código de segurança</p>
+                  <p className="font-mono text-2xl font-semibold tracking-[0.35em]">{dados.codigo}</p>
+                  <p className="text-xs text-muted-foreground">O código só aparece agora. Cinco códigos errados cancelam o link.</p>
+                </div>
+              </div>
+            )}
+            {erro && <p role="alert" className="text-destructive">{erro}</p>}
+          </div>
+        </Slideover>
+      )}
+    </>
   );
 }

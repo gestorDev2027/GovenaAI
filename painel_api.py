@@ -588,7 +588,9 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         nome = (sessao.get("nome") or "").split(" ")[0]
         resultado = await run_in_threadpool(
             responder, assistente, session_id, pedido.mensagem.strip(), nome, email, "", None,
-            {"conta_email": email, "conta_nome": sessao.get("nome") or "", "municipio_id": municipio_id},
+            # fase_da_vez: a fase em que a mensagem começou; as ferramentas das fases seguintes esperam a próxima mensagem.
+            {"conta_email": email, "conta_nome": sessao.get("nome") or "", "municipio_id": municipio_id,
+             "fase_da_vez": gestao.fase_atual(municipio_id) if municipio_id else "municipio"},
         )
         _, municipio_id = _implantacao_da(email)
         return {**resultado, "municipio_id": municipio_id,
@@ -825,8 +827,9 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
     @rotas.get("/agentes")
     def agentes_visiveis(escopo: Escopo = Depends(escopo_painel)) -> dict:
         """Os agentes publicados que quem chama pode ver (e as equipes, só para a plataforma)."""
+        # O Assistente de Implantação não é um agente da secretaria: fica fora da lista (tem a tela dele, /implantacao).
         lista = [{"id": a.id, **perfis.identidade(a.id)} for a in agentes.values()
-                 if perfis.publicado(a.id) and no_escopo(a.id, escopo)]
+                 if perfis.publicado(a.id) and no_escopo(a.id, escopo) and a.id != perfis.PADRAO]
         lista_equipes = ([] if escopo is not None else
                          [{"id": e["id"], "nome": e["nome"], "membros": e["membros"], "padrao": e["padrao"]}
                           for e in equipes.listar() if e["publicada"]])

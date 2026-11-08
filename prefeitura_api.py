@@ -20,6 +20,11 @@ cargo (o dono pode tudo).
 - GET  /painel/api/prefeitura/equipe              membros e convites pendentes
 - POST /painel/api/prefeitura/convites            convida (devolve o link)
 - DELETE /painel/api/prefeitura/convites/{id}     cancela um convite
+- POST /painel/api/prefeitura/convites/{id}/aprovar  aprova o acesso que o assistente cadastrou (devolve o link)
+- POST /painel/api/prefeitura/implantacao/link    compartilha a implantação: link + código de segurança (uma vez)
+- GET  /painel/api/implantacao/link/{token}       (aberta) de que prefeitura é o link
+- POST /painel/api/implantacao/link/{token}       (aberta) entra com o código: cria a conta (ou confere a senha),
+                                                  vira membro da prefeitura e continua a implantação
 - PUT  /painel/api/prefeitura/membros/{email}     muda o cargo ou bloqueia/desbloqueia
 - GET  /painel/api/convite/{token}                (aberta) os dados do convite
 - POST /painel/api/convite/{token}                (aberta) aceita: cria a conta com a senha e entra
@@ -70,6 +75,13 @@ class PedidoUnidade(BaseModel):
     coordenadas_origem: str | None = Field(default=None, pattern=r"^(cnes|endereco|cep|mapa|manual)$")
     situacao: str | None = Field(default=None, max_length=20)
     conferida: bool | None = None
+
+
+class PedidoLinkImplantacao(BaseModel):
+    nome: str = Field(min_length=2, max_length=120)
+    email: str = Field(min_length=5, max_length=200, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+    senha: str = Field(min_length=8, max_length=200)
+    codigo: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
 class PedidoAceite(BaseModel):
@@ -215,6 +227,59 @@ def criar_rotas_prefeitura() -> APIRouter:
             raise _erro(erro) from erro
         base = str(pedido_http.base_url).rstrip("/")
         return {"link": f"{base}/painel/convite/{token}", "validade_dias": acessos.VALIDADE_CONVITE.days}
+
+    @rotas.post("/prefeitura/convites/{convite_id}/aprovar")
+    def aprovar_convite(convite_id: str, pedido_http: Request, quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> dict:
+        """O acesso que o Assistente de Implantação cadastrou passa a valer: devolve o link de entrada da pessoa."""
+        try:
+            token = acessos.aprovar_convite(quem[1]["municipio_id"], convite_id, quem[0])
+        except acessos.ErroAcesso as erro:
+            raise _erro(erro) from erro
+        base = str(pedido_http.base_url).rstrip("/")
+        return {"link": f"{base}/painel/convite/{token}", "validade_dias": acessos.VALIDADE_CONVITE.days}
+
+    @rotas.post("/prefeitura/implantacao/link")
+    def compartilhar_implantacao(pedido_http: Request, quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> dict:
+        """Um link para outro colaborador da secretaria continuar a implantação, com o código de segurança. Os dois só
+        aparecem agora: mande o link e o código por canais diferentes (ex.: e-mail e telefone)."""
+        token, codigo = acessos.criar_link_implantacao(quem[1]["municipio_id"], quem[0])
+        base = str(pedido_http.base_url).rstrip("/")
+        return {"link": f"{base}/painel/colaborar/{token}", "codigo": codigo, "validade_dias": acessos.VALIDADE_LINK.days}
+
+    @rotas.get("/implantacao/link/{token}")
+    def ver_link_implantacao(token: str) -> dict:
+        disponivel()
+        try:
+            return acessos.ler_link_implantacao(token)
+        except acessos.ErroAcesso as erro:
+            raise _erro(erro) from erro
+
+    @rotas.post("/implantacao/link/{token}")
+    async def entrar_pela_implantacao(token: str, pedido: PedidoLinkImplantacao, resposta: Response) -> dict:
+        disponivel()
+        if not _chave() or not usuarios.disponivel():
+            raise HTTPException(status_code=503, detail="O login não está ligado neste servidor (falta OS_SECURITY_KEY).")
+        email = pedido.email.strip().lower()
+        if not _email_permitido(email):
+            raise HTTPException(status_code=403, detail=f"O e-mail {email} não pode entrar neste servidor.")
+        try:
+            acessos.ler_link_implantacao(token)
+        except acessos.ErroAcesso as erro:
+            raise _erro(erro) from erro
+        # Conta nova: a senha escolhida agora. Conta que já existe: a senha precisa conferir.
+        try:
+            await run_in_threadpool(usuarios.criar_conta, email, pedido.nome, pedido.senha)
+        except usuarios.ErroUsuario as erro:
+            if erro.status != 409:
+                raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
+            if not await run_in_threadpool(usuarios.entrar_com_senha, email, pedido.senha):
+                raise HTTPException(status_code=401, detail="Este e-mail já tem conta: use a senha dela.") from erro
+        try:
+            dados = await run_in_threadpool(acessos.entrar_pelo_link, token, pedido.codigo, email, pedido.nome)
+        except acessos.ErroAcesso as erro:
+            raise _erro(erro) from erro
+        _gravar_sessao(resposta, email, pedido.nome.strip())
+        return {"municipio": dados["municipio"]}
 
     @rotas.delete("/prefeitura/convites/{convite_id}", status_code=204)
     def cancelar_convite(convite_id: str, quem: tuple = Depends(_precisa("gerenciar_equipe"))) -> None:

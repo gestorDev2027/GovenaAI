@@ -62,13 +62,20 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
         Column("endereco_sede", Text), Column("latitude", Numeric(9, 6)), Column("longitude", Numeric(9, 6)),
         Column("zoom_mapa", SmallInteger, default=12), Column("populacao", Integer),
         Column("situacao", Text, default="onboarding"), Column("plano", Text), criado(), atualizado(),
-        Column("criado_por", Text))
+        Column("criado_por", Text),
+        # Migration 20261109_gestorgov_prefeitura.sql: o cadastro detalhado da prefeitura.
+        Column("prefeitura_cnpj", String(14)), Column("prefeitura_logradouro", Text), Column("prefeitura_numero", Text),
+        Column("prefeitura_bairro", Text), Column("prefeitura_telefone", Text), Column("prefeitura_email", Text),
+        Column("prefeitura_site", Text), Column("prefeito_nome", Text))
     t["secretarias"] = Table("secretarias", m,
         uid("id", primary_key=True, default=_id), uid("municipio_id", ForeignKey(fk("municipios.id")), nullable=False),
         Column("area", Text, default="saude"), Column("nome", Text, default="Secretaria Municipal de Saúde"),
         Column("sigla", Text), Column("cnpj", String(14)), Column("endereco", Text), Column("cep", String(8)),
         Column("latitude", Numeric(9, 6)), Column("longitude", Numeric(9, 6)), Column("andares", SmallInteger, default=3),
-        Column("secretario_nome", Text), Column("secretario_email", Text), criado(), atualizado())
+        Column("secretario_nome", Text), Column("secretario_email", Text), criado(), atualizado(),
+        # Migration 20261109_gestorgov_prefeitura.sql: o cadastro detalhado da Secretaria de Saúde.
+        Column("fundo_cnpj", String(14)), Column("logradouro", Text), Column("numero", Text), Column("bairro", Text),
+        Column("telefone", Text), Column("email", Text), Column("secretario_telefone", Text))
     t["setores"] = Table("setores", m,
         uid("id", primary_key=True, default=_id), uid("municipio_id", ForeignKey(fk("municipios.id")), nullable=False),
         uid("secretaria_id", ForeignKey(fk("secretarias.id")), nullable=False),
@@ -135,7 +142,14 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
         uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("email", Text, nullable=False),
         Column("nome", Text), uid("cargo_id"), Column("token_hash", Text, nullable=False, unique=True),
         Column("criado_por", Text, nullable=False), criado(), Column("expira_em", DateTime(timezone=True), nullable=False),
-        Column("aceito_em", DateTime(timezone=True)), Column("cancelado_em", DateTime(timezone=True)))
+        Column("aceito_em", DateTime(timezone=True)), Column("cancelado_em", DateTime(timezone=True)),
+        # Migration 20261109: os convites do assistente esperam a aprovação do dono no painel.
+        Column("origem", Text, default="painel"), Column("aprovado_em", DateTime(timezone=True)), Column("aprovado_por", Text))
+    t["implantacao_links"] = Table("implantacao_links", m,
+        uid("id", primary_key=True, default=_id), uid("municipio_id", nullable=False), Column("token_hash", Text, nullable=False, unique=True),
+        Column("codigo_hash", Text, nullable=False), Column("criado_por", Text, nullable=False), criado(),
+        Column("expira_em", DateTime(timezone=True), nullable=False), Column("cancelado_em", DateTime(timezone=True)),
+        Column("usos", Integer, default=0), Column("falhas", Integer, default=0))
     t["modelos_cargo"] = Table("modelos_cargo", m,
         Column("id", Text, primary_key=True), Column("nome", Text, nullable=False), Column("nivel", Text, nullable=False),
         Column("tipo_setor_id", Text), Column("superior_id", Text), Column("atribuicoes", Text, nullable=False),
@@ -312,6 +326,37 @@ def _nominatim(parametros: dict) -> tuple[float, float] | None:
     return float(achados[0]["lat"]), float(achados[0]["lon"])
 
 
+def buscar_endereco_mapbox(texto: str, limite: int = 5) -> list[dict]:
+    """Mapbox Geocoding (base de endereços do Brasil): os endereços que batem com o texto, com o ponto no mapa.
+    Sem MAPBOX_TOKEN ou se a fonte falhar, devolve []."""
+    token = os.getenv("MAPBOX_TOKEN", "").strip()
+    if not token or not (texto or "").strip():
+        return []
+    try:
+        r = httpx.get("https://api.mapbox.com/search/geocode/v6/forward",
+                      params={"q": texto, "country": "br", "language": "pt", "limit": limite, "access_token": token},
+                      timeout=TEMPO, headers={"User-Agent": USER_AGENT})
+        achados = r.json().get("features", []) if r.status_code == 200 else []
+    except Exception:
+        return []
+    saida = []
+    for f in achados:
+        pr = f.get("properties") or {}
+        ctx = pr.get("context") or {}
+        lon, lat = (f.get("geometry") or {}).get("coordinates", [None, None])
+        saida.append({
+            "endereco_completo": pr.get("full_address") or pr.get("name"),
+            "logradouro": (ctx.get("street") or {}).get("name") or (ctx.get("address") or {}).get("street_name"),
+            "numero": (ctx.get("address") or {}).get("address_number"),
+            "bairro": (ctx.get("neighborhood") or ctx.get("locality") or {}).get("name"),
+            "cep": re.sub(r"\D", "", (ctx.get("postcode") or {}).get("name") or "") or None,
+            "municipio": (ctx.get("place") or {}).get("name"),
+            "uf": ((ctx.get("region") or {}).get("region_code") or "").upper() or None,
+            "latitude": lat, "longitude": lon, "precisao": pr.get("feature_type"),
+        })
+    return saida
+
+
 def geocodificar(endereco: str) -> tuple[float, float] | None:
     """Coordenadas de um endereço em texto livre."""
     if not (endereco or "").strip():
@@ -324,6 +369,9 @@ def localizar(*, logradouro: str = "", numero: str = "", bairro: str = "", munic
     """O ponto no mapa de um endereço: (latitude, longitude, origem). Tenta a rua com o número (origem "endereco"),
     depois o CEP ("cep") e, por fim, a rua com o bairro em texto livre ("endereco")."""
     if logradouro and municipio:
+        achados = buscar_endereco_mapbox(", ".join(x for x in (f"{logradouro} {numero}".strip(), bairro, municipio, uf) if x), 1)
+        if achados and achados[0]["latitude"] is not None and achados[0]["precisao"] in ("address", "street"):
+            return (achados[0]["latitude"], achados[0]["longitude"], "endereco")
         rua = f"{numero} {logradouro}".strip() if numero else logradouro
         achado = _nominatim({"street": rua, "city": municipio, "state": uf, "country": "Brasil"})
         if achado:
@@ -562,6 +610,8 @@ def panorama(municipio_id: str) -> dict:
         "unidades": _com_fotos(municipio_id, unidades(municipio_id)),
         "servidores": list(pessoas.values()),
         "onboarding": onboarding_aberto(municipio_id),
+        "pendencias": (falta := pendencias(municipio_id)),
+        "fase": fase_atual(municipio_id, falta),
     })
 
 
@@ -594,9 +644,199 @@ def registrar_municipio(*, codigo_ibge: str, nome: str, uf: str, quem: str, cep:
                 secretario_email=(secretario_email or "").lower() or sec["secretario_email"]))
         aberto = c.execute(select(to).where(to.c.municipio_id == mid, to.c.concluido_em.is_(None))).mappings().first()
         if not aberto:
-            c.execute(insert(to).values(id=_id(), municipio_id=mid, session_id=session_id, etapa="setores",
+            c.execute(insert(to).values(id=_id(), municipio_id=mid, session_id=session_id, etapa="municipio",
                                         estado={}, iniciado_por=quem))
     return municipio(mid) or {}
+
+
+# ───────── Cadastro detalhado da prefeitura e da secretaria (fase 1 da implantação) ─────────
+
+# Os campos que a fase 1 exige: (tabela, coluna, rótulo). "municipios" = a prefeitura; "secretarias" = a Secretaria de Saúde.
+CAMPOS_OBRIGATORIOS: list[tuple[str, str, str]] = [
+    ("municipios", "prefeitura_cnpj", "CNPJ da prefeitura"),
+    ("municipios", "cep", "CEP da prefeitura"),
+    ("municipios", "prefeitura_logradouro", "Rua da prefeitura"),
+    ("municipios", "prefeitura_numero", "Número da prefeitura"),
+    ("municipios", "prefeitura_bairro", "Bairro da prefeitura"),
+    ("municipios", "prefeitura_telefone", "Telefone da prefeitura"),
+    ("municipios", "prefeito_nome", "Nome do(a) prefeito(a)"),
+    ("secretarias", "nome", "Nome oficial da Secretaria de Saúde"),
+    ("secretarias", "fundo_cnpj", "CNPJ do Fundo Municipal de Saúde"),
+    ("secretarias", "cep", "CEP da secretaria"),
+    ("secretarias", "logradouro", "Rua da secretaria"),
+    ("secretarias", "numero", "Número da secretaria"),
+    ("secretarias", "bairro", "Bairro da secretaria"),
+    ("secretarias", "telefone", "Telefone da secretaria"),
+    ("secretarias", "email", "E-mail institucional da secretaria"),
+    ("secretarias", "secretario_nome", "Nome do(a) secretário(a) de saúde"),
+    ("secretarias", "secretario_email", "E-mail do(a) secretário(a)"),
+    ("secretarias", "secretario_telefone", "Telefone do(a) secretário(a)"),
+]
+# Os que a gravação aceita (os obrigatórios e os opcionais).
+CAMPOS_PREFEITURA = ("prefeitura_cnpj", "cep", "prefeitura_logradouro", "prefeitura_numero", "prefeitura_bairro",
+                     "prefeitura_telefone", "prefeitura_email", "prefeitura_site", "prefeito_nome", "populacao")
+CAMPOS_SECRETARIA = ("nome", "sigla", "fundo_cnpj", "cnpj", "cep", "logradouro", "numero", "bairro", "telefone", "email",
+                     "secretario_nome", "secretario_email", "secretario_telefone", "latitude", "longitude")
+
+
+def cnpj_valido(cnpj: str) -> bool:
+    """Confere os dois dígitos verificadores do CNPJ."""
+    n = re.sub(r"\D", "", cnpj or "")
+    if len(n) != 14 or n == n[0] * 14:
+        return False
+    def digito(base: str, pesos: list[int]) -> str:
+        resto = sum(int(a) * b for a, b in zip(base, pesos)) % 11
+        return "0" if resto < 2 else str(11 - resto)
+    d1 = digito(n[:12], [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+    d2 = digito(n[:12] + d1, [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2])
+    return n[12:] == d1 + d2
+
+
+def _normalizar(campo: str, valor):
+    """Limpa e confere um campo do cadastro. ValueError com a explicação se não vale."""
+    if valor is None:
+        return None
+    if isinstance(valor, str):
+        valor = valor.strip()
+        if not valor:
+            return None
+    if campo in ("prefeitura_cnpj", "fundo_cnpj", "cnpj"):
+        if not cnpj_valido(valor):
+            raise ValueError(f"{valor} não é um CNPJ válido (os dígitos verificadores não conferem).")
+        return re.sub(r"\D", "", valor)
+    if campo == "cep":
+        n = re.sub(r"\D", "", valor)
+        if len(n) != 8:
+            raise ValueError("O CEP precisa ter 8 dígitos.")
+        return n
+    if campo.endswith("telefone"):
+        n = re.sub(r"\D", "", valor)
+        if len(n) < 10 or len(n) > 13:
+            raise ValueError(f"Telefone {valor}: informe com DDD (10 ou 11 dígitos).")
+        return valor
+    if campo.endswith("email"):
+        if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", valor):
+            raise ValueError(f"{valor} não parece um e-mail.")
+        return valor.lower()
+    return valor
+
+
+def salvar_cadastro(municipio_id: str, tabela: str, campos: dict, quem: str, session_id: str | None = None) -> dict:
+    """Grava os campos da prefeitura (tabela "municipios") ou da Secretaria de Saúde ("secretarias") que vierem
+    preenchidos. Confere CNPJ, CEP, telefone e e-mail: os inválidos voltam em `recusados`, com o motivo."""
+    aceitos = CAMPOS_PREFEITURA if tabela == "municipios" else CAMPOS_SECRETARIA
+    valores, recusados = {}, {}
+    for campo, valor in campos.items():
+        if campo not in aceitos or valor in (None, ""):
+            continue
+        try:
+            limpo = _normalizar(campo, valor)
+        except ValueError as erro:
+            recusados[campo] = str(erro)
+            continue
+        if limpo is not None:
+            valores[campo] = limpo
+    t = _t(tabela)
+    with _estado["engine"].begin() as c:
+        if tabela == "municipios":
+            alvo = t.c.id == municipio_id
+        else:
+            alvo = (t.c.municipio_id == municipio_id) & (t.c.area == "saude")
+        atual = c.execute(select(t).where(alvo)).mappings().first()
+        if atual is None:
+            raise LookupError("Cadastro não encontrado.")
+        if valores:
+            c.execute(update(t).where(alvo).values(**valores))
+            auditar(c, municipio_id=municipio_id, origem="agente", quem=quem, acao="cadastrar", entidade=tabela,
+                    entidade_id=str(atual["id"]), antes={k: atual[k] for k in valores if k in atual}, depois=valores,
+                    session_id=session_id)
+    return {"gravados": list(valores), "recusados": recusados}
+
+
+def faltando_no_cadastro(municipio_id: str) -> list[str]:
+    """Os campos obrigatórios da fase 1 que ainda estão vazios (rótulos)."""
+    mun = municipio(municipio_id) or {}
+    sec = secretaria_saude(municipio_id) or {}
+    fonte = {"municipios": mun, "secretarias": sec}
+    return [rotulo for tabela, coluna, rotulo in CAMPOS_OBRIGATORIOS if not fonte[tabela].get(coluna)]
+
+
+# ───────── As fases da implantação: cada uma obrigatória antes da próxima ─────────
+
+FASES = ("municipio", "setores", "atividades", "cargos", "responsaveis", "agentes", "equipe", "unidades", "revisao")
+# A implantação conclui com as fases até a equipe completas; as unidades podem ficar para depois (o assistente
+# continua disponível para cadastrá-las).
+
+
+def pendencias(municipio_id: str) -> dict[str, list[str]]:
+    """O que falta em cada fase (vazio = fase completa)."""
+    lista_setores = setores(municipio_id)
+    com_atividade = {str(a["setor_id"]) for a in atividades(municipio_id)}
+    com_agente = {str(a["setor_id"]) for a in agentes_setor(municipio_id)}
+    estado = (onboarding_aberto(municipio_id) or {}).get("estado") or {}
+    if ((municipio(municipio_id) or {}).get("situacao")) == "ativo":
+        estado = {**estado, "unidades_confirmadas": True}  # implantada: as unidades seguem pelo assistente, sem prazo
+    qtd_unidades = len(unidades(municipio_id))
+    tc, tv, tm = _t("cargos"), _t("convites"), _t("membros")
+    com_cargo = {str(c["setor_id"]) for c in _linhas(select(tc.c.setor_id).where(tc.c.municipio_id == municipio_id,
+                                                                                tc.c.setor_id.is_not(None)))}
+    # Equipe: cada responsável de setor com acesso (membro ou convite); os convites do assistente aprovados no painel.
+    pessoas = {str(p["id"]): p for p in servidores(municipio_id)}
+    membros_emails = {m["email"] for m in _linhas(select(tm.c.email).where(tm.c.municipio_id == municipio_id))}
+    convites = _linhas(select(tv).where(tv.c.municipio_id == municipio_id, tv.c.aceito_em.is_(None), tv.c.cancelado_em.is_(None)))
+    convidados = {c["email"] for c in convites}
+    sem_acesso = []
+    for s in lista_setores:
+        resp = pessoas.get(str(s.get("responsavel_id"))) if s.get("responsavel_id") else None
+        if resp and resp.get("email") and resp["email"].lower() not in membros_emails | convidados:
+            sem_acesso.append(f"Dar acesso a {resp['nome']} ({s['nome']})")
+    esperando = [f"Aprovar no painel o acesso de {c['email']}" for c in convites
+                 if c.get("origem") == "assistente" and not c.get("aprovado_em")]
+    return {
+        "municipio": faltando_no_cadastro(municipio_id),
+        "setores": [] if lista_setores else ["Confirmar os setores da secretaria"],
+        "atividades": [f"Atividades de {s['nome']}" for s in lista_setores if str(s["id"]) not in com_atividade],
+        "cargos": [f"Cargos de {s['nome']}" for s in lista_setores if str(s["id"]) not in com_cargo],
+        "responsaveis": [f"Responsável de {s['nome']}" for s in lista_setores if not s.get("responsavel_id")],
+        "agentes": [f"Agente de {s['nome']}" for s in lista_setores if str(s["id"]) not in com_agente],
+        "equipe": sem_acesso + esperando,
+        # Unidades: completas quando o(a) secretário(a) confirma a lista ou decide cadastrar depois.
+        "unidades": [] if estado.get("unidades_confirmadas") else
+                    (["Trazer as unidades de saúde (CNES ou CEP) ou deixar para depois"] if not qtd_unidades
+                     else ["O(a) secretário(a) confirmar que a lista de unidades está completa"]),
+        "revisao": [],
+    }
+
+
+def fase_atual(municipio_id: str, falta: dict | None = None) -> str:
+    """A primeira fase que ainda tem pendência (na ordem); tudo completo, a revisão."""
+    if ((municipio(municipio_id) or {}).get("situacao")) == "ativo":
+        return "concluido"
+    falta = falta if falta is not None else pendencias(municipio_id)
+    return next((f for f in FASES if falta.get(f)), "revisao")
+
+
+def bloqueio(municipio_id: str, fase: str) -> list[str]:
+    """O que falta nas fases ANTES de `fase` (vazio = pode trabalhar nela)."""
+    falta = pendencias(municipio_id)
+    anteriores = FASES[:FASES.index(fase)]
+    return [f"{f}: {item}" for f in anteriores for item in falta.get(f, [])]
+
+
+def sincronizar_etapa(municipio_id: str) -> str:
+    """Grava no onboarding aberto a fase atual (a primeira incompleta). Devolve a fase."""
+    fase = fase_atual(municipio_id)
+    avancar_etapa(municipio_id, fase)
+    return fase
+
+
+def marcar_unidades_confirmadas(municipio_id: str) -> None:
+    to = _t("onboardings")
+    aberto = onboarding_aberto(municipio_id)
+    if not aberto:
+        return
+    with _estado["engine"].begin() as c:
+        c.execute(update(to).where(to.c.id == aberto["id"]).values(estado={**(aberto.get("estado") or {}), "unidades_confirmadas": True}))
 
 
 def avancar_etapa(municipio_id: str, etapa: str) -> None:

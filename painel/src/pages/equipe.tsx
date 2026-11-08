@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Crown, Loader2, Mail, UserCog, UserPlus, X } from "lucide-react";
+import { Check, Copy, Crown, Loader2, Mail, UserCheck, UserCog, UserPlus, X } from "lucide-react";
 import { api, type Acesso } from "@/lib/api";
 import { fmtDataHora } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -31,6 +31,9 @@ interface Convite {
   nome: string | null;
   cargo: string | null;
   expira_em: string;
+  /** Cadastrado pelo Assistente de Implantação: espera a aprovação do dono para valer. */
+  origem?: "painel" | "assistente";
+  aprovado?: boolean;
 }
 
 export function Equipe() {
@@ -49,6 +52,14 @@ export function Equipe() {
       qc.invalidateQueries({ queryKey: ["prefeitura-cargos"] });
     },
   });
+  const [aprovados, setAprovados] = useState<Record<string, string>>({});
+  const aprovar = useMutation({
+    mutationFn: (id: string) => api<{ link: string }>(`/prefeitura/convites/${id}/aprovar`, { method: "POST" }),
+    onSuccess: (r, id) => {
+      setAprovados((a) => ({ ...a, [id]: r.link }));
+      qc.invalidateQueries({ queryKey: ["prefeitura-equipe"] });
+    },
+  });
   const cancelar = useMutation({
     mutationFn: (id: string) => api(`/prefeitura/convites/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["prefeitura-equipe"] }),
@@ -57,6 +68,8 @@ export function Equipe() {
   const listaCargos = cargos.data?.cargos ?? [];
   const membros = equipe.data?.membros ?? [];
   const convites = equipe.data?.convites ?? [];
+  const esperando = convites.filter((c) => c.aprovado === false);
+  const enviados = convites.filter((c) => c.aprovado !== false);
 
   return (
     <div className="space-y-5 px-4 pb-8 sm:px-8">
@@ -178,13 +191,59 @@ export function Equipe() {
           </TableWrapper>
           {alterar.isError && <p className="text-sm text-destructive">{(alterar.error as Error).message}</p>}
 
-          {convites.length > 0 && (
+          {(esperando.length > 0 || Object.keys(aprovados).length > 0) && (
+            <section className="surface-card border-l-4 border-l-[#F4B800] p-4">
+              <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                <UserCheck className="size-4 text-primary-text" /> Acessos para aprovar
+              </h2>
+              <p className="mb-3 text-xs text-muted-foreground">
+                Cadastrados pelo Assistente de Implantação. Ao aprovar, sai o link de entrada da pessoa (vale 7 dias): envie a ela. A implantação só
+                termina com estes acessos aprovados.
+              </p>
+              <ul className="divide-y divide-border">
+                {esperando.map((c) => (
+                  <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                    <span>
+                      <span className="font-medium">{c.nome || c.email}</span>{" "}
+                      <span className="text-muted-foreground">
+                        · {c.email} · {c.cargo ?? "sem cargo"}
+                      </span>
+                    </span>
+                    <span className="flex gap-1.5">
+                      <Button size="sm" onClick={() => aprovar.mutate(c.id)} disabled={aprovar.isPending}>
+                        <Check /> Aprovar
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => cancelar.mutate(c.id)} disabled={cancelar.isPending}>
+                        <X /> Recusar
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+                {Object.entries(aprovados).map(([id, link]) => (
+                  <li key={id} className="space-y-1.5 py-2.5 text-sm">
+                    <span className="flex items-center gap-1.5 font-medium text-success">
+                      <Check className="size-4" /> Aprovado: envie este link para a pessoa
+                    </span>
+                    <span className="flex gap-2">
+                      <Input readOnly value={link} className="h-9 font-mono text-xs" onFocus={(e) => e.currentTarget.select()} aria-label="Link de entrada" />
+                      <Button type="button" variant="outline" size="sm" onClick={() => navigator.clipboard?.writeText(link)}>
+                        <Copy /> Copiar
+                      </Button>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {aprovar.isError && <p className="mt-2 text-sm text-destructive">{(aprovar.error as Error).message}</p>}
+            </section>
+          )}
+
+          {enviados.length > 0 && (
             <section className="surface-card p-4">
               <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold">
                 <Mail className="size-4 text-primary-text" /> Convites aguardando
               </h2>
               <ul className="divide-y divide-border">
-                {convites.map((c) => (
+                {enviados.map((c) => (
                   <li key={c.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
                     <span>
                       <span className="font-medium">{c.nome || c.email}</span>{" "}

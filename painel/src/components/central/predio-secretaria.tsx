@@ -96,7 +96,10 @@ export default function PredioSecretaria({
   nomePredio = "Secretaria Municipal de Saúde",
   totem,
   centro: tipoCentro = "cco",
+  tetoDeVidro = false,
 }: {
+  /** Aberto, mostra um teto de vidro por cima das salas (não parece inacabado; não atrapalha o clique). */
+  tetoDeVidro?: boolean;
   /** O nome na fachada e as linhas do totem da entrada. */
   nomePredio?: string;
   totem?: string[];
@@ -253,6 +256,8 @@ export default function PredioSecretaria({
           );
         })}
 
+        {aberto && tetoDeVidro && <TetoDeVidro largura={planta.largura + 1} profundidade={planta.profundidade + 1} />}
+
         {/* O centro: o CCO (secretaria) ou a recepção (unidade) */}
         <CCO p={p} tipo={tipoCentro} ativo={selecao?.tipo === "cco"} aoClicar={() => aoSelecionar({ tipo: "cco", id: "cco" })} />
 
@@ -400,6 +405,32 @@ function CCO({ p, tipo, ativo, aoClicar }: { p: Paleta; tipo: "cco" | "recepcao"
         </group>
       </Suspense>
       )}
+    </group>
+  );
+}
+
+/** Teto de vidro sobre o andar aberto: a laje transparente e os perfis. Não recebe clique (as salas continuam clicáveis). */
+function TetoDeVidro({ largura, profundidade }: { largura: number; profundidade: number }) {
+  const altura = PE_DIREITO;
+  const nada = () => null;
+  const perfis = useMemo(() => {
+    const lista: { x: number; z: number; l: number; p: number }[] = [];
+    for (let x = -largura / 2; x <= largura / 2 + 0.01; x += SALA_L) lista.push({ x, z: 0, l: 0.08, p: profundidade });
+    for (const z of [-profundidade / 2, -MEIO / 2, MEIO / 2, profundidade / 2]) lista.push({ x: 0, z, l: largura, p: 0.08 });
+    return lista;
+  }, [largura, profundidade]);
+  return (
+    <group position={[0, altura, 0]}>
+      <mesh raycast={nada} renderOrder={2}>
+        <boxGeometry args={[largura, 0.04, profundidade]} />
+        <meshPhysicalMaterial color="#cfe3ff" transparent opacity={0.16} roughness={0.05} metalness={0.1} clearcoat={1} depthWrite={false} />
+      </mesh>
+      {perfis.map((f, i) => (
+        <mesh key={i} position={[f.x, 0.03, f.z]} raycast={nada}>
+          <boxGeometry args={[f.l, 0.06, f.p]} />
+          <meshStandardMaterial color="#0c0f14" roughness={0.6} />
+        </mesh>
+      ))}
     </group>
   );
 }

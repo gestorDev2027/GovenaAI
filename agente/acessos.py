@@ -157,6 +157,7 @@ def criar_cargo(municipio_id: str, dados: dict, quem: str) -> dict:
     _conferir_superior(municipio_id, dados.get("superior_id"))
     cid = gestao._id()
     valores = {"nome": dados["nome"].strip(), "nivel": nivel, "superior_id": dados.get("superior_id") or None,
+               "setor_id": dados.get("setor_id") or None,
                "atribuicoes": (dados.get("atribuicoes") or "").strip() or None,
                "permissoes": _validas(dados.get("permissoes", PADRAO_POR_NIVEL[nivel]))}
     with gestao._estado["engine"].begin() as c:
@@ -208,7 +209,8 @@ def equipe(municipio_id: str) -> dict:
     membros = [gestao._json({**m, "cargo": nomes.get(str(m["cargo_id"])) if m["cargo_id"] else None})
                for m in gestao._linhas(select(tm).where(tm.c.municipio_id == municipio_id).order_by(tm.c.criado_em))]
     agora = _agora()
-    convites = [gestao._json({k: v for k, v in x.items() if k != "token_hash"} | {"cargo": nomes.get(str(x["cargo_id"])) if x["cargo_id"] else None})
+    convites = [gestao._json({k: v for k, v in x.items() if k != "token_hash"}
+                             | {"cargo": nomes.get(str(x["cargo_id"])) if x["cargo_id"] else None, "aprovado": aprovado(x)})
                 for x in gestao._linhas(select(tv).where(tv.c.municipio_id == municipio_id, tv.c.aceito_em.is_(None),
                                                          tv.c.cancelado_em.is_(None)).order_by(tv.c.criado_em.desc()))
                 if _aware(x["expira_em"]) > agora]
@@ -219,8 +221,14 @@ def _aware(momento: datetime) -> datetime:
     return momento if momento.tzinfo else momento.replace(tzinfo=timezone.utc)  # o SQLite devolve sem fuso
 
 
-def convidar(municipio_id: str, email: str, nome: str, cargo_id: str | None, quem: str) -> str:
-    """Cria o convite e devolve o token (vai no link; não fica guardado)."""
+def aprovado(convite: dict) -> bool:
+    """Convite do painel nasce aprovado; o do Assistente de Implantação espera o dono aprovar."""
+    return (convite.get("origem") or "painel") != "assistente" or bool(convite.get("aprovado_em"))
+
+
+def convidar(municipio_id: str, email: str, nome: str, cargo_id: str | None, quem: str, origem: str = "painel") -> str:
+    """Cria o convite e devolve o token (vai no link; não fica guardado). Com origem "assistente", o convite espera a
+    aprovação do dono (aprovar_convite gera o link válido)."""
     email = email.strip().lower()
     tm, tv = gestao._t("membros"), gestao._t("convites")
     if gestao._uma(select(tm.c.id).where(tm.c.municipio_id == municipio_id, tm.c.email == email)):
@@ -231,11 +239,30 @@ def convidar(municipio_id: str, email: str, nome: str, cargo_id: str | None, que
     with gestao._estado["engine"].begin() as c:
         c.execute(update(tv).where(tv.c.municipio_id == municipio_id, tv.c.email == email, tv.c.aceito_em.is_(None))
                   .values(cancelado_em=_agora()))  # o convite novo substitui o antigo
+        do_painel = origem != "assistente"
         c.execute(insert(tv).values(id=gestao._id(), municipio_id=municipio_id, email=email, nome=nome.strip() or None,
                                     cargo_id=cargo_id or None, token_hash=_hash(token), criado_por=quem,
-                                    expira_em=_agora() + VALIDADE_CONVITE))
+                                    expira_em=_agora() + VALIDADE_CONVITE, origem=origem,
+                                    aprovado_em=_agora() if do_painel else None, aprovado_por=quem if do_painel else None))
         gestao.auditar(c, municipio_id=municipio_id, origem="pessoa", quem=quem, acao="convidar", entidade="convites",
                        depois={"email": email, "cargo_id": cargo_id})
+    return token
+
+
+def aprovar_convite(municipio_id: str, convite_id: str, quem: str) -> str:
+    """O dono aprova o acesso que o assistente cadastrou: o convite vale por 7 dias a partir de agora. Devolve o token
+    novo (o link); o anterior, que ninguém viu, deixa de valer."""
+    tv = gestao._t("convites")
+    convite = gestao._uma(select(tv).where(tv.c.id == convite_id, tv.c.municipio_id == municipio_id,
+                                           tv.c.aceito_em.is_(None), tv.c.cancelado_em.is_(None)))
+    if not convite:
+        raise ErroAcesso(404, "Convite não encontrado.")
+    token = secrets.token_urlsafe(32)
+    with gestao._estado["engine"].begin() as c:
+        c.execute(update(tv).where(tv.c.id == convite_id).values(
+            token_hash=_hash(token), aprovado_em=_agora(), aprovado_por=quem, expira_em=_agora() + VALIDADE_CONVITE))
+        gestao.auditar(c, municipio_id=municipio_id, origem="pessoa", quem=quem, acao="aprovar", entidade="convites",
+                       entidade_id=convite_id, depois={"email": convite["email"]})
     return token
 
 
@@ -255,6 +282,8 @@ def ler_convite(token: str) -> dict:
     convite = gestao._uma(select(tv).where(tv.c.token_hash == _hash(token)))
     if not convite or convite["aceito_em"] or convite["cancelado_em"] or _aware(convite["expira_em"]) <= _agora():
         raise ErroAcesso(404, "Convite inválido, vencido ou já usado. Peça um novo ao dono da prefeitura.")
+    if not aprovado(convite):
+        raise ErroAcesso(403, "Este acesso ainda espera a aprovação do dono da prefeitura no painel.")
     mun = gestao.municipio(str(convite["municipio_id"])) or {}
     cargo = next((c for c in cargos(str(convite["municipio_id"])) if c["id"] == str(convite["cargo_id"])), None)
     return {"id": str(convite["id"]), "municipio_id": str(convite["municipio_id"]), "email": convite["email"],
@@ -292,3 +321,57 @@ def alterar_membro(municipio_id: str, email: str, dados: dict, quem: str) -> Non
         c.execute(update(tm).where(tm.c.id == atual["id"]).values(**valores))
         gestao.auditar(c, municipio_id=municipio_id, origem="pessoa", quem=quem, acao="alterar", entidade="membros",
                        entidade_id=str(atual["id"]), antes={k: atual.get(k) for k in valores}, depois=valores)
+
+
+# ───────── Link da implantação: um colaborador da secretaria continua a implantação ─────────
+
+VALIDADE_LINK = timedelta(days=7)
+MAX_FALHAS_CODIGO = 5
+
+
+def criar_link_implantacao(municipio_id: str, quem: str) -> tuple[str, str]:
+    """Um link novo (token) e o código de 6 dígitos. Os dois só existem agora; no banco, os hashes."""
+    token = secrets.token_urlsafe(24)
+    codigo = f"{secrets.randbelow(1_000_000):06d}"
+    tl = gestao._t("implantacao_links")
+    with gestao._estado["engine"].begin() as c:
+        c.execute(insert(tl).values(id=gestao._id(), municipio_id=municipio_id, token_hash=_hash(token),
+                                    codigo_hash=_hash(f"{token}:{codigo}"), criado_por=quem,
+                                    expira_em=_agora() + VALIDADE_LINK, usos=0, falhas=0))
+        gestao.auditar(c, municipio_id=municipio_id, origem="pessoa", quem=quem, acao="compartilhar", entidade="implantacao_links")
+    return token, codigo
+
+
+def _link(token: str) -> dict:
+    tl = gestao._t("implantacao_links")
+    link = gestao._uma(select(tl).where(tl.c.token_hash == _hash(token)))
+    if not link or link["cancelado_em"] or _aware(link["expira_em"]) <= _agora():
+        raise ErroAcesso(404, "Link inválido ou vencido. Peça um novo a quem está fazendo a implantação.")
+    return link
+
+
+def ler_link_implantacao(token: str) -> dict:
+    link = _link(token)
+    mun = gestao.municipio(str(link["municipio_id"])) or {}
+    return {"municipio": f"{mun.get('nome', '')}-{mun.get('uf', '')}", "convidado_por": link["criado_por"]}
+
+
+def entrar_pelo_link(token: str, codigo: str, email: str, nome: str) -> dict:
+    """Confere o código e põe a pessoa na prefeitura (membro) para continuar a implantação. Cinco códigos errados
+    cancelam o link. A conta (senha) é criada antes, por quem chama."""
+    link = _link(token)
+    tl = gestao._t("implantacao_links")
+    certo = secrets.compare_digest(_hash(f"{token}:{(codigo or '').strip()}"), link["codigo_hash"])
+    with gestao._estado["engine"].begin() as c:
+        if not certo:
+            falhas = (link["falhas"] or 0) + 1
+            c.execute(update(tl).where(tl.c.id == link["id"]).values(
+                falhas=falhas, cancelado_em=_agora() if falhas >= MAX_FALHAS_CODIGO else None))
+            raise ErroAcesso(403, "Código de segurança errado." + (" O link foi cancelado." if falhas >= MAX_FALHAS_CODIGO else ""))
+        c.execute(update(tl).where(tl.c.id == link["id"]).values(usos=(link["usos"] or 0) + 1, falhas=0))
+    municipio_id = str(link["municipio_id"])
+    email = email.strip().lower()
+    tm = gestao._t("membros")
+    if not gestao._uma(select(tm.c.id).where(tm.c.municipio_id == municipio_id, tm.c.email == email)):
+        gestao.adicionar_membro(municipio_id, email, "membro", link["criado_por"], nome=nome)
+    return {"municipio_id": municipio_id, **ler_link_implantacao(token)}

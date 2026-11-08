@@ -110,24 +110,39 @@ chat à esquerda e, à direita, o quadro que se monta ao vivo — o mapa da cida
 andares, os robôs sentando nas mesas. No fim, a câmera sai do prédio e mostra a cidade inteira funcionando.
 Referência visual: o estúdio de páginas "Forminho" (chat + canvas, montagem seção por seção).
 
-### Etapas (estado em `onboardings.etapa`) — a ordem pedida em 07/11/2026
+### Fases (obrigatórias, nesta ordem) — pedido de 08/11/2026
 
-Primeiro a secretaria (o prédio vai subindo no quadro); por último, as unidades no mapa real da cidade.
+Cada fase só termina com tudo gravado; as ferramentas da fase seguinte recusam enquanto faltar algo e dizem o quê
+(`gestao.pendencias`, `gestao.bloqueio`). A fase atual é a primeira incompleta (`gestao.fase_atual`, gravada em
+`onboardings.etapa`). Uma fase por resposta: o servidor manda `fase_da_vez` no estado da sessão e as ferramentas das
+fases seguintes esperam a próxima mensagem do secretário (o modelo não encadeia fases sozinho).
 
-| # | Etapa | O que o assistente faz | Ferramentas | O que aparece no quadro |
-|---|---|---|---|---|
-| 1 | `municipio` | Pede o CEP da prefeitura (ou cidade + UF), mostra o que achou, confirma | `buscar_municipio` (ViaCEP → IBGE → OpenStreetMap), `registrar_municipio` | O município |
-| 2 | `setores` | Propõe os setores padrão; o secretário tira, acrescenta, renomeia | `listar_tipos_setor`, `salvar_setores` | Cada setor vira uma sala do prédio |
-| 3 | `atividades` | Setor por setor: rotinas e pedidos sob demanda sugeridos; confirma, tira, cria novas | `sugerir_atividades`, `salvar_atividades`, `nova_atividade` | As atividades de cada sala (na lista) |
-| 4 | `responsaveis` | Quem coordena e aprova em cada setor (nome + e-mail institucional); pode ficar pendente | `cadastrar_responsavel` | O nome na placa da sala |
-| 5 | `agentes` | Cria o agente de IA de cada setor, da prefeitura (Fábrica), no ar na hora | `montar_agentes` | Os robôs sentam nas mesas das salas |
-| 6 | `unidades` | Importa as unidades do CNES ("14 UBS, 1 UPA... Confere?"); cadastra as que faltam pelo CEP; cada uma ganha o agente das unidades | `importar_unidades_cnes`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` | O mapa real da cidade com os pinos das unidades; cada uma ganha a sua visão 3D |
-| 7 | `revisao` → `concluido` | Resumo final; com o "pode concluir", ativa o município | `situacao_implantacao`, `concluir_implantacao` | |
+| # | Fase | O que precisa ficar completo | Ferramentas |
+|---|---|---|---|
+| 1 | `municipio` | Prefeitura: CNPJ, endereço (CEP, rua, número, bairro), telefone, prefeito(a). Secretaria: nome oficial, CNPJ do Fundo Municipal de Saúde, endereço, telefone, e-mail, secretário(a) com nome, e-mail e telefone (`gestao.CAMPOS_OBRIGATORIOS`; CNPJ com dígitos conferidos) | `buscar_municipio`, `registrar_municipio`, `salvar_dados_prefeitura`, `salvar_dados_secretaria`, `buscar_endereco` (Mapbox + ViaCEP), `pesquisar_na_web` (Google, `agente/pesquisa.py`) |
+| 2 | `setores` | Pelo menos um setor (cada um vira uma sala do prédio) | `listar_tipos_setor`, `salvar_setores` |
+| 3 | `atividades` | Toda sala com pelo menos uma atividade | `sugerir_atividades`, `salvar_atividades`, `nova_atividade` |
+| 4 | `cargos` | Todo setor com pelo menos um cargo (organograma) | `montar_cargos`, `criar_cargo` |
+| 5 | `responsaveis` | Todo setor com responsável (quem aprova) | `cadastrar_responsavel` |
+| 6 | `agentes` | Todo setor com o seu agente (criado para a prefeitura) | `montar_agentes` |
+| 7 | `equipe` | Os responsáveis com acesso; os acessos cadastrados pelo assistente aprovados pelo dono no painel | `dar_acesso` |
+| 8 | `unidades` | A lista confirmada pelo secretário, ou "fica para depois" (o assistente cadastra unidades a qualquer momento, mesmo depois da implantação) | `importar_unidades_cnes`, `cadastrar_unidade`, `situacao_implantacao(ir_para_revisao)` |
+| 9 | `revisao` | Resumo e "pode concluir": o município fica ativo | `situacao_implantacao`, `concluir_implantacao` |
 
-Os agentes de cada prefeitura (`agente/agentes_prefeitura.py`): um por setor (`<município>-<uf>-<setor>`, cópia do
-modelo do código para Compras, Atenção Primária e Regulação; os demais criados na Fábrica) e o das unidades
-(`<município>-<uf>-unidades`, cópia do modelo `unidade`). Todos publicados e marcados com o município; entram no
-AgentOS sem reiniciar (`agente/registro.py`, ligado em app.py).
+Dado achado na web é proposta: só grava depois do "sim". Nada de copiar um campo para outro (o e-mail da conta não é o
+da secretaria).
+
+**Acessos com aprovação:** o que o assistente cadastra (`dar_acesso`) vira convite com `origem = 'assistente'`, que só
+vale depois que o dono aprova em "Equipe e acessos" (`POST /prefeitura/convites/{id}/aprovar` gera o link de entrada).
+Os convites feitos no painel nascem aprovados.
+
+**Implantação compartilhada:** "Compartilhar" (no cabeçalho da implantação) gera um link (`/painel/colaborar/<token>`,
+7 dias) e um código de segurança de 6 dígitos, mostrados uma vez (no banco, só os hashes; tabela `implantacao_links`).
+Quem entra com os dois cria a conta (ou usa a dele), vira membro da prefeitura e continua a implantação; cinco códigos
+errados cancelam o link. A conversa é de cada pessoa; a situação da implantação é a mesma.
+
+**O Assistente de Implantação não é agente da secretaria:** fica fora da lista de agentes (`/agentes`), do prédio e
+das equipes (a Fábrica recusa pô-lo numa equipe); ele tem a tela dele, `/painel/implantacao`.
 
 Regras do assistente: uma etapa por vez; propõe em vez de perguntar do zero; grava só o que foi confirmado; nunca
 inventa unidades, nomes ou e-mails; preço/contrato vão para a equipe (`transferir_para_humano`). Retomada:
@@ -153,7 +168,7 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
 
 | id | Agente | Ferramentas | Arquivo |
 |---|---|---|---|
-| `onboarding` | Assistente de Implantação (padrão do servidor) | implantação (13 ferramentas) | `agente/perfis/onboarding.py` |
+| `onboarding` | Assistente de Implantação (padrão do servidor; fora das equipes) | implantação (20 ferramentas, com Google e Mapbox) | `agente/perfis/onboarding.py` |
 | `compras` | Agente de Compras e Licitações | consulta | `agente/perfis/compras.py` |
 | `atencao_primaria` | Agente da Atenção Primária | consulta | `agente/perfis/atencao_primaria.py` |
 | `regulacao` | Agente de Regulação | consulta | `agente/perfis/regulacao.py` |
@@ -213,8 +228,9 @@ painel/src/                   frontend
 - Migrations (`supabase/gestorgov/`, rodar em ordem): `..._inicial.sql` (schema, papel, pgvector, bucket
   `agentes`, Vault, cadastro), `..._atividades.sql` (catálogo e atividades) e `..._organograma.sql` (membros,
   catálogo de 38 cargos e 125 indicadores do documento da Secretaria de Saúde Virtual, cargos, indicadores com meta,
-  medições, entregas, pendências, status e alertas) e `..._unidades.sql` (endereço completo e conferência da
-  unidade, `unidade_fotos` e o bucket `prefeituras`). No SQLite local, os catálogos são carregados das migrations a cada início.
+  medições, entregas, pendências, status e alertas), `..._unidades.sql` (endereço completo e conferência da
+  unidade, `unidade_fotos` e o bucket `prefeituras`) e `..._prefeitura.sql` (cadastro detalhado da prefeitura e da
+  secretaria, convites com aprovação e `implantacao_links`). No SQLite local, os catálogos são carregados das migrations a cada início.
 - Tabelas do cadastro (migrations): `municipios`, `secretarias`, `setores`, `unidades`, `servidores`,
   `agentes_setor`, `atividades_setor`, `onboardings`, `auditoria` (só inserção), `tipos_setor`, `tipos_unidade`,
   `modelos_atividade`, e as do organograma: `membros`, `modelos_cargo`, `modelos_indicador`, `cargos`,

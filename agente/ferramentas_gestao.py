@@ -11,6 +11,7 @@ O município da conversa fica em session_state["municipio_id"]. Sem ele, vale o 
 """
 
 import json
+import re
 
 from agno.run import RunContext
 
@@ -64,6 +65,27 @@ def _sem_municipio() -> str:
 
 
 # ───────────────────────── Implantação (onboarding) ─────────────────────────
+
+def _bloqueada(run_context: RunContext, mid: str, fase: str) -> str | None:
+    """Mensagem para o assistente quando ainda falta algo nas fases antes de `fase` (cada fase é obrigatória), ou
+    quando `fase` vem depois da fase em que esta mensagem começou: uma fase por resposta (o secretário confirma
+    antes de a próxima ser gravada)."""
+    da_vez = (_estado(run_context).get("fase_da_vez") or "") if run_context else ""
+    if da_vez in gestao.FASES and gestao.FASES.index(fase) > gestao.FASES.index(da_vez):
+        return (f"Pare aqui: a fase '{da_vez}' acabou de ser concluída nesta resposta. Apresente ao secretário a próxima fase "
+                f"('{fase}') e ESPERE a resposta dele antes de gravar qualquer coisa dela.")
+    falta = gestao.bloqueio(mid, fase)
+    if not falta:
+        return None
+    return ("Ainda não dá para fazer isto: a implantação segue fase por fase e falta completar antes:\n- "
+            + "\n- ".join(falta[:12]) + "\nPeça ao secretário o que falta, um item por vez.")
+
+
+def _feito(mid: str, dados: dict) -> str:
+    """A resposta da ferramenta com a fase atual e o que falta nela (o assistente guia a conversa por isso)."""
+    fase = gestao.sincronizar_etapa(mid)
+    return _json({**dados, "fase_atual": fase, "falta_nesta_fase": gestao.pendencias(mid).get(fase, [])})
+
 
 def buscar_municipio(cep: str = "", nome: str = "", uf: str = "") -> str:
     """Encontra o município pelo CEP (preferível) ou pelo nome e a UF. Devolve o código IBGE, o nome, a UF e as
@@ -126,7 +148,8 @@ def registrar_municipio(run_context: RunContext, codigo_ibge: str, nome: str, uf
     _estado(run_context)["municipio_id"] = str(mun["id"])
     if conta:  # quem cadastrou a prefeitura é o dono dela: convida a equipe e define os cargos e as permissões
         gestao.adicionar_membro(str(mun["id"]), conta, "dono", conta, nome=_estado(run_context).get("conta_nome") or "")
-    return _json({"registrado": True, "municipio": mun, "proxima_etapa": "setores"})
+    return _feito(str(mun["id"]), {"registrado": True, "municipio": {k: mun.get(k) for k in ("nome", "uf", "codigo_ibge")},
+                                     "orientacao": "Agora o cadastro detalhado da prefeitura e da secretaria: peça cada dado que falta."})
 
 
 def _agente_das_unidades(run_context: RunContext, mid: str) -> str | None:
@@ -134,7 +157,7 @@ def _agente_das_unidades(run_context: RunContext, mid: str) -> str | None:
     from agente import agentes_prefeitura
 
     agente_id = agentes_prefeitura.agente_das_unidades(mid, _quem(run_context))
-    gestao.avancar_etapa(mid, "unidades")
+    gestao.sincronizar_etapa(mid)
     return agente_id
 
 
@@ -147,6 +170,8 @@ def importar_unidades_cnes(run_context: RunContext) -> str:
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "unidades"):
+        return erro
     mun = gestao.municipio(mid)
     try:
         brutas = gestao.unidades_cnes(mun["codigo_ibge"])
@@ -181,7 +206,7 @@ def importar_unidades_cnes(run_context: RunContext) -> str:
             session_id=_sessao(run_context))
         contagem[tipo_id] = contagem.get(tipo_id, 0) + 1
     agente_unidades = _agente_das_unidades(run_context, mid)
-    return _json({"importadas": len(brutas), "por_tipo": contagem, "particulares_fora": particulares,
+    return _feito(mid, {"importadas": len(brutas), "por_tipo": contagem, "particulares_fora": particulares,
                   "agente_das_unidades": agente_unidades,
                   "orientacao": "Mostre o resumo por tipo (são as unidades públicas e as conveniadas ao SUS; os "
                                 "consultórios particulares ficaram de fora) e pergunte se está certo e se falta alguma."})
@@ -207,6 +232,8 @@ def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, cep: str = 
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "unidades"):
+        return erro
     tipos = {t["id"] for t in gestao.tipos_unidade()}
     if tipo not in tipos:
         return f"Tipo inválido. Use um destes: {', '.join(sorted(tipos))}."
@@ -229,9 +256,102 @@ def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, cep: str = 
                                     longitude=ponto[1] if ponto else None, coordenadas_origem=ponto[2] if ponto else None,
                                     quem=_quem(run_context), session_id=_sessao(run_context))
     _agente_das_unidades(run_context, mid)
-    return _json({"salva": True, "unidade": {k: unidade.get(k) for k in ("id", "nome", "tipo_id", "endereco", "numero",
+    return _feito(mid, {"salva": True, "unidade": {k: unidade.get(k) for k in ("id", "nome", "tipo_id", "endereco", "numero",
                                                                          "bairro", "cep")},
                   "no_mapa": bool(ponto), "ponto_pelo": ponto[2] if ponto else None})
+
+
+def salvar_dados_prefeitura(run_context: RunContext, cnpj: str = "", cep: str = "", rua: str = "", numero: str = "",
+                            bairro: str = "", telefone: str = "", prefeito: str = "", email: str = "", site: str = "") -> str:
+    """Grava os dados da PREFEITURA que o secretário confirmou (só os que vierem preenchidos). Obrigatórios: CNPJ, CEP,
+    rua, número, bairro, telefone e prefeito(a). Confere o CNPJ (dígitos), o CEP e o telefone (com DDD).
+
+    Args:
+        cnpj: CNPJ da prefeitura.
+        cep: CEP da sede da prefeitura.
+        rua: logradouro da sede.
+        numero: número da sede.
+        bairro: bairro da sede.
+        telefone: telefone com DDD.
+        prefeito: nome do(a) prefeito(a).
+        email: e-mail da prefeitura (opcional).
+        site: site da prefeitura (opcional).
+    """
+    if erro := _sem_banco():
+        return erro
+    mid = _municipio(run_context)
+    if not mid:
+        return _sem_municipio()
+    r = gestao.salvar_cadastro(mid, "municipios", {
+        "prefeitura_cnpj": cnpj, "cep": cep, "prefeitura_logradouro": rua, "prefeitura_numero": numero,
+        "prefeitura_bairro": bairro, "prefeitura_telefone": telefone, "prefeito_nome": prefeito,
+        "prefeitura_email": email, "prefeitura_site": site}, _quem(run_context), _sessao(run_context))
+    return _feito(mid, r)
+
+
+def salvar_dados_secretaria(run_context: RunContext, nome: str = "", cnpj_fundo: str = "", cep: str = "", rua: str = "",
+                            numero: str = "", bairro: str = "", telefone: str = "", email: str = "",
+                            secretario_nome: str = "", secretario_email: str = "", secretario_telefone: str = "") -> str:
+    """Grava os dados da SECRETARIA MUNICIPAL DE SAÚDE que o secretário confirmou (só os que vierem preenchidos).
+    Obrigatórios: nome oficial, CNPJ do Fundo Municipal de Saúde, endereço (CEP, rua, número, bairro), telefone,
+    e-mail institucional e o(a) secretário(a) (nome, e-mail e telefone). O endereço vira o ponto do prédio no mapa.
+
+    Args:
+        nome: nome oficial (ex.: Secretaria Municipal de Saúde de Itatiaia).
+        cnpj_fundo: CNPJ do Fundo Municipal de Saúde.
+        cep: CEP da secretaria.
+        rua: logradouro.
+        numero: número.
+        bairro: bairro.
+        telefone: telefone com DDD.
+        email: e-mail institucional da secretaria.
+        secretario_nome: nome do(a) secretário(a) de saúde.
+        secretario_email: e-mail do(a) secretário(a).
+        secretario_telefone: telefone do(a) secretário(a), com DDD.
+    """
+    if erro := _sem_banco():
+        return erro
+    mid = _municipio(run_context)
+    if not mid:
+        return _sem_municipio()
+    campos = {"nome": nome, "fundo_cnpj": cnpj_fundo, "cep": cep, "logradouro": rua, "numero": numero, "bairro": bairro,
+              "telefone": telefone, "email": email, "secretario_nome": secretario_nome,
+              "secretario_email": secretario_email, "secretario_telefone": secretario_telefone}
+    if rua and numero:
+        mun = gestao.municipio(mid) or {}
+        ponto = gestao.localizar(logradouro=rua, numero=numero, bairro=bairro, municipio=mun.get("nome", ""), uf=mun.get("uf", ""), cep=cep)
+        if ponto:
+            campos.update(latitude=ponto[0], longitude=ponto[1])
+    r = gestao.salvar_cadastro(mid, "secretarias", campos, _quem(run_context), _sessao(run_context))
+    return _feito(mid, r)
+
+
+def buscar_endereco(texto: str) -> str:
+    """Procura um endereço na base de endereços (Mapbox e, com um CEP de 8 dígitos, o ViaCEP): devolve rua, número,
+    bairro, CEP e o ponto no mapa. Use para completar e conferir o endereço da prefeitura, da secretaria ou de uma
+    unidade. Mostre ao secretário e só grave o que ele confirmar.
+
+    Args:
+        texto: o endereço como ele disser (ex.: "Rua Prefeito Assumpção 51, Itatiaia RJ") ou um CEP.
+    """
+    numeros = re.sub(r"\D", "", texto or "")
+    if len(numeros) == 8 and len(texto.strip()) <= 10:
+        achado = gestao.endereco_por_cep(numeros)
+        return _json({"fonte": "ViaCEP", "enderecos": [achado] if achado else []})
+    return _json({"fonte": "Mapbox", "enderecos": gestao.buscar_endereco_mapbox(texto)})
+
+
+def pesquisar_na_web(pergunta: str) -> str:
+    """Pesquisa na web (Google) dados públicos: CNPJ da prefeitura ou do Fundo Municipal de Saúde, nome do prefeito,
+    telefone e endereço da secretaria, unidades de saúde. Mostre o que achou COM a fonte e peça a confirmação antes de
+    gravar: dado da web nunca vai direto para o cadastro.
+
+    Args:
+        pergunta: o que procurar (ex.: "CNPJ do Fundo Municipal de Saúde de Itatiaia RJ").
+    """
+    from agente import pesquisa
+
+    return _json(pesquisa.pesquisar(pergunta))
 
 
 def listar_tipos_setor() -> str:
@@ -254,6 +374,8 @@ def salvar_setores(run_context: RunContext, tipos: list[str], outros: list[str] 
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "setores"):
+        return erro
     catalogo = {t["id"]: t for t in gestao.tipos_setor()}
     criados, ignorados = [], []
     for tipo in tipos or []:
@@ -267,9 +389,8 @@ def salvar_setores(run_context: RunContext, tipos: list[str], outros: list[str] 
         if nome.strip():
             criados.append(gestao.salvar_setor(mid, nome=nome, tipo_id=None, quem=_quem(run_context),
                                                session_id=_sessao(run_context)))
-    gestao.avancar_etapa(mid, "atividades")
-    return _json({"setores": [{"nome": s["nome"], "tipo_id": s.get("tipo_id"), "andar": s.get("andar")} for s in criados],
-                  "tipos_invalidos": ignorados, "proxima_etapa": "atividades"})
+    return _feito(mid, {"setores": [{"nome": s["nome"], "tipo_id": s.get("tipo_id")} for s in criados],
+                        "tipos_invalidos": ignorados})
 
 
 def sugerir_atividades(run_context: RunContext, setor: str) -> str:
@@ -303,6 +424,10 @@ def salvar_atividades(run_context: RunContext, setor: str, modelos: list[str]) -
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "atividades"):
+        return erro
+    if erro := _bloqueada(run_context, mid, "atividades"):
+        return erro
     alvo = gestao.setor_por_tipo_ou_nome(mid, setor)
     if not alvo:
         return f"O setor '{setor}' ainda não existe. Crie com salvar_setores."
@@ -316,7 +441,7 @@ def salvar_atividades(run_context: RunContext, setor: str, modelos: list[str]) -
             mid, str(alvo["id"]), nome=m["nome"], descricao=m["descricao"], tipo=m["tipo"], frequencia=m["frequencia"],
             cron=m["cron"], entregavel=m["entregavel"], modelo_id=m["id"], quem=_quem(run_context),
             session_id=_sessao(run_context)))
-    return _json({"setor": alvo["nome"], "atividades": [a["nome"] for a in salvas]})
+    return _feito(mid, {"setor": alvo["nome"], "atividades": [a["nome"] for a in salvas]})
 
 
 def nova_atividade(run_context: RunContext, setor: str, nome: str, descricao: str, tipo: str,
@@ -336,6 +461,8 @@ def nova_atividade(run_context: RunContext, setor: str, nome: str, descricao: st
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "atividades"):
+        return erro
     alvo = gestao.setor_por_tipo_ou_nome(mid, setor)
     if not alvo:
         return f"O setor '{setor}' ainda não existe. Crie com salvar_setores."
@@ -351,7 +478,7 @@ def nova_atividade(run_context: RunContext, setor: str, nome: str, descricao: st
                                         frequencia=frequencia, cron=CRON_PADRAO.get(frequencia),
                                         entregavel=entregavel or None, quem=_quem(run_context),
                                         session_id=_sessao(run_context))
-    return _json({"salva": True, "atividade": atividade})
+    return _feito(mid, {"salva": True, "atividade": atividade.get("nome")})
 
 
 def cadastrar_responsavel(run_context: RunContext, setor: str, nome: str, email: str, cargo: str = "") -> str:
@@ -368,6 +495,8 @@ def cadastrar_responsavel(run_context: RunContext, setor: str, nome: str, email:
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "responsaveis"):
+        return erro
     alvo = gestao.setor_por_tipo_ou_nome(mid, setor)
     if not alvo:
         return f"O setor '{setor}' ainda não existe. Crie com salvar_setores."
@@ -376,7 +505,92 @@ def cadastrar_responsavel(run_context: RunContext, setor: str, nome: str, email:
     pessoa = gestao.salvar_servidor(mid, nome=nome, email=email, cargo=cargo, setor_id=str(alvo["id"]),
                                     papel="coordenador", aprova_tarefas=True, responsavel_do_setor=True,
                                     quem=_quem(run_context), session_id=_sessao(run_context))
-    return _json({"salvo": True, "setor": alvo["nome"], "responsavel": pessoa})
+    return _feito(mid, {"salvo": True, "setor": alvo["nome"], "responsavel": {k: pessoa.get(k) for k in ("nome", "email", "cargo")}})
+
+
+def montar_cargos(run_context: RunContext) -> str:
+    """Monta o organograma da secretaria: os cargos do catálogo (Secretário, Adjunto, superintendências, coordenações,
+    gerências...) ligados às salas dos setores, com hierarquia, indicadores e permissões sugeridas. Depois mostre ao
+    secretário os cargos de cada setor e pergunte se quer acrescentar algum (criar_cargo)."""
+    if erro := _sem_banco():
+        return erro
+    mid = _municipio(run_context)
+    if not mid:
+        return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "cargos"):
+        return erro
+    from agente import acessos
+
+    criados = acessos.montar_organograma_padrao(mid, _quem(run_context))
+    por_setor: dict[str, list[str]] = {}
+    nomes = {str(s["id"]): s["nome"] for s in gestao.setores(mid)}
+    for c in acessos.cargos(mid):
+        por_setor.setdefault(nomes.get(str(c.get("setor_id")), "Direção e apoio"), []).append(c["nome"])
+    return _feito(mid, {"criados_agora": criados, "cargos_por_setor": por_setor})
+
+
+def criar_cargo(run_context: RunContext, nome: str, setor: str, nivel: str = "coordenacao", superior: str = "") -> str:
+    """Cria um cargo que o organograma padrão não tem, na sala de um setor.
+
+    Args:
+        nome: nome do cargo (ex.: Coordenador de Saúde Bucal).
+        setor: o setor (sala) do cargo, pelo nome ou tipo.
+        nivel: direcao, superintendencia, coordenacao, unidade ou controle.
+        superior: nome do cargo a quem ele responde (opcional).
+    """
+    if erro := _sem_banco():
+        return erro
+    mid = _municipio(run_context)
+    if not mid:
+        return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "cargos"):
+        return erro
+    from agente import acessos
+
+    alvo = gestao.setor_por_tipo_ou_nome(mid, setor)
+    if not alvo:
+        return f"O setor '{setor}' não existe."
+    chefe = next((c for c in acessos.cargos(mid) if superior and c["nome"].lower() == superior.lower()), None)
+    try:
+        cargo = acessos.criar_cargo(mid, {"nome": nome, "nivel": nivel, "superior_id": chefe["id"] if chefe else None,
+                                          "setor_id": str(alvo["id"]),
+                                          "permissoes": list(acessos.PADRAO_POR_NIVEL.get(nivel, ()))}, _quem(run_context))
+    except acessos.ErroAcesso as erro:
+        return erro.detalhe
+    return _feito(mid, {"criado": cargo.get("nome"), "setor": alvo["nome"]})
+
+
+def dar_acesso(run_context: RunContext, nome: str, email: str, cargo: str = "") -> str:
+    """Cadastra uma pessoa que vai usar o GestorGov (conversar com os agentes, ver e registrar dados), no cargo dela.
+    O acesso fica AGUARDANDO A APROVAÇÃO do dono da prefeitura no painel (Equipe e acessos), que gera o link de
+    entrada. Cadastre pelo menos os responsáveis de cada setor.
+
+    Args:
+        nome: nome completo.
+        email: e-mail institucional (é o login).
+        cargo: nome do cargo no organograma (ex.: Superintendente de Atenção Primária).
+    """
+    if erro := _sem_banco():
+        return erro
+    mid = _municipio(run_context)
+    if not mid:
+        return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "equipe"):
+        return erro
+    from agente import acessos
+
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", email or ""):
+        return "E-mail inválido. Peça o e-mail institucional da pessoa."
+    lista = acessos.cargos(mid)
+    escolhido = next((c for c in lista if cargo and c["nome"].lower() == cargo.lower()), None)
+    if cargo and not escolhido:
+        return f"O cargo '{cargo}' não existe. Cargos: {', '.join(c['nome'] for c in lista[:40])}."
+    try:
+        acessos.convidar(mid, email, nome, escolhido["id"] if escolhido else None, _quem(run_context), origem="assistente")
+    except acessos.ErroAcesso as erro:
+        return erro.detalhe
+    return _feito(mid, {"cadastrado": nome, "email": email.lower(), "cargo": escolhido["nome"] if escolhido else None,
+                        "situacao": "aguardando a aprovação do dono no painel (Equipe e acessos)"})
 
 
 def montar_agentes(run_context: RunContext) -> str:
@@ -387,12 +601,12 @@ def montar_agentes(run_context: RunContext) -> str:
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "agentes"):
+        return erro
     from agente import agentes_prefeitura
 
     resultado = agentes_prefeitura.criar_agentes_dos_setores(mid, _quem(run_context))
-    gestao.avancar_etapa(mid, "unidades")
-    return _json({**resultado, "proxima_etapa": "unidades",
-                  "orientacao": "Conte quantos agentes sentaram nas salas. Depois, passe para as unidades de saúde."})
+    return _feito(mid, {**resultado, "orientacao": "Conte quantos agentes sentaram nas salas."})
 
 
 def situacao_implantacao(run_context: RunContext, ir_para_revisao: bool = False) -> str:
@@ -400,7 +614,8 @@ def situacao_implantacao(run_context: RunContext, ir_para_revisao: bool = False)
     resumir para o secretário e decidir a próxima etapa.
 
     Args:
-        ir_para_revisao: true quando o secretário disser que as unidades estão completas (abre a revisão final).
+        ir_para_revisao: true quando o secretário disser que as unidades estão completas OU que vai cadastrá-las
+            depois (as unidades podem ser cadastradas pelo assistente depois da implantação).
     """
     if erro := _sem_banco():
         return erro
@@ -408,7 +623,8 @@ def situacao_implantacao(run_context: RunContext, ir_para_revisao: bool = False)
     if not mid:
         return _sem_municipio()
     if ir_para_revisao:
-        gestao.avancar_etapa(mid, "revisao")
+        gestao.marcar_unidades_confirmadas(mid)
+    fase = gestao.sincronizar_etapa(mid)
     p = gestao.panorama(mid)
     unidades = p.get("unidades", [])
     por_tipo: dict[str, int] = {}
@@ -416,7 +632,8 @@ def situacao_implantacao(run_context: RunContext, ir_para_revisao: bool = False)
         por_tipo[u["tipo_id"]] = por_tipo.get(u["tipo_id"], 0) + 1
     return _json({
         "municipio": {k: p["municipio"].get(k) for k in ("nome", "uf", "situacao")},
-        "etapa": (p.get("onboarding") or {}).get("etapa"),
+        "fase_atual": fase,
+        "pendencias_por_fase": {f: itens for f, itens in gestao.pendencias(mid).items() if itens},
         "unidades": {"total": len(unidades), "por_tipo": por_tipo,
                      "a_confirmar": sum(1 for u in unidades if not u.get("confirmada"))},
         "setores": [{"nome": s["nome"], "atividades": len(s["atividades"]),
@@ -426,20 +643,24 @@ def situacao_implantacao(run_context: RunContext, ir_para_revisao: bool = False)
 
 
 def concluir_implantacao(run_context: RunContext) -> str:
-    """Encerra o onboarding: o município passa a ativo. Só quando o secretário confirmar o resumo final."""
+    """Encerra a implantação: o município passa a ativo. Só funciona com todas as fases completas (inclusive os acessos
+    aprovados no painel) e depois que o secretário confirmar o resumo final."""
     if erro := _sem_banco():
         return erro
     mid = _municipio(run_context)
     if not mid:
         return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "revisao"):
+        return erro
     gestao.concluir_onboarding(mid, quem=_quem(run_context), session_id=_sessao(run_context))
     return "Implantação concluída. O município está ativo; os agentes começam as rotinas no próximo horário."
 
 
 FERRAMENTAS_IMPLANTACAO = [
-    buscar_municipio, registrar_municipio, importar_unidades_cnes, cadastrar_unidade, listar_tipos_setor,
-    salvar_setores, sugerir_atividades, salvar_atividades, nova_atividade, cadastrar_responsavel, montar_agentes,
-    situacao_implantacao, concluir_implantacao,
+    buscar_municipio, registrar_municipio, salvar_dados_prefeitura, salvar_dados_secretaria, buscar_endereco,
+    pesquisar_na_web, listar_tipos_setor, salvar_setores, sugerir_atividades, salvar_atividades, nova_atividade,
+    montar_cargos, criar_cargo, cadastrar_responsavel, montar_agentes, dar_acesso, importar_unidades_cnes,
+    cadastrar_unidade, situacao_implantacao, concluir_implantacao,
 ]
 
 
