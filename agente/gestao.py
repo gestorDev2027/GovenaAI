@@ -14,6 +14,8 @@ abertos do CNES (unidades de saúde do município).
 import json
 import os
 import re
+import threading
+import time
 import unicodedata
 import uuid
 from datetime import datetime, timezone
@@ -312,8 +314,16 @@ def buscar_municipio_ibge(nome: str, uf: str) -> dict | None:
     return None
 
 
+_NOMINATIM = {"trava": threading.Lock(), "ultima": 0.0}
+
+
 def _nominatim(parametros: dict) -> tuple[float, float] | None:
-    """Nominatim (OpenStreetMap). Uso leve (1 por vez), como pede a política dele."""
+    """Nominatim (OpenStreetMap). No máximo 1 pedido por segundo por processo, como pede a política dele."""
+    with _NOMINATIM["trava"]:
+        espera = _NOMINATIM["ultima"] + 1.0 - time.monotonic()
+        if espera > 0:
+            time.sleep(espera)
+        _NOMINATIM["ultima"] = time.monotonic()
     try:
         r = httpx.get("https://nominatim.openstreetmap.org/search",
                       params={**parametros, "format": "json", "limit": 1, "countrycodes": "br"},
@@ -400,28 +410,58 @@ def endereco_por_cep(cep: str, numero: str = "") -> dict | None:
             "coordenadas_origem": ponto[2] if ponto else None}
 
 
+CNES_POR_PAGINA = 20
+CNES_MAXIMO = 2000
+CNES_EM_PARALELO = 5
+
+
+def pagina_cnes(codigo6: str, offset: int, tentativas: int = 3) -> list[dict] | None:
+    """Uma página dos dados abertos do CNES (None quando a API responde com erro). Erro de rede: tenta de novo."""
+    base = os.getenv("CNES_API_URL", "https://apidadosabertos.saude.gov.br/cnes/estabelecimentos").rstrip("/")
+    for tentativa in range(tentativas):
+        try:
+            r = httpx.get(base, params={"codigo_municipio": codigo6, "status": 1, "limit": CNES_POR_PAGINA,
+                                        "offset": offset},
+                          timeout=TEMPO, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+        except httpx.HTTPError:
+            if tentativa == tentativas - 1:
+                raise
+            time.sleep(1 + tentativa * 2)
+            continue
+        if r.status_code != 200:
+            return None
+        dados = r.json()
+        return dados.get("estabelecimentos", dados if isinstance(dados, list) else [])
+    return None
+
+
 def unidades_cnes(codigo_ibge: str) -> list[dict]:
     """Dados abertos do CNES: as unidades do município. A API recebe o código IBGE de 6 dígitos.
 
-    Endereço configurável em CNES_API_URL. Se a fonte mudar ou estiver fora do ar, devolve [] e o
-    onboarding segue com o cadastro manual."""
-    base = os.getenv("CNES_API_URL", "https://apidadosabertos.saude.gov.br/cnes/estabelecimentos").rstrip("/")
+    A primeira página diz se há mais; as seguintes vêm CNES_EM_PARALELO por vez. Endereço configurável em
+    CNES_API_URL. Se a fonte mudar ou estiver fora do ar, devolve [] e o onboarding segue com o cadastro manual."""
+    from concurrent.futures import ThreadPoolExecutor
+
     codigo6 = re.sub(r"\D", "", codigo_ibge or "")[:6]
-    saida: list[dict] = []
-    offset = 0
-    while offset < 2000:
-        r = httpx.get(base, params={"codigo_municipio": codigo6, "status": 1, "limit": 20, "offset": offset},
-                      timeout=TEMPO, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-        if r.status_code != 200:
-            break
-        dados = r.json()
-        lote = dados.get("estabelecimentos", dados if isinstance(dados, list) else [])
-        if not lote:
-            break
-        saida.extend(lote)
-        if len(lote) < 20:
-            break
-        offset += 20
+    primeira = pagina_cnes(codigo6, 0)
+    if not primeira:
+        return []
+    saida: list[dict] = list(primeira)
+    offset = CNES_POR_PAGINA
+    if len(primeira) < CNES_POR_PAGINA:
+        return saida
+    with ThreadPoolExecutor(max_workers=CNES_EM_PARALELO) as grupo:
+        while offset < CNES_MAXIMO:
+            offsets = [offset + i * CNES_POR_PAGINA for i in range(CNES_EM_PARALELO)
+                       if offset + i * CNES_POR_PAGINA < CNES_MAXIMO]
+            lotes = list(grupo.map(lambda o: pagina_cnes(codigo6, o), offsets))  # na ordem dos offsets
+            for lote in lotes:
+                if not lote:
+                    return saida
+                saida.extend(lote)
+                if len(lote) < CNES_POR_PAGINA:
+                    return saida
+            offset = offsets[-1] + CNES_POR_PAGINA
     return saida
 
 

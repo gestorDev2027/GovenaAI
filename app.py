@@ -30,7 +30,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from agente import companyos, demo, perfis, registro
+from agente import companyos, demo, perfis, registro, segundo_plano
 from agente.equipes import EQUIPES
 from agente.agente import _modelo, criar_agentes, montar_agente
 from banco_api import criar_rotas_banco
@@ -51,6 +51,8 @@ os.environ["AGENTOS_TOKEN_INTERNO"] = TOKEN_INTERNO
 # Todos os agentes do ecossistema (agente/perfis/), no mesmo banco. O painel mostra o padrão.
 agentes = criar_agentes()
 agente = agentes[perfis.PADRAO]
+# Tarefas que rodavam numa thread deste servidor (agente/segundo_plano.py) morreram com o processo anterior.
+segundo_plano.limpar_presas()
 
 # Demonstração pronta (GESTORGOV_DEMO=itatiaia): a secretaria de Itatiaia-RJ montada, com os agentes de cada setor.
 # Os agentes criados agora entram no registro antes de o AgentOS e o CompanyOS serem montados.

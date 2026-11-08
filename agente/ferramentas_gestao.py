@@ -15,7 +15,7 @@ import re
 
 from agno.run import RunContext
 
-from agente import gestao
+from agente import gestao, segundo_plano
 
 FREQUENCIAS = ("a_cada_hora", "diaria", "semanal", "mensal", "sob_demanda")
 CRON_PADRAO = {"a_cada_hora": "0 * * * *", "diaria": "0 7 * * 1-5", "semanal": "0 7 * * 1", "mensal": "0 7 1 * *"}
@@ -64,12 +64,25 @@ def _sem_municipio() -> str:
     return "Nenhum município nesta conversa. Pergunte a cidade (ou o CEP) e use registrar_municipio primeiro."
 
 
+# Conversas dos casos de teste da Fábrica (agente/fabrica_recursos.py): as ferramentas que gravam não gravam.
+PREFIXO_TESTE = "aval-"
+
+
+def _simulado(run_context: RunContext | None) -> str | None:
+    if (_sessao(run_context) or "").startswith(PREFIXO_TESTE):
+        return ("(Caso de teste da Fábrica: nada foi gravado no cadastro.) Siga a conversa como se a gravação "
+                "tivesse dado certo.")
+    return None
+
+
 # ───────────────────────── Implantação (onboarding) ─────────────────────────
 
 def _bloqueada(run_context: RunContext, mid: str, fase: str) -> str | None:
     """Mensagem para o assistente quando ainda falta algo nas fases antes de `fase` (cada fase é obrigatória), ou
     quando `fase` vem depois da fase em que esta mensagem começou: uma fase por resposta (o secretário confirma
     antes de a próxima ser gravada)."""
+    if aviso := _simulado(run_context):
+        return aviso
     da_vez = (_estado(run_context).get("fase_da_vez") or "") if run_context else ""
     if da_vez in gestao.FASES and gestao.FASES.index(fase) > gestao.FASES.index(da_vez):
         return (f"Pare aqui: a fase '{da_vez}' acabou de ser concluída nesta resposta. Apresente ao secretário a próxima fase "
@@ -127,7 +140,7 @@ def registrar_municipio(run_context: RunContext, codigo_ibge: str, nome: str, uf
         secretario_nome: nome do secretário de saúde, se ele disser.
         secretario_email: e-mail institucional do secretário, se ele disser.
     """
-    if erro := _sem_banco():
+    if erro := _sem_banco() or _simulado(run_context):
         return erro
     if not (codigo_ibge or "").isdigit() or len(codigo_ibge) != 7:
         return "O código IBGE precisa ter 7 dígitos. Use o que veio de buscar_municipio."
@@ -161,10 +174,38 @@ def _agente_das_unidades(run_context: RunContext, mid: str) -> str | None:
     return agente_id
 
 
+# Quanto a ferramenta espera a importação do CNES terminar antes de responder "ainda importando".
+ESPERA_CNES_SEGUNDOS = 45
+
+
+def _resultado_cnes(run_context: RunContext, mid: str, execucao: dict | None) -> str:
+    """A resposta das ferramentas do CNES conforme a situação da importação (agente/segundo_plano.py)."""
+    if execucao is None:
+        return "Nenhuma importação do CNES nesta implantação. Use importar_unidades_cnes."
+    if execucao["situacao"] in segundo_plano.ATIVAS:
+        feitas = (execucao.get("progresso") or {}).get("gravadas")
+        return _json({"importacao": "em andamento", "unidades_gravadas_ate_agora": feitas or 0,
+                      "orientacao": "Diga ao secretário que a importação do CNES está rodando e que os pinos aparecem no "
+                                    "mapa conforme chegam. Na próxima mensagem dele, use acompanhar_importacao."})
+    resultado = execucao.get("resultado") or {}
+    if execucao["situacao"] == "erro" or not resultado.get("importadas"):
+        motivo = "erro na fonte" if execucao["situacao"] == "erro" else resultado.get("motivo") or "sem resultados"
+        return (f"O CNES não respondeu ({motivo}). Pergunte ao secretário quantas e quais unidades a rede tem "
+                "(UBS, UPA, CAPS, hospital...) e cadastre com cadastrar_unidade.")
+    agente_unidades = _agente_das_unidades(run_context, mid)
+    return _feito(mid, {"importadas": resultado["importadas"], "por_tipo": resultado.get("por_tipo") or {},
+                        "particulares_fora": resultado.get("particulares_fora") or 0,
+                        "agente_das_unidades": agente_unidades,
+                        "orientacao": "Mostre o resumo por tipo (são as unidades públicas e as conveniadas ao SUS; os "
+                                      "consultórios particulares ficaram de fora) e pergunte se está certo e se falta "
+                                      "alguma."})
+
+
 def importar_unidades_cnes(run_context: RunContext) -> str:
     """Traz do CNES (dados abertos do Ministério da Saúde) as unidades públicas e as conveniadas ao SUS do município e grava
-    como "a confirmar". Mostre ao secretário o resumo por tipo e peça para conferir. Se a fonte não responder,
-    siga com cadastrar_unidade, uma por uma."""
+    como "a confirmar". Mostre ao secretário o resumo por tipo e peça para conferir. Se a importação ainda estiver
+    rodando, avise e use acompanhar_importacao na próxima mensagem. Se a fonte não responder, siga com
+    cadastrar_unidade, uma por uma."""
     if erro := _sem_banco():
         return erro
     mid = _municipio(run_context)
@@ -172,44 +213,30 @@ def importar_unidades_cnes(run_context: RunContext) -> str:
         return _sem_municipio()
     if erro := _bloqueada(run_context, mid, "unidades"):
         return erro
-    mun = gestao.municipio(mid)
-    try:
-        brutas = gestao.unidades_cnes(mun["codigo_ibge"])
-    except Exception as erro:
-        brutas = []
-        motivo = type(erro).__name__
-    else:
-        motivo = "sem resultados"
-    if not brutas:
-        return (f"O CNES não respondeu ({motivo}). Pergunte ao secretário quantas e quais unidades a rede tem "
-                "(UBS, UPA, CAPS, hospital...) e cadastre com cadastrar_unidade.")
-    por_codigo = {}
-    for tipo in gestao.tipos_unidade():
-        for codigo in tipo.get("codigos_cnes") or []:
-            por_codigo[str(codigo).zfill(2)] = tipo["id"]
-    contagem: dict[str, int] = {}
-    # Só as unidades públicas e as conveniadas ao SUS: consultórios e clínicas particulares ficam de fora.
-    particulares = sum(1 for u in brutas if gestao.vinculo_cnes(u) is None)
-    brutas = [u for u in brutas if gestao.vinculo_cnes(u) is not None]
-    for u in brutas:
-        codigo_tipo = str(u.get("codigo_tipo_unidade") or u.get("tipo_unidade") or "").zfill(2)
-        tipo_id = por_codigo.get(codigo_tipo, "outro")
-        lat, lng = u.get("latitude_estabelecimento_decimo_grau") or u.get("latitude"), \
-            u.get("longitude_estabelecimento_decimo_grau") or u.get("longitude")
-        endereco = " ".join(str(x) for x in (u.get("endereco_estabelecimento"), u.get("numero_estabelecimento")) if x)
-        gestao.salvar_unidade(
-            mid, nome=u.get("nome_fantasia") or u.get("nome_razao_social") or "Unidade sem nome", tipo_id=tipo_id,
-            cnes=str(u.get("codigo_cnes") or ""), endereco=endereco, bairro=u.get("bairro_estabelecimento") or "",
-            cep=str(u.get("codigo_cep_estabelecimento") or ""),
-            latitude=float(lat) if lat not in (None, "") else None, longitude=float(lng) if lng not in (None, "") else None,
-            origem="cnes", dados_cnes=u, confirmada=False, gestao=gestao.vinculo_cnes(u), quem=_quem(run_context),
-            session_id=_sessao(run_context))
-        contagem[tipo_id] = contagem.get(tipo_id, 0) + 1
-    agente_unidades = _agente_das_unidades(run_context, mid)
-    return _feito(mid, {"importadas": len(brutas), "por_tipo": contagem, "particulares_fora": particulares,
-                  "agente_das_unidades": agente_unidades,
-                  "orientacao": "Mostre o resumo por tipo (são as unidades públicas e as conveniadas ao SUS; os "
-                                "consultórios particulares ficaram de fora) e pergunte se está certo e se falta alguma."})
+    atual = segundo_plano.ultima("importar_cnes", municipio_id=mid)
+    if atual and atual["situacao"] in segundo_plano.ATIVAS:  # já há uma rodando: acompanha a mesma
+        return _resultado_cnes(run_context, mid, segundo_plano.esperar(atual["id"], ESPERA_CNES_SEGUNDOS))
+    from tarefas import cnes
+
+    execucao_id = segundo_plano.disparar(
+        "importar_cnes", [mid], municipio_id=mid, referencia=f"cnes:{mid}", criado_por=_quem(run_context),
+        contexto={"quem": _quem(run_context), "session_id": _sessao(run_context)},
+        local=lambda eid: cnes.importar_cnes(eid, mid))
+    return _resultado_cnes(run_context, mid, segundo_plano.esperar(execucao_id, ESPERA_CNES_SEGUNDOS))
+
+
+def acompanhar_importacao(run_context: RunContext) -> str:
+    """A situação da importação do CNES que está rodando (ou da última): quantas unidades já chegaram e, no fim, o
+    resumo por tipo para o secretário conferir."""
+    if erro := _sem_banco():
+        return erro
+    mid = _municipio(run_context)
+    if not mid:
+        return _sem_municipio()
+    if erro := _bloqueada(run_context, mid, "unidades"):
+        return erro
+    atual = segundo_plano.ultima("importar_cnes", municipio_id=mid)
+    return _resultado_cnes(run_context, mid, segundo_plano.esperar(atual["id"], 10) if atual else None)
 
 
 def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, cep: str = "", numero: str = "",
@@ -277,7 +304,7 @@ def salvar_dados_prefeitura(run_context: RunContext, cnpj: str = "", cep: str = 
         email: e-mail da prefeitura (opcional).
         site: site da prefeitura (opcional).
     """
-    if erro := _sem_banco():
+    if erro := _sem_banco() or _simulado(run_context):
         return erro
     mid = _municipio(run_context)
     if not mid:
@@ -309,7 +336,7 @@ def salvar_dados_secretaria(run_context: RunContext, nome: str = "", cnpj_fundo:
         secretario_email: e-mail do(a) secretário(a).
         secretario_telefone: telefone do(a) secretário(a), com DDD.
     """
-    if erro := _sem_banco():
+    if erro := _sem_banco() or _simulado(run_context):
         return erro
     mid = _municipio(run_context)
     if not mid:
@@ -660,7 +687,7 @@ FERRAMENTAS_IMPLANTACAO = [
     buscar_municipio, registrar_municipio, salvar_dados_prefeitura, salvar_dados_secretaria, buscar_endereco,
     pesquisar_na_web, listar_tipos_setor, salvar_setores, sugerir_atividades, salvar_atividades, nova_atividade,
     montar_cargos, criar_cargo, cadastrar_responsavel, montar_agentes, dar_acesso, importar_unidades_cnes,
-    cadastrar_unidade, situacao_implantacao, concluir_implantacao,
+    acompanhar_importacao, cadastrar_unidade, situacao_implantacao, concluir_implantacao,
 ]
 
 
