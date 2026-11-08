@@ -94,6 +94,10 @@ class PedidoFicha(BaseModel):
     integracoes: list[str] | None = Field(default=None, max_length=50)
 
 
+class PedidoRecusa(BaseModel):
+    motivo: str = Field(min_length=3, max_length=1000)
+
+
 class PedidoAceite(BaseModel):
     nome: str = Field(min_length=2, max_length=120)
     senha: str = Field(min_length=8, max_length=200)
@@ -233,6 +237,68 @@ def criar_rotas_organizacao() -> APIRouter:
         if agente_id not in fabrica.agentes_da_organizacao(oid):
             raise HTTPException(status_code=404, detail="Agente não encontrado nesta organização.")
         return _dados_erro(lambda: dados_agente.salvar_ficha(oid, agente_id, pedido.model_dump(exclude_none=True), quem[0]))
+
+    # ───────── Trabalho dos agentes: tarefas, atividades e processos (agente/trabalho.py) ─────────
+
+    def _trabalho(acao):
+        from agente import trabalho
+
+        try:
+            return acao()
+        except trabalho.ErroTrabalho as erro:
+            raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
+        except ValueError as erro:
+            raise HTTPException(status_code=422, detail=str(erro)) from erro
+
+    @rotas.get("/organizacao/tarefas")
+    def listar_tarefas(situacao: str = Query(default="abertas", pattern=r"^(abertas|todas|backlog|ready|in_progress|in_review|done|cancelled)$"),
+                       quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        from agente import trabalho
+
+        return {"tarefas": trabalho.tarefas(quem[1]["organizacao_id"], quem[0], situacao)}
+
+    @rotas.post("/organizacao/tarefas/{tarefa_id}/aceitar")
+    def aceitar_tarefa(tarefa_id: str, quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        from agente import trabalho
+
+        _trabalho(lambda: trabalho.aceitar(quem[1]["organizacao_id"], tarefa_id, quem[0]))
+        return {"ok": True}
+
+    @rotas.post("/organizacao/tarefas/{tarefa_id}/recusar")
+    def recusar_tarefa(tarefa_id: str, pedido: PedidoRecusa, quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        from agente import trabalho
+
+        _trabalho(lambda: trabalho.recusar(quem[1]["organizacao_id"], tarefa_id, quem[0], pedido.motivo))
+        return {"ok": True}
+
+    @rotas.get("/organizacao/atencao")
+    def atencao(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        from agente import trabalho
+
+        return {"areas": trabalho.atencao(quem[1]["organizacao_id"])}
+
+    @rotas.get("/organizacao/atividades")
+    def listar_atividades(quem: tuple = Depends(_precisa("ver_painel"))) -> dict:
+        from agente import trabalho
+
+        oid = quem[1]["organizacao_id"]
+        nomes = {str(a["id"]): a["nome"] for a in gestao.areas(oid)}
+        saida = []
+        for a in gestao.atividades(oid):
+            proc = trabalho.processo(oid, str(a["id"])) if trabalho.disponivel() else None
+            saida.append(gestao._json({
+                "id": a["id"], "nome": a["nome"], "descricao": a["descricao"], "tipo": a["tipo"], "frequencia": a["frequencia"],
+                "entregavel": a.get("entregavel"), "ativa": a.get("ativa", True), "area_id": a["area_id"],
+                "area": nomes.get(str(a["area_id"])), "agente_id": trabalho.agente_da_area(oid, str(a["area_id"])),
+                "processo": {"versao": proc["versao"], "passos": proc["passos"]} if proc else None,
+            }))
+        return {"atividades": saida}
+
+    @rotas.post("/organizacao/atividades/{atividade_id}/rodar")
+    def rodar_atividade(atividade_id: str, quem: tuple = Depends(_precisa("gerenciar_fluxos"))) -> dict:
+        from agente import rotinas
+
+        return _trabalho(lambda: rotinas.rodar_agora(quem[1]["organizacao_id"], atividade_id, quem[0]))
 
     # ───────── Organograma ─────────
 

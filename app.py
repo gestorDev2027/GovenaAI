@@ -30,7 +30,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from agente import companyos, perfis, registro, segundo_plano
+from agente import companyos, perfis, registro, rotinas, segundo_plano
 from agente.equipes import EQUIPES
 from agente.agente import _modelo, criar_agentes, montar_agente
 from banco_api import criar_rotas_banco
@@ -53,6 +53,8 @@ agentes = criar_agentes()
 agente = agentes[perfis.PADRAO]
 # Tarefas que rodavam numa thread deste servidor (agente/segundo_plano.py) morreram com o processo anterior.
 segundo_plano.limpar_presas()
+# As rotinas das áreas no horário (agente/rotinas.py): só com GESTORGOV_ROTINAS=sim.
+rotinas.iniciar_agendador()
 
 # Sem a telemetria por requisição do FastAPI: ela gravava um trace a cada chamada e herdava o `traceparent`
 # de quem chama. Os traces

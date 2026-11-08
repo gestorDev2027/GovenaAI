@@ -911,5 +911,42 @@ def consultar_dados(run_context: RunContext, dominio: str, filtro: str = "") -> 
         return erro.detalhe
 
 
-FERRAMENTAS_DADOS = [consultar_dados]
+def propor_tarefa(run_context: RunContext, titulo: str, o_que_fazer: str, evidencia: str = "", atividade: str = "") -> str:
+    """Propõe uma tarefa da sua área. Ela NÃO começa sozinha: espera o aceite do responsável (no painel, em
+    Aprovações). Use quando a análise mostrar algo que precisa de atenção, ou quando alguém pedir um trabalho.
+
+    Args:
+        titulo: título curto (ex.: "14 pacientes há mais de 90 dias na fila de cardiologia").
+        o_que_fazer: o que precisa ser feito, em uma a três frases.
+        evidencia: de onde veio a informação (documento, indicador, data), para quem aceita conferir.
+        atividade: o nome da atividade da sua área (na rotina, vazio: a atividade da rotina).
+    """
+    from agente import trabalho
+
+    agente_id, oid = _do_agente(run_context)
+    if not oid:
+        return "Este agente não é de uma organização: não há onde propor a tarefa."
+    estado = run_context.session_state or {}
+    atividade_id = estado.get("atividade_id")
+    if not atividade_id:
+        areas = {a["area_id"] for a in gestao.agentes_area(oid) if a["agente_id"] == agente_id}
+        minhas = [a for a in gestao.atividades(oid) if a["area_id"] in areas]
+        alvo = gestao._sem_acento(atividade)
+        escolhida = next((a for a in minhas if alvo and gestao._sem_acento(a["nome"]) == alvo), None) or \
+            next((a for a in minhas if alvo and alvo in gestao._sem_acento(a["nome"])), None)
+        if not escolhida:
+            return ("Diga a atividade da sua área (no campo atividade). As atividades: "
+                    + ", ".join(a["nome"] for a in minhas[:20]) + ".")
+        atividade_id = str(escolhida["id"])
+    try:
+        tarefa = trabalho.propor(oid, atividade_id, titulo, o_que_fazer, evidencia,
+                                 origem="agent" if estado.get("rotina") else "human",
+                                 quem=agente_id or "agente", session_id=_sessao(run_context))
+    except trabalho.ErroTrabalho as erro:
+        return erro.detalhe
+    return _json({"tarefa": tarefa["id"], "situacao": "esperando aceite",
+                  "orientacao": "Diga que a tarefa foi proposta e espera o aceite do responsável, em Aprovações."})
+
+
+FERRAMENTAS_DADOS = [consultar_dados, propor_tarefa]
 FERRAMENTAS_CONSULTA = [consultar_organizacao, listar_unidades, *FERRAMENTAS_DADOS]

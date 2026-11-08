@@ -225,3 +225,164 @@ def pode_decidir(organizacao_id: str, email: str, area_id: str | None, cargos_do
     if cargos_do_passo:
         return str(cargo["id"]) in set(cargos_do_passo)
     return "aprovar_entregas" in ctx["permissoes"] and area_id is not None and str(cargo.get("area_id")) == str(area_id)
+
+
+# ───────── Tarefas: propor, listar, aceitar, recusar ─────────
+
+class ErroTrabalho(Exception):
+    def __init__(self, status: int, detalhe: str):
+        super().__init__(detalhe)
+        self.status = status
+        self.detalhe = detalhe
+
+
+def _atividade(organizacao_id: str, atividade_id: str) -> dict:
+    ta = gestao._t("atividades_area")
+    atividade = gestao._uma(select(ta).where(ta.c.id == atividade_id, ta.c.organizacao_id == organizacao_id))
+    if not atividade:
+        raise ErroTrabalho(404, "Atividade não encontrada nesta organização.")
+    return atividade
+
+
+def agente_da_area(organizacao_id: str, area_id: str) -> str | None:
+    ligados = [a for a in gestao.agentes_area(organizacao_id) if str(a["area_id"]) == str(area_id) and a.get("ativo", True)]
+    return ligados[0]["agente_id"] if ligados else None
+
+
+def propor(organizacao_id: str, atividade_id: str, titulo: str, descricao: str, evidencia: str = "", *,
+           origem: str = "agent", quem: str, session_id: str | None = None) -> dict:
+    """Uma tarefa nova na atividade, ESPERANDO ACEITE (o processo sempre tem um aceite). `origem`: "agent" quando o
+    agente propõe (rotina ou análise), "human" quando alguém pediu."""
+    if not disponivel():
+        raise ErroTrabalho(503, "O CompanyOS não está ligado neste servidor.")
+    org = gestao.organizacao(organizacao_id)
+    atividade = _atividade(organizacao_id, atividade_id)
+    area = next((a for a in gestao.areas(organizacao_id) if str(a["id"]) == str(atividade["area_id"])), None)
+    if not org or not area:
+        raise ErroTrabalho(404, "Área da atividade não encontrada.")
+    projeto = garantir_projeto(org, area, atividade)
+    if not processo(organizacao_id, atividade_id):
+        salvar_processo(organizacao_id, atividade_id, processo_padrao(atividade), quem, origem="sistema")
+    executor = agente_da_area(organizacao_id, str(area["id"]))
+    tarefa = cm().create_task(
+        product_id=id_produto(str(area["id"])), project_id=projeto, title=(titulo or atividade["nome"]).strip()[:200],
+        brief=(descricao or "").strip()[:4000] or None,
+        evidence=[{"type": "note", "text": evidencia.strip()[:2000]}] if (evidencia or "").strip() else None,
+        origin="agent" if origem == "agent" else "human",
+        executor_type="agent" if executor else None, executor_id=executor)
+    with gestao._estado["engine"].begin() as c:
+        gestao.auditar(c, organizacao_id=organizacao_id, origem="agente" if origem == "agent" else "pessoa", quem=quem,
+                       acao="propor_tarefa", entidade="tarefa", entidade_id=tarefa["id"],
+                       depois={"titulo": tarefa["title"], "atividade": atividade["nome"], "area": area["nome"]},
+                       session_id=session_id)
+    return tarefa
+
+
+def _produtos_da_organizacao(organizacao_id: str) -> dict[str, dict]:
+    return {id_produto(str(a["id"])): a for a in gestao.areas(organizacao_id)}
+
+
+def _tarefa_da_organizacao(organizacao_id: str, tarefa_id: str) -> tuple[dict, dict]:
+    tarefa = cm().get_task(tarefa_id)
+    areas = _produtos_da_organizacao(organizacao_id)
+    if not tarefa or tarefa["product_id"] not in areas:
+        raise ErroTrabalho(404, "Tarefa não encontrada nesta organização.")
+    return tarefa, areas[tarefa["product_id"]]
+
+
+def atividade_da_tarefa(organizacao_id: str, tarefa: dict) -> dict | None:
+    ta = gestao._t("atividades_area")
+    return gestao._uma(select(ta).where(ta.c.projeto_id == tarefa.get("project_id"), ta.c.organizacao_id == organizacao_id))
+
+
+def _passo(organizacao_id: str, tarefa: dict, tipo: str) -> dict | None:
+    """O passo do processo da atividade da tarefa (o primeiro do tipo)."""
+    atividade = atividade_da_tarefa(organizacao_id, tarefa)
+    proc = processo(organizacao_id, str(atividade["id"])) if atividade else None
+    return next((p for p in (proc or {}).get("passos") or [] if p["tipo"] == tipo), None)
+
+
+def tarefas(organizacao_id: str, email: str | None = None, situacao: str | None = None, limite: int = 100) -> list[dict]:
+    """As tarefas da organização (mais novas primeiro), com a área, a atividade, o agente e se `email` pode decidir o
+    passo em que a tarefa está. `situacao`: um status do CompanyOS ou "abertas" (as que esperam uma pessoa)."""
+    if not disponivel():
+        return []
+    from agente import perfis
+
+    areas = _produtos_da_organizacao(organizacao_id)
+    atividades = {a.get("projeto_id"): a for a in gestao.atividades(organizacao_id) if a.get("projeto_id")}
+    status = None if situacao in (None, "", "abertas", "todas") else situacao
+    lista = []
+    for produto_id, area in areas.items():
+        linhas, _ = cm().list_tasks(product_id=produto_id, status=status, limit=limite, sort_by="created_at", sort_order="desc")
+        for t in linhas:
+            if situacao == "abertas" and t["status"] not in ("backlog", "in_review"):
+                continue
+            atividade = atividades.get(t.get("project_id")) or {}
+            passo_tipo = {"backlog": "aceite", "in_review": "revisao"}.get(t["status"])
+            cargos = (_passo(organizacao_id, t, passo_tipo) or {}).get("cargos") if passo_tipo else None
+            executor = t.get("executor_id")
+            lista.append(gestao._json({
+                "id": t["id"], "titulo": t["title"], "descricao": t.get("brief"), "situacao": t["status"],
+                "situacao_nome": SITUACOES.get(t["status"], t["status"]), "origem": t.get("origin"),
+                "evidencia": [e.get("text") for e in (t.get("evidence") or []) if isinstance(e, dict) and e.get("text")],
+                "area_id": str(area["id"]), "area": area["nome"], "atividade_id": str(atividade["id"]) if atividade else None,
+                "atividade": atividade.get("nome"), "agente_id": executor,
+                "agente": perfis.identidade(executor)["nome"] if executor and perfis.existe(executor) else None,
+                "aceita_por": t.get("accepted_by"), "criada_em": datetime.fromtimestamp(t["created_at"], timezone.utc),
+                "historico": [{"de": h.get("from"), "para": h.get("to"), "motivo": h.get("reason"), "por": h.get("accepted_by")}
+                              for h in (t.get("transitions") or [])],
+                "posso_decidir": bool(email and passo_tipo and pode_decidir(organizacao_id, email, str(area["id"]), cargos)),
+            }))
+    lista.sort(key=lambda x: x["criada_em"], reverse=True)
+    return lista[:limite]
+
+
+def _decisao(organizacao_id: str, tarefa_id: str, email: str, passo_tipo: str, status_esperado: str) -> tuple[dict, dict]:
+    tarefa, area = _tarefa_da_organizacao(organizacao_id, tarefa_id)
+    if tarefa["status"] != status_esperado:
+        atual = SITUACOES.get(tarefa["status"], tarefa["status"])
+        raise ErroTrabalho(409, f"A tarefa está \"{atual}\": não dá para fazer isto agora.")
+    cargos = (_passo(organizacao_id, tarefa, passo_tipo) or {}).get("cargos")
+    if not pode_decidir(organizacao_id, email, str(area["id"]), cargos):
+        raise ErroTrabalho(403, "Quem decide este passo é o cargo definido no processo (ou a direção).")
+    return tarefa, area
+
+
+def aceitar(organizacao_id: str, tarefa_id: str, email: str) -> dict:
+    """A pessoa aceita a proposta: a tarefa fica pronta para o agente da área."""
+    tarefa, area = _decisao(organizacao_id, tarefa_id, email, "aceite", "backlog")
+    executor = tarefa.get("executor_id") or agente_da_area(organizacao_id, str(area["id"]))
+    if not executor:
+        raise ErroTrabalho(422, f"A área {area['nome']} ainda não tem agente para fazer a tarefa.")
+    nova = cm().transition_task(task_id=tarefa_id, target="ready", reason=f"Aceita por {email}", accepted_by=email,
+                                executor_type="agent", executor_id=executor)
+    with gestao._estado["engine"].begin() as c:
+        gestao.auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=email, acao="aceitar_tarefa",
+                       entidade="tarefa", entidade_id=tarefa_id, depois={"titulo": tarefa["title"], "executor": executor})
+    return nova
+
+
+def recusar(organizacao_id: str, tarefa_id: str, email: str, motivo: str) -> dict:
+    """A pessoa recusa a proposta, com o motivo (o agente e a equipe veem)."""
+    if not (motivo or "").strip():
+        raise ErroTrabalho(422, "Diga por que está recusando.")
+    tarefa, _ = _decisao(organizacao_id, tarefa_id, email, "aceite", "backlog")
+    nova = cm().transition_task(task_id=tarefa_id, target="cancelled", reason=f"Recusada por {email}: {motivo.strip()[:500]}")
+    with gestao._estado["engine"].begin() as c:
+        gestao.auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=email, acao="recusar_tarefa",
+                       entidade="tarefa", entidade_id=tarefa_id, depois={"titulo": tarefa["title"], "motivo": motivo.strip()})
+    return nova
+
+
+def atencao(organizacao_id: str) -> dict[str, dict]:
+    """Por área: quantas tarefas esperam aceite, estão em execução e em revisão (para as salas do prédio)."""
+    if not disponivel():
+        return {}
+    saida = {}
+    for produto_id, area in _produtos_da_organizacao(organizacao_id).items():
+        contagem = {}
+        for chave, status in (("aceite", "backlog"), ("execucao", "in_progress"), ("revisao", "in_review")):
+            _, contagem[chave] = cm().list_tasks(product_id=produto_id, status=status, limit=1)
+        saida[str(area["id"])] = contagem
+    return saida
