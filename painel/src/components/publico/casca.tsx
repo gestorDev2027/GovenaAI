@@ -9,7 +9,7 @@ export function CascaPublica({ children, semAcoes = false, escuro = false }: { c
       <header className={escuro ? "bg-[#0D1B38] text-white" : "border-b border-border bg-card"}>
         <div className="mx-auto flex h-20 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <Link to="/inicio" aria-label="GestorGov — início" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Logo sobreEscuro={escuro} />
+            <Logo sobreEscuro={escuro} subtitulo />
           </Link>
           {!semAcoes && (
             <nav aria-label="Acesso" className="flex items-center gap-2">

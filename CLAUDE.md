@@ -245,6 +245,11 @@ inteligente").
   (6–16 px), indicadores com ícone em círculo, botões de destaque em pílula amarela. Sem degradês fortes.
 - Telas de acesso (entrar, cadastrar, convite): sem cabeçalho; formulário à esquerda, que rola, e painel fixo da
   marca à direita.
+- Logo (`components/layout/logo.tsx`): o símbolo e "GestorGov" numa linha ("Gov" em azul); o subtítulo "Gestão pública
+  inteligente" só nas telas de acesso (`subtitulo`). O amarelo fica no ponto do símbolo.
+- Implantação no estilo do Replit (a referência de interface preferida): chat fino à esquerda (assistente em texto
+  limpo, servidor em balão azul-claro, "Trabalhou por N s", respostas rápidas quando o assistente pergunta) e o
+  canvas grande à direita, com a barra fina (Secretaria · Cidade · Resumo e o progresso das etapas).
 - Claro e escuro obrigatórios. Tokens em `painel/src/styles.css`; logo em
   `painel/src/components/layout/logo.tsx` (SVG, o texto acompanha o tema). O símbolo da Central 3D e dos avatares
   está em `painel/public/espaco/gestorgov-branco.png` e `gestorgov-cor.png`.
@@ -325,7 +330,8 @@ cd painel; npm run build               # confere os tipos (tsc) e gera o painel
 
 ### Git
 
-- Branch `main`; o Render publica a cada push. Trabalho em branch vai para o `main` por PR.
+- Commits direto na `main` (desde 08/11/2026: só o dono e o Claude trabalham no projeto; sem branch nem PR). O Render
+  publica a cada push na `main`: push só com confirmação.
 - Mensagens de commit em português, no imperativo e curtas ("Onboarding: tela com mapa e chat").
 - Nunca commitar `.env`, `dados/`, `node_modules/`, `painel/dist/`, `Claude outputs/`, `*.zip` (estão no
   `.gitignore`).

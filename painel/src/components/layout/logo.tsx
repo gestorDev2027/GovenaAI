@@ -27,32 +27,41 @@ export function SimboloGestorGov({ className, sobreEscuro = false }: { className
   );
 }
 
-/** A logo inteira: símbolo, "Gestor" na cor do texto (vale no claro e no escuro) e "GOV" em azul. */
-export function LogoMarca({ className, sobreEscuro = false }: { className?: string; sobreEscuro?: boolean }) {
+/** O nome: "Gestor" na cor do texto e "Gov" em azul, numa palavra só. */
+function Nome({ sobreEscuro, className }: { sobreEscuro: boolean; className?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-2", className)} role="img" aria-label="GestorGov">
-      <SimboloGestorGov className="h-full w-auto" sobreEscuro={sobreEscuro} />
-      <span className="text-[1.05em] leading-none font-extrabold tracking-tight">
-        <span className={sobreEscuro ? "text-white" : "text-foreground"}>Gestor</span>{" "}
-        <span className={sobreEscuro ? "text-[#52A2FF]" : "text-[#1A63D8] dark:text-[#52A2FF]"}>GOV</span>
-      </span>
+    <span className={cn("leading-none font-bold tracking-[-0.02em]", className)}>
+      <span className={sobreEscuro ? "text-white" : "text-foreground"}>Gestor</span>
+      <span className={sobreEscuro ? "text-[#52A2FF]" : "text-[#1A63D8] dark:text-[#52A2FF]"}>Gov</span>
     </span>
   );
 }
 
-/** Marca do painel: a logo, o filete amarelo e o subtítulo. `sobreEscuro`: no menu azul-marinho. */
-export function Logo({ className, sobreEscuro = false }: { className?: string; sobreEscuro?: boolean }) {
+/** A logo em linha: símbolo e nome. `className` define a altura (o símbolo acompanha). */
+export function LogoMarca({ className, sobreEscuro = false }: { className?: string; sobreEscuro?: boolean }) {
   return (
-    <span className={cn("flex flex-col items-start gap-1 leading-tight", className)}>
-      <LogoMarca className="h-7 text-lg" sobreEscuro={sobreEscuro} />
-      <span className="ml-9 block h-[3px] w-10 rounded-full bg-[#F4B800]" aria-hidden="true" />
-      <span
-        className={cn(
-          "ml-9 block text-[10px] font-semibold tracking-[0.18em] uppercase",
-          sobreEscuro ? "text-white/60" : "text-muted-foreground",
+    <span className={cn("inline-flex items-center gap-2", className)} role="img" aria-label="GestorGov">
+      <SimboloGestorGov className="h-full w-auto" sobreEscuro={sobreEscuro} />
+      <Nome sobreEscuro={sobreEscuro} className="text-[1.05em]" />
+    </span>
+  );
+}
+
+/**
+ * A marca do sistema: o símbolo e "GestorGov" numa linha. `subtitulo` acrescenta "Gestão pública inteligente"
+ * embaixo do nome (nas telas de acesso, onde há espaço); `sobreEscuro`: no menu azul-marinho e nas telas escuras.
+ */
+export function Logo({ className, sobreEscuro = false, subtitulo = false }: { className?: string; sobreEscuro?: boolean; subtitulo?: boolean }) {
+  return (
+    <span className={cn("inline-flex items-center gap-2.5", className)} role="img" aria-label="GestorGov, gestão pública inteligente">
+      <SimboloGestorGov className="size-8" sobreEscuro={sobreEscuro} />
+      <span className="flex flex-col gap-1">
+        <Nome sobreEscuro={sobreEscuro} className="text-[19px]" />
+        {subtitulo && (
+          <span className={cn("text-[11px] leading-none font-medium", sobreEscuro ? "text-white/55" : "text-muted-foreground")}>
+            Gestão pública inteligente
+          </span>
         )}
-      >
-        Gestão pública inteligente
       </span>
     </span>
   );
@@ -61,8 +70,8 @@ export function Logo({ className, sobreEscuro = false }: { className?: string; s
 /** Só o símbolo, no menu recolhido. */
 export function LogoIcone({ className }: { className?: string }) {
   return (
-    <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl bg-white ring-1 ring-white/10", className)}>
-      <SimboloGestorGov className="size-8" />
+    <span className={cn("grid size-10 shrink-0 place-items-center rounded-xl bg-white/[0.06] ring-1 ring-white/10", className)}>
+      <SimboloGestorGov sobreEscuro className="size-7" />
     </span>
   );
 }

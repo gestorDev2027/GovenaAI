@@ -14,7 +14,7 @@ export function TelaDeAcesso({ titulo, descricao, children }: { titulo: string; 
       <div className="thin-scroll flex min-w-0 flex-1 flex-col overflow-y-auto">
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col px-6 py-8 sm:px-8">
           <Link to="/inicio" aria-label="GestorGov — início" className="w-fit rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Logo />
+            <Logo subtitulo />
           </Link>
           <div className="my-auto space-y-6 py-10">
             <div>
