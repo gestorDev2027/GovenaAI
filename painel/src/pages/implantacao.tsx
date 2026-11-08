@@ -182,7 +182,7 @@ export function PaginaImplantacao() {
       <header className="flex h-12 shrink-0 items-center justify-between gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link to="/inicio" aria-label="GestorGov — início" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
-            <Logo className="[&_svg]:size-7" />
+            <Logo tamanho="sm" />
           </Link>
           <span className="h-5 w-px bg-border" aria-hidden="true" />
           <span className="truncate text-sm font-medium">Implantação</span>
