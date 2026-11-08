@@ -231,8 +231,11 @@ Dois níveis, separados:
   gerenciar cargos, gerenciar a equipe, ver a auditoria) e convida a equipe por link (`convites`, 7 dias, a pessoa
   cria a senha). O membro pode o que o cargo dele pode; o dono não pode ser bloqueado; ninguém altera o próprio acesso.
 - Toda rota da prefeitura usa o município de quem está logado: nunca um id vindo da tela.
-- Ainda falta: as telas herdadas (Conversas, Fábrica, Central) mostram dados de todas as prefeituras e por isso
-  ficam só para a plataforma. Separá-las por município é o próximo passo antes do primeiro piloto.
+- Separação por agente: cada agente da Fábrica guarda o município dono (`fabrica_agentes.municipio_id`); quem é de
+  uma prefeitura vê só os agentes dela (`escopo_painel` em painel_api.py): lista de agentes (`/agentes`), Chat,
+  Conversas, Central (Secretaria 3D) e indicadores. As conversas de servidor começam com `servidor-` e levam o
+  e-mail de quem conversou. Fábrica, Conhecimento, Calibração, Observabilidade e Usuários continuam só da
+  plataforma (a prefeitura ainda não cria nem edita os próprios agentes).
 
 ## 8. Segurança, LGPD e regras dos agentes
 
@@ -254,6 +257,15 @@ Dois níveis, separados:
 - Região Virginia (o Render não tem Brasil).
 - Variáveis secretas: `GOOGLE_API_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
   `PAINEL_DONO`, `PAINEL_GOOGLE_CLIENT_ID`, `PAINEL_DOMINIOS` (opcional). `OS_SECURITY_KEY` é gerada pelo Render.
+
+### Demonstração (Itatiaia-RJ)
+
+Com `GESTORGOV_DEMO=itatiaia` (já no `render.yaml`), o servidor monta ao subir a Secretaria de Saúde de Itatiaia
+(agente/demo.py): as unidades do CNES, os 16 setores com as atividades, o organograma de 38 cargos, pessoas
+fictícias (@itatiaia.exemplo.gov.br, sem login) como responsáveis, um agente de IA por setor (`itatiaia-<setor>`,
+publicados, marcados com o município) e a implantação concluída. Com `GESTORGOV_COMPANYOS=sim`, as 20 atividades
+de rotina viram os fluxos do Agno (Routines do CompanyOS). Cada passo só acrescenta o que falta: pode subir de novo.
+O dono é `PAINEL_DONO`. Atenção ao custo: as rotinas chamam o Gemini nos horários delas (uma a cada hora).
 
 ### Supabase
 

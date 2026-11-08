@@ -95,7 +95,11 @@ def configurar(modelo, banco) -> dict:
         from agno.os import CompanyConfig
 
         lista = produtos()
-        return {"company": CompanyConfig(model=modelo, products=lista), "queue": QueueConfig(durable=True, db=banco)}
+        # Fila durável só no Postgres (o Agno exige Postgres ou Redis para isso); no SQLite local, em memória:
+        # um reinício perde o que estava na fila, mas as rotinas voltam no próximo horário.
+        duravel = getattr(getattr(banco, "db_engine", None), "dialect", None) is not None and banco.db_engine.dialect.name == "postgresql"
+        fila = QueueConfig(durable=True, db=banco) if duravel else QueueConfig(durable=False)
+        return {"company": CompanyConfig(model=modelo, products=lista), "queue": fila}
     except Exception as erro:  # Agno sem CompanyOS, banco fora do ar ou cron inválido: sobe sem
         log_warning(f"CompanyOS desligado: {type(erro).__name__}: {erro}")
         return {}

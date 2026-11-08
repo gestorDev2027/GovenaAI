@@ -32,7 +32,7 @@ from sqlalchemy import MetaData, Table, func, select, true
 from starlette.concurrency import run_in_threadpool
 
 from agente import alertas as alertas_mod
-from agente import acessos, ao_vivo, base, conhecimento, datasets, equipes, ficha, gestao, guardrails, lacunas, listas, perfis, usuarios
+from agente import acessos, ao_vivo, base, fabrica, conhecimento, datasets, equipes, ficha, gestao, guardrails, lacunas, listas, perfis, usuarios
 from agente.atendimento import encerrar_inativas, encerrar_por_inatividade, responder, responder_em_etapas
 from agente.ferramentas import STATUS_EM_ATENDIMENTO, STATUS_ENCERRADO, STATUS_TRANSFERIDO
 
@@ -209,6 +209,44 @@ def exigir_chave(
     if token_interno and secrets.compare_digest(recebida, token_interno.encode()):
         return
     raise HTTPException(status_code=401, detail="Chave de acesso inválida ou ausente.")
+
+
+# ── Escopo por prefeitura ──
+# None: a equipe da plataforma (ou a chave, ou o servidor local sem chave) vê todos os agentes. Um conjunto: quem é
+# de uma prefeitura vê só os agentes dela (fabrica.agentes_do_municipio) e as conversas deles.
+Escopo = frozenset | None
+
+
+def _escopo_de(painel_sessao: str | None, authorization: str | None, permissao: str = "ver_painel") -> Escopo:
+    if not _chave():
+        return None
+    sessao = _ler_sessao(painel_sessao)
+    if not sessao:
+        exigir_chave(authorization=authorization, painel_sessao=None)  # a chave ou o token interno
+        return None
+    email = sessao["email"]
+    dele = usuarios.usuario(email) if usuarios.disponivel() else None
+    if dele and dele["situacao"] == "ativo" and permissao in dele["permissoes"]:
+        return None
+    contexto = acessos.contexto(email)
+    if contexto and "ver_painel" in contexto["permissoes"]:
+        return frozenset(fabrica.agentes_do_municipio(contexto["municipio_id"]))
+    _conferir_usuario(email, permissao)  # levanta com o motivo
+    return None
+
+
+def escopo_painel(painel_sessao: str | None = Cookie(default=None),
+                  authorization: str | None = Header(default=None)) -> Escopo:
+    return _escopo_de(painel_sessao, authorization)
+
+
+def escopo_chat(painel_sessao: str | None = Cookie(default=None),
+                authorization: str | None = Header(default=None)) -> Escopo:
+    return _escopo_de(painel_sessao, authorization, "usar_chat")
+
+
+def no_escopo(agente_id: str | None, escopo: Escopo) -> bool:
+    return escopo is None or (agente_id or "") in escopo
 
 
 # Link da gestão: a Visão geral só de leitura, sem login, para mandar à gestão de CS. Liga com PAINEL_LINK_GESTAO
@@ -447,11 +485,23 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             raise HTTPException(status_code=404, detail=f"Agente desconhecido: {agente_id}. Existem: {', '.join(agentes)}.")
         return agentes[agente_id]
 
-    def _escolhidos(agente_id: str | None, area: str | None) -> list[Agent]:
-        """Os agentes de um filtro do painel: um agente, os de uma área ou, sem filtro, todos."""
+    def _da_sessao_no_escopo(session_id: str, escopo: Escopo):
+        """A conversa, se ela é de um agente que quem chama pode ver; senão 404 (sem dizer que existe)."""
+        if escopo is None:
+            return
+        sessao = _sessao(agente.db, session_id)
+        dono = getattr(sessao, "agent_id", None) or getattr(sessao, "team_id", None)
+        if sessao is None or dono not in escopo:
+            raise HTTPException(status_code=404, detail="Conversa não encontrada.")
+
+    def _escolhidos(agente_id: str | None, area: str | None, escopo: Escopo = None) -> list[Agent]:
+        """Os agentes de um filtro do painel: um agente, os de uma área ou, sem filtro, todos (de quem chama:
+        com escopo, só os da prefeitura dele)."""
         if agente_id:
+            if not no_escopo(agente_id, escopo):
+                raise HTTPException(status_code=404, detail="Agente não encontrado.")
             return [_do_agente(agente_id)]
-        publicados = [um for um in agentes.values() if perfis.publicado(um.id)]
+        publicados = [um for um in agentes.values() if perfis.publicado(um.id) and no_escopo(um.id, escopo)]
         if area:
             return [um for um in publicados if perfis.identidade(um.id)["area"].lower() == area.lower()]
         return publicados
@@ -505,6 +555,8 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             # Cadastro e login com e-mail e senha: precisam da chave (é ela que assina a sessão).
             "aceita_senha": bool(_chave()) and usuarios.disponivel(),
             "google_client_id": _google_client_id() or None,
+            # Token público do Mapbox (pk.): o mapa da cidade carrega no navegador.
+            "mapbox_token": os.getenv("MAPBOX_TOKEN", "").strip() or None,
             # Com o Google ligado, pessoas entram por ele; a chave fica para rotinas (PAINEL_LOGIN_CHAVE=sim reabre).
             "aceita_chave": not google or os.getenv("PAINEL_LOGIN_CHAVE", "").strip().lower() in ("1", "sim", "true"),
             # A prefeitura da pessoa (dono ou membro) e as permissões dela lá (agente/acessos.py).
@@ -651,8 +703,14 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         resposta.delete_cookie(COOKIE_SESSAO, path="/painel", httponly=True, secure=True, samesite="lax")
         return {"ok": True}
 
-    @rotas.get("/config", dependencies=protegido)
-    def config(agente_id: str | None = Query(default=None, max_length=60, alias="agente")) -> dict:
+    @rotas.get("/config")
+    def config(agente_id: str | None = Query(default=None, max_length=60, alias="agente"),
+               escopo: Escopo = Depends(escopo_painel)) -> dict:
+        if escopo is not None and not no_escopo(agente_id, escopo):
+            # Quem é de uma prefeitura não usa o padrão da plataforma: o primeiro agente dela.
+            if not escopo:
+                raise HTTPException(status_code=404, detail="Esta prefeitura ainda não tem agentes.")
+            agente_id = sorted(escopo)[0]
         # Equipe: a configuração do agente padrão dela (boas-vindas, modelo), com o id e o nome da equipe.
         equipe = equipes.EQUIPES.get(agente_id or "")
         um = agentes[equipes.padrao(equipe)] if equipe else _do_agente(agente_id)
@@ -991,18 +1049,19 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
                     saida["confiabilidade_pct"] = round(sum(ultimo) / len(ultimo), 4)
         return saida
 
-    @rotas.get("/indicadores", dependencies=protegido)
+    @rotas.get("/indicadores")
     def indicadores(
         dias: int = Query(default=30, ge=1, le=365),
         agente_id: str | None = Query(default=None, max_length=60, alias="agente"),
         area: str | None = Query(default=None, max_length=80),
+        escopo: Escopo = Depends(escopo_painel),
     ) -> dict:
         """Sem filtro, soma todos os agentes; ?area= só os daquela área; ?agente= só aquele. Junto, os mesmos
         números do período anterior de mesmo tamanho, para a variação."""
         agora = datetime.now(FUSO_BR)
         inicio = (agora - timedelta(days=dias - 1)).replace(hour=0, minute=0, second=0, microsecond=0)
         inicio_anterior = inicio - timedelta(days=dias)
-        escolhidos = _escolhidos(agente_id, area)
+        escolhidos = _escolhidos(agente_id, area, escopo)
         # Só atendimento real: as conversas do Chat de teste do painel (painel-*) ficam de fora, como nas views do
         # banco (eh_teste) e no Supervisor. Senão a Visão geral e as outras contagens não batem.
         sessoes = [s for s in _sessoes_de(escolhidos, int(inicio_anterior.timestamp()), limite=10000)
@@ -1077,11 +1136,12 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             "agora": _agora(escolhidos),
         }
 
-    @rotas.get("/indicadores/por-hora", dependencies=protegido)
+    @rotas.get("/indicadores/por-hora")
     def por_hora(
         horas: int = Query(default=24, ge=1, le=HORAS_MAX_CENTRAL),
         desde: int | None = Query(default=None, ge=0, description="Início do período (epoch, s). Sem ele, as últimas `horas`."),
         ate: int | None = Query(default=None, ge=0, description="Fim do período (epoch, s), com `desde`."),
+        escopo: Escopo = Depends(escopo_painel),
     ) -> dict:
         """Quando os contatos conversam, hora a hora (Brasília), no mesmo período da Central (`horas`, ou
         `desde`/`ate`). Conta contatos de verdade: quem mandou ao menos uma mensagem ao agente no período (pelo
@@ -1089,7 +1149,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         escreveram nela; `total_contatos` é o número de contatos diferentes no período inteiro (não a soma das
         horas, porque o mesmo contato pode escrever em várias). Conversas de teste (painel-*) ficam de fora."""
         inicio, fim = _periodo_central(horas, desde, ate)
-        sessoes = [s for s in _sessoes_de(_escolhidos(None, None), inicio, LIMITE_CENTRAL * 4, fim, por_atividade=True)
+        sessoes = [s for s in _sessoes_de(_escolhidos(None, None, escopo), inicio, LIMITE_CENTRAL * 4, fim, por_atividade=True)
                    if not s.session_id.startswith("painel-")]
         por_hora_contatos: dict[int, set] = {h: set() for h in range(24)}
         mensagens: Counter = Counter()
@@ -1218,7 +1278,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             raise HTTPException(status_code=404, detail="Conversa não encontrada.")
         return achadas[0]
 
-    @rotas.get("/conversas", dependencies=protegido)
+    @rotas.get("/conversas")
     def conversas(
         status: str | None = Query(default=None),
         busca: str | None = Query(default=None, max_length=120),
@@ -1226,9 +1286,10 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         agente_id: str | None = Query(default=None, max_length=60, alias="agente"),
         area: str | None = Query(default=None, max_length=80),
         limite: int = Query(default=200, ge=1, le=1000),
+        escopo: Escopo = Depends(escopo_painel),
     ) -> dict:
         # Sem filtro, as conversas de todos os agentes; ?area= ou ?agente= filtram no servidor (antes do limite).
-        escolhidos = _escolhidos(agente_id, area)
+        escolhidos = _escolhidos(agente_id, area, escopo)
         resumos = [_resumo(s) for s in _sessoes_de(escolhidos, limite=limite)]
         # E as só de boas-vindas (o contato ainda não respondeu) dos últimos dias, sem o contato e o telefone.
         # E quem entrou com o agente na Unnichat e o aviso não chegou ao servidor (agente/conferencia.py).
@@ -1250,8 +1311,9 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             ]
         return {"conversas": resumos, "total": len(resumos)}
 
-    @rotas.get("/conversas/{session_id}", dependencies=protegido)
-    def conversa(session_id: str) -> dict:
+    @rotas.get("/conversas/{session_id}")
+    def conversa(session_id: str, escopo: Escopo = Depends(escopo_painel)) -> dict:
+        _da_sessao_no_escopo(session_id, escopo)
         sessao = _sessao(agente.db, session_id)
         if sessao is None:
             # Só as boas-vindas, ou o aviso de entrada nem chegou: o que houve está na conversa do WhatsApp
@@ -1281,12 +1343,13 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         return {**_resumo(sessao), "itens": itens, "acoes": estado.get("acoes") or [],
                 "telefone": estado.get("telefone") or "", "equipe": getattr(sessao, "team_id", None)}
 
-    @rotas.get("/conversas/{session_id}/rastreamento", dependencies=protegido)
-    def rastreamento_da_conversa(session_id: str) -> dict:
+    @rotas.get("/conversas/{session_id}/rastreamento")
+    def rastreamento_da_conversa(session_id: str, escopo: Escopo = Depends(escopo_painel)) -> dict:
         """Por que o agente respondeu o que respondeu: raciocínio, ferramentas, contexto e Learning (agente/rastreamento.py)."""
         from agente import rastreamento
         from agente.agente import schema_banco
 
+        _da_sessao_no_escopo(session_id, escopo)
         sessao = _sessao(agente.db, session_id)
         if sessao is None:
             raise HTTPException(status_code=404, detail="Conversa não encontrada.")
@@ -1305,7 +1368,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
 
     async def _pedido_chat(
         mensagem: str, session_id: str | None, nome_contato: str, telefone: str, arquivos: list[UploadFile],
-        agente_id: str = "",
+        agente_id: str = "", escopo: Escopo = None, painel_sessao: str | None = None,
     ) -> tuple:
         """Valida a mensagem do chat de teste e devolve os argumentos de `responder`. `agente_id`: com quem
         conversar, um agente ou uma equipe (vazio = o padrão); a conversa segue com quem a começou, mesmo
@@ -1317,6 +1380,8 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         if not agente_id and session_id:
             # Conversa em andamento: segue com quem a começou.
             escolhido = _da_sessao(session_id)
+        if not no_escopo(escolhido.id, escopo):
+            raise HTTPException(status_code=403, detail="Escolha um dos agentes da sua prefeitura.")
         anexos = []
         if len(arquivos) > MAX_ANEXOS:
             raise HTTPException(status_code=422, detail=f"Envie no máximo {MAX_ANEXOS} arquivos por mensagem.")
@@ -1334,6 +1399,12 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         # Só arquivo, como acontece no WhatsApp: o agente recebe uma frase neutra junto.
         texto = texto or "(o contato enviou o anexo sem texto)"
 
+        if escopo is not None:
+            # Servidor de uma prefeitura: conversa de verdade (conta nos números), com o e-mail e o nome dele.
+            sessao_login = _ler_sessao(painel_sessao) or {}
+            session_id = session_id or f"servidor-{uuid.uuid4().hex[:12]}"
+            nome = (sessao_login.get("nome") or "").split(" ")[0]
+            return escolhido, session_id, texto, nome, sessao_login.get("email") or session_id, "", anexos
         session_id = session_id or f"painel-{uuid.uuid4().hex[:12]}"
         nome = nome_contato.strip()
         # Cada contato simulado tem a própria memória: o mesmo nome em conversas diferentes = o mesmo
@@ -1341,7 +1412,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         user_id = f"painel:{nome.lower()}" if nome else session_id
         return escolhido, session_id, texto, nome, user_id, telefone.strip(), anexos
 
-    @rotas.post("/chat", dependencies=[*protegido, Depends(exigir("usar_chat"))])
+    @rotas.post("/chat")
     async def chat(
         mensagem: str = Form(default="", max_length=2000),
         session_id: str | None = Form(default=None, max_length=120),
@@ -1349,12 +1420,14 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         telefone: str = Form(default="", max_length=30),
         arquivos: list[UploadFile] = File(default=[]),
         agente_id: str = Form(default="", max_length=60, alias="agente"),
+        escopo: Escopo = Depends(escopo_chat),
+        painel_sessao: str | None = Cookie(default=None),
     ) -> dict:
-        argumentos = await _pedido_chat(mensagem, session_id, nome_contato, telefone, arquivos, agente_id)
+        argumentos = await _pedido_chat(mensagem, session_id, nome_contato, telefone, arquivos, agente_id, escopo, painel_sessao)
         resultado = await run_in_threadpool(responder, *argumentos)
         return {"session_id": argumentos[1], **resultado}
 
-    @rotas.post("/chat/etapas", dependencies=[*protegido, Depends(exigir("usar_chat"))])
+    @rotas.post("/chat/etapas")
     async def chat_etapas(
         mensagem: str = Form(default="", max_length=2000),
         session_id: str | None = Form(default=None, max_length=120),
@@ -1362,10 +1435,12 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         telefone: str = Form(default="", max_length=30),
         arquivos: list[UploadFile] = File(default=[]),
         agente_id: str = Form(default="", max_length=60, alias="agente"),
+        escopo: Escopo = Depends(escopo_chat),
+        painel_sessao: str | None = Cookie(default=None),
     ) -> StreamingResponse:
         """O mesmo que /chat, transmitido em linhas JSON enquanto o agente trabalha: cada etapa
         (contexto, modelo, ferramentas, memória), o texto à medida que é escrito e o resultado final."""
-        argumentos = await _pedido_chat(mensagem, session_id, nome_contato, telefone, arquivos, agente_id)
+        argumentos = await _pedido_chat(mensagem, session_id, nome_contato, telefone, arquivos, agente_id, escopo, painel_sessao)
 
         fila: queue.Queue = queue.Queue()
 
@@ -1396,12 +1471,23 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
-    @rotas.get("/central", dependencies=protegido)
+    @rotas.get("/agentes")
+    def agentes_visiveis(escopo: Escopo = Depends(escopo_painel)) -> dict:
+        """Os agentes publicados que quem chama pode ver (e as equipes, só para a plataforma)."""
+        lista = [{"id": a.id, **perfis.identidade(a.id)} for a in agentes.values()
+                 if perfis.publicado(a.id) and no_escopo(a.id, escopo)]
+        lista_equipes = ([] if escopo is not None else
+                         [{"id": e["id"], "nome": e["nome"], "membros": e["membros"], "padrao": e["padrao"]}
+                          for e in equipes.listar() if e["publicada"]])
+        return {"agentes": lista, "equipes": lista_equipes}
+
+    @rotas.get("/central")
     def central(
         horas: int = Query(default=24, ge=1, le=HORAS_MAX_CENTRAL),
         desde: int | None = Query(default=None, ge=0, description="Início do período (epoch, s). Sem ele, as últimas `horas`."),
         ate: int | None = Query(default=None, ge=0, description="Fim do período (epoch, s). Sem ele, até agora."),
         incluir_testes: bool = Query(default=False),
+        escopo: Escopo = Depends(escopo_painel),
     ) -> dict:
         """A central de atendimento em 3D: cada agente com as conversas que tiveram atividade no período
         (quem está em atendimento ocupa uma mesa; as transferidas vão para a equipe humana). transferida_em e
@@ -1413,7 +1499,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
                   "categoria_rotulo", "motivo", "duracao_media_s", "transferida_em", "encerrada_em")
         calibracao = datasets.resumo_por_agente(agente.db.db_engine, getattr(agente.db, "db_schema", None))
         saida = []
-        publicados = [a for a in agentes.values() if perfis.publicado(a.id)]
+        publicados = [a for a in agentes.values() if perfis.publicado(a.id) and no_escopo(a.id, escopo)]
         # As boas-vindas que ainda aguardam o contato contam como em atendimento, como em Conversas: as duas
         # telas mostram o mesmo número. As que passaram do prazo sem resposta já terminaram e não ocupam a mesa.
         # Só até agora: um período que já terminou não tem quem esteja aguardando. Uma busca para todos os
@@ -1482,13 +1568,14 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             "calibracao_aprovacao": calibracao.get("aprovacao"),
         }
 
-    @rotas.get("/central/acontecimentos", dependencies=protegido)
+    @rotas.get("/central/acontecimentos")
     def acontecimentos(
         horas: int = Query(default=24, ge=1, le=HORAS_MAX_CENTRAL),
         desde: int | None = Query(default=None, ge=0, description="Início do período (epoch, s). Sem ele, as últimas `horas`."),
         ate: int | None = Query(default=None, ge=0, description="Fim do período (epoch, s). Sem ele, até agora."),
         incluir_testes: bool = Query(default=False),
         limite: int = Query(default=5000, ge=1, le=20000),
+        escopo: Escopo = Depends(escopo_painel),
     ) -> dict:
         """O que os agentes fizeram no período, montado do que fica gravado (sobrevive a reinícios, ao
         contrário do feed): cada resposta, as ferramentas usadas, bloqueio do guardrail e falha, as
@@ -1504,7 +1591,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         def no_periodo(momento: float | None) -> bool:
             return _no_periodo(momento, inicio, fim)
 
-        for um in [a for a in agentes.values() if perfis.publicado(a.id)]:
+        for um in [a for a in agentes.values() if perfis.publicado(a.id) and no_escopo(a.id, escopo)]:
             for sessao in _sessoes(um, inicio, LIMITE_CENTRAL, fim, por_atividade=True):
                 if sessao.session_id in vistas or (sessao.session_id.startswith("painel-") and not incluir_testes):
                     continue
@@ -1573,18 +1660,19 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             evento["quando"] = datetime.fromtimestamp(evento["quando"], tz=timezone.utc).isoformat(timespec="seconds")
         return {"horas": horas, "desde": inicio, "ate": fim, "eventos": lista, "total": total}
 
-    @rotas.get("/central/feed", dependencies=protegido)
+    @rotas.get("/central/feed")
     def feed(
         limite: int = Query(default=50, ge=1, le=300),
         depois_de: int = Query(default=0, ge=0),
         agente_id: str | None = Query(default=None, max_length=60, alias="agente"),
+        escopo: Escopo = Depends(escopo_painel),
     ) -> dict:
         """Os últimos acontecimentos (o mais novo por último), para o feed abrir preenchido. Ficam na
         memória do servidor: um reinício começa vazio."""
-        return {"eventos": ao_vivo.recentes(limite, depois_de, agente_id)}
+        return {"eventos": [e for e in ao_vivo.recentes(limite, depois_de, agente_id) if no_escopo(e.get("agente"), escopo)]}
 
-    @rotas.get("/central/eventos", dependencies=protegido)
-    async def eventos_ao_vivo() -> StreamingResponse:
+    @rotas.get("/central/eventos")
+    async def eventos_ao_vivo(escopo: Escopo = Depends(escopo_painel)) -> StreamingResponse:
         """Os acontecimentos dos atendimentos em tempo real, uma linha JSON por evento (o mesmo formato
         do /chat/etapas). Tipos: mensagem, pensando, ferramenta, respondeu, transferiu, encerrou,
         guardrail, erro; a cada 15 s sem nada, {"tipo": "ping"} mantém a conexão."""
@@ -1598,7 +1686,8 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
                     except TimeoutError:
                         yield json.dumps({"tipo": "ping"}) + "\n"
                         continue
-                    yield json.dumps(evento, ensure_ascii=False) + "\n"
+                    if no_escopo(evento.get("agente"), escopo):
+                        yield json.dumps(evento, ensure_ascii=False) + "\n"
             finally:
                 ao_vivo.cancelar(chave)
 
@@ -1608,20 +1697,21 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
     MINUTOS_TRANSFERIDA = int(os.getenv("ALERTA_TRANSFERIDA_MIN", "15"))
     HORAS_ROTINA_ALERTAS = 48  # a rotina de baixa automática olha as conversas destas últimas horas
 
-    @rotas.get("/central/alertas", dependencies=protegido)
+    @rotas.get("/central/alertas")
     def alertas(
         minutos_transferida: int = Query(default=MINUTOS_TRANSFERIDA, ge=1, le=1440),
         incluir_testes: bool = Query(default=False),
         horas: int = Query(default=24, ge=1, le=HORAS_MAX_CENTRAL),
         desde: int | None = Query(default=None, ge=0, description="Início do período (epoch, s). Sem ele, as últimas `horas`."),
         ate: int | None = Query(default=None, ge=0, description="Fim do período (epoch, s). Sem ele, até agora."),
+        escopo: Escopo = Depends(escopo_painel),
     ) -> dict:
         """O que pede atenção agora, nas conversas com atividade no período (o mesmo da Central): resposta que
         falhou, conversa transferida há tempo sem sabermos se a equipe assumiu e bloqueios do guardrail
         esperando curadoria (estes, de qualquer data). Sem incluir_testes, as conversas do chat de teste do
         painel ficam de fora. `alertas` são os abertos; `baixados`, os que já tiveram baixa (agente/alertas.py)."""
         inicio, fim = _periodo_central(horas, desde, ate)
-        abertos, baixados = alertas_mod.separar(_calcular_alertas(inicio, fim, minutos_transferida, incluir_testes))
+        abertos, baixados = alertas_mod.separar(_calcular_alertas(inicio, fim, minutos_transferida, incluir_testes, escopo))
         return {"desde": inicio, "ate": fim, "alertas": abertos, "total": len(abertos), "baixados": baixados,
                 "baixa_disponivel": alertas_mod.disponivel()}
 
@@ -1656,13 +1746,14 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         abertos, _ = alertas_mod.separar(_calcular_alertas(inicio, None, MINUTOS_TRANSFERIDA, False))
         return alertas_mod.baixa_automatica(abertos)
 
-    def _calcular_alertas(inicio: int, fim: int | None, minutos_transferida: int, incluir_testes: bool) -> list[dict]:
+    def _calcular_alertas(inicio: int, fim: int | None, minutos_transferida: int, incluir_testes: bool,
+                          escopo: Escopo = None) -> list[dict]:
         """Os alertas das conversas com atividade no período. `referencia`: o momento do acontecimento (a
         transferência ou a resposta que falhou), que identifica o alerta na baixa."""
         agora = time.time()
         lista = []
         vistas: set[str] = set()
-        for um in agentes.values():
+        for um in [a for a in agentes.values() if no_escopo(a.id, escopo)]:
             for sessao in _sessoes(um, inicio, LIMITE_CENTRAL, fim, por_atividade=True):
                 if sessao.session_id in vistas:
                     continue
@@ -1700,7 +1791,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         lista.sort(key=lambda a: (ordem[a["nivel"]], -(a.get("parada_min") or 0)))
         return lista
 
-    @rotas.get("/central/setores", dependencies=protegido)
+    @rotas.get("/central/setores")
     def setores(
         horas: int = Query(default=24, ge=1, le=HORAS_MAX_CENTRAL),
         desde: int | None = Query(default=None, ge=0, description="Início do período (epoch, s). Sem ele, as últimas `horas`."),
@@ -1708,13 +1799,14 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         agente_id: str | None = Query(default=None, max_length=60, alias="agente"),
         minutos_transferida: int = Query(default=int(os.getenv("ALERTA_TRANSFERIDA_MIN", "15")), ge=1, le=1440),
         incluir_testes: bool = Query(default=False),
+        escopo: Escopo = Depends(escopo_painel),
     ) -> dict:
         """Os números de cada setor do escritório da Central, no período: ferramentas usadas, mensagens,
         transferências e base de conhecimento. Com ?agente=, só os dele; sem, a soma de todos.
         "aguardando" segue a regra do alerta transferida_aguardando. Sem incluir_testes, sem o chat de teste."""
         agora = time.time()
         inicio, fim = _periodo_central(horas, desde, ate)
-        escolhidos = _escolhidos(agente_id, None)
+        escolhidos = _escolhidos(agente_id, None, escopo)
         ids = {um.id for um in escolhidos}
 
         ferramentas: dict[str, dict] = {}

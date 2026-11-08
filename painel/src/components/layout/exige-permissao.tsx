@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Lock } from "lucide-react";
-import type { Permissao } from "@/lib/api";
-import { usePode } from "@/hooks/use-permissoes";
+import type { Permissao, PermissaoPrefeitura } from "@/lib/api";
+import { usePode, usePodeNaPrefeitura } from "@/hooks/use-permissoes";
 import { EmptyState } from "@/components/widgets/widgets";
 
 const NOME: Record<Permissao, string> = {
@@ -20,9 +20,19 @@ const NOME: Record<Permissao, string> = {
 };
 
 /** A tela inteira só para quem tem a permissão; para os outros, o aviso (quem entra pelo endereço direto). */
-export function ExigePermissao({ permissao, children }: { permissao: Permissao; children: ReactNode }) {
+export function ExigePermissao({
+  permissao,
+  ouNaPrefeitura,
+  children,
+}: {
+  permissao: Permissao;
+  /** Também libera quem tem esta permissão na prefeitura dele (a tela mostra só os dados da prefeitura). */
+  ouNaPrefeitura?: PermissaoPrefeitura;
+  children: ReactNode;
+}) {
   const pode = usePode();
-  if (pode(permissao)) return <>{children}</>;
+  const podeNaPrefeitura = usePodeNaPrefeitura();
+  if (pode(permissao) || (!!ouNaPrefeitura && podeNaPrefeitura(ouNaPrefeitura))) return <>{children}</>;
   return (
     <div className="px-4 py-16 sm:px-8">
       <div className="surface-card mx-auto max-w-md">
