@@ -9,6 +9,8 @@ from collections.abc import Callable
 from agno.utils.log import log_warning
 
 montador: Callable[[str], None] | None = None
+# Os agentes no ar (id → Agent), mantidos pelo app.py: o CompanyOS procura aqui o executor de cada tarefa.
+agentes: dict = {}
 
 
 def ativar(agente_id: str) -> None:

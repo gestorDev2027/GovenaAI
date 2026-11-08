@@ -17,7 +17,7 @@ from agno.utils.log import log_warning
 from dotenv import load_dotenv
 
 from agente import (ao_vivo, aprendizado, base, conhecimento, equipes, fabrica, fabrica_recursos, gestao,
-                    guardrails, perfis, segundo_plano, usuarios)
+                    guardrails, perfis, segundo_plano, trabalho, usuarios)
 from agente.ferramentas import STATUS_EM_ATENDIMENTO
 from agente.listas import PostgresDbAgente
 from agente.perfil import Perfil
@@ -180,6 +180,7 @@ def criar_agentes(arquivo_banco: str | None = None) -> dict[str, Agent]:
     usuarios.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # quem pode o quê no painel
     gestao.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # o cadastro da prefeitura
     segundo_plano.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # tarefas demoradas
+    trabalho.iniciar(banco)  # o CompanyOS: áreas, atividades, processos e tarefas dos agentes
     _indexar_roteiros(em_segundo_plano=True)  # o servidor sobe sem esperar os embeddings
     agentes = {perfil_id: montar_agente(perfil, banco) for perfil_id, perfil in perfis.PERFIS.items()}
     equipes.montar_todas(banco)  # em equipes.EQUIPES (Team do Agno, com Agents próprios)

@@ -99,6 +99,7 @@ def _montar_agora(agente_id: str) -> None:
 
 
 registro.montador = _montar_agora
+registro.agentes = agentes  # o mesmo dicionário: o agente criado agora também vira executor no CompanyOS
 
 # Cache do painel. O build pode gravar os arquivos com data de 1980; sem Cache-Control, o
 # navegador calcula a validade pela idade do arquivo (anos) e continua mostrando um painel antigo

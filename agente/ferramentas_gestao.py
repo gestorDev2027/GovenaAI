@@ -641,7 +641,20 @@ def montar_agentes(run_context: RunContext) -> str:
     from agente import agentes_organizacao
 
     resultado = agentes_organizacao.criar_agentes_das_areas(oid, _quem(run_context))
+    _sincronizar_trabalho(oid, _quem(run_context))
     return _feito(oid, {**resultado, "orientacao": "Conte quantos agentes sentaram nas salas."})
+
+
+def _sincronizar_trabalho(oid: str, quem: str) -> None:
+    """Cada área vira um Product no CompanyOS, cada atividade um Project com o processo padrão (agente/trabalho.py)."""
+    from agente import trabalho
+
+    try:
+        trabalho.sincronizar(oid, quem)
+    except Exception as erro:  # o cadastro já está gravado; o CompanyOS é montado de novo na conclusão
+        from agno.utils.log import log_warning
+
+        log_warning(f"CompanyOS: não deu para montar a organização {oid}: {type(erro).__name__}: {erro}")
 
 
 def _agente_das_unidades(run_context: RunContext, oid: str) -> str | None:
@@ -816,6 +829,7 @@ def concluir_implantacao(run_context: RunContext) -> str:
     if erro := _bloqueada(run_context, oid, "revisao"):
         return erro
     gestao.concluir_onboarding(oid, quem=_quem(run_context), session_id=_sessao(run_context))
+    _sincronizar_trabalho(oid, _quem(run_context))
     return "Implantação concluída. A organização está ativa; os agentes começam as rotinas no próximo horário."
 
 

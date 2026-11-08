@@ -136,7 +136,13 @@ def _tabelas(schema: str | None) -> dict[str, Table]:
         Column("modelo_id", String(60)), Column("nome", Text, nullable=False), Column("descricao", Text, nullable=False),
         Column("tipo", Text, nullable=False), Column("frequencia", Text, default="sob_demanda"), Column("cron", Text),
         Column("entregavel", Text), Column("agente_id", Text), uid("aprovador_id"), uid("cargo_id"), Column("rotina_id", Text),
-        Column("ativa", Boolean, default=True), criado(), atualizado())
+        Column("ativa", Boolean, default=True), criado(), atualizado(),
+        # Migration 20261112_gestorgov_processos.sql: o Project da atividade no CompanyOS (agente/trabalho.py).
+        Column("projeto_id", Text))
+    t["processos"] = Table("processos", m,
+        uid("id", primary_key=True, default=_id), uid("organizacao_id", nullable=False), uid("atividade_id", nullable=False),
+        Column("passos", JSON, default=list), Column("versao", Integer, default=1), Column("atualizado_por", Text),
+        Column("atualizado_em", DateTime(timezone=True), default=_agora))
 
     # ── Organograma ──
     t["cargos"] = Table("cargos", m,
