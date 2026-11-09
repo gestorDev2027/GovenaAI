@@ -1,7 +1,7 @@
-"""Os segmentos que o GestorGov atende: Saúde pública e Empresa.
+"""Os segmentos que o GestorGov atende. Nesta versão, só a Saúde pública (setor público).
 
 O motor é o mesmo (organização → áreas → atividades → agentes → pessoa que aprova); o que muda por segmento:
-- os nomes de tela (setor ou departamento, servidor ou funcionário, Secretaria virtual ou Escritório virtual);
+- os nomes de tela (setor, servidor, Secretaria virtual);
 - os campos do cadastro da organização (os obrigatórios para a fase 1 da implantação);
 - os modelos (tipos de área, de unidade, atividades, cargos e indicadores), que ficam nas migrations com o
   segmento_id (tabela `segmentos`);
@@ -92,45 +92,10 @@ SAUDE = Segmento(
     ),
 )
 
-EMPRESA = Segmento(
-    id="empresa",
-    nome="Empresa",
-    exemplos_unidade="matriz, filial, loja, depósito, fábrica",
-    rotulos={
-        "organizacao": "Empresa",
-        "organizacao_curta": "empresa",
-        "area": "departamento", "areas": "departamentos", "Area": "Departamento", "Areas": "Departamentos",
-        "unidade": "unidade", "unidades": "unidades", "Unidade": "Unidade", "Unidades": "Unidades",
-        "pessoa": "funcionário", "pessoas": "funcionários", "Pessoas": "Funcionários",
-        "responsavel": "diretor(a)",
-        "predio": "Escritório virtual",
-        "mapa": "Mapa",
-        "centro": "Sala de comando",
-    },
-    campos=(
-        Campo("nome", "Razão social", grupo="Empresa"),
-        Campo("sigla", "Nome fantasia", obrigatorio=False, grupo="Empresa"),
-        Campo("cnpj", "CNPJ", "cnpj", grupo="Empresa"),
-        Campo("dados.ramo", "Ramo de atividade", grupo="Empresa"),
-        Campo("dados.funcionarios", "Número de funcionários", "inteiro", obrigatorio=False, grupo="Empresa"),
-        Campo("cep", "CEP da sede", "cep", grupo="Sede"),
-        Campo("logradouro", "Rua da sede", grupo="Sede"),
-        Campo("numero", "Número da sede", grupo="Sede"),
-        Campo("complemento", "Complemento", obrigatorio=False, grupo="Sede"),
-        Campo("bairro", "Bairro da sede", grupo="Sede"),
-        Campo("cidade", "Cidade da sede", grupo="Sede"),
-        Campo("uf", "UF da sede", "uf", grupo="Sede"),
-        Campo("telefone", "Telefone da empresa", "telefone", grupo="Empresa"),
-        Campo("email", "E-mail da empresa", "email", grupo="Empresa"),
-        Campo("site", "Site da empresa", "site", obrigatorio=False, grupo="Empresa"),
-        Campo("responsavel_nome", "Nome do(a) diretor(a) responsável", grupo="Diretor(a)"),
-        Campo("responsavel_cargo", "Cargo do(a) responsável", obrigatorio=False, grupo="Diretor(a)"),
-        Campo("responsavel_email", "E-mail do(a) responsável", "email", grupo="Diretor(a)"),
-        Campo("responsavel_telefone", "Telefone do(a) responsável", "telefone", grupo="Diretor(a)"),
-    ),
-)
+# Segmentos novos entram aqui (um Segmento com os nomes de tela e os campos) e em SEGMENTOS, com o catálogo
+# dele numa migration (segmento_id). O segmento Empresa saiu em 13/11/2026: o foco é o setor público.
 
-SEGMENTOS: dict[str, Segmento] = {s.id: s for s in (SAUDE, EMPRESA)}
+SEGMENTOS: dict[str, Segmento] = {s.id: s for s in (SAUDE,)}
 PADRAO = SAUDE.id
 
 

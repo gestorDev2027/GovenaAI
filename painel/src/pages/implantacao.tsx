@@ -20,9 +20,9 @@ import { useCentralAoVivo } from "@/hooks/use-central-ao-vivo";
 import { PageLoader } from "@/components/widgets/widgets";
 
 /*
- * Implantação da organização (uma Secretaria de Saúde ou uma empresa): a primeira tela de quem se cadastra. Chat com
+ * Implantação da Secretaria Municipal de Saúde: a primeira tela de quem se cadastra. Chat com
  * o Assistente de Implantação à esquerda e, à direita, o quadro que se monta a cada resposta, a partir do panorama que
- * a rota devolve. A ordem: o segmento e o cadastro da organização, as áreas (setores ou departamentos; cada uma vira
+ * a rota devolve. A ordem: o cadastro da prefeitura e da secretaria, os setores (cada um vira
  * uma sala do prédio), atividades, cargos, responsáveis, agentes (os robôs sentam nas salas), quem tem acesso e, por
  * último, as unidades no mapa, cada uma com o seu prédio e o agente. Embaixo, as mesmas informações em lista (o 3D
  * nunca é obrigatório). Os nomes de tela vêm do segmento (segmento.rotulos) e os campos do cadastro, de
@@ -163,18 +163,12 @@ export function PaginaImplantacao() {
   const aprovado = acesso.data?.usuario?.situacao === "ativo";
   const conta = dados.data?.conta;
   const ultima = mensagens.at(-1);
-  // Respostas rápidas quando o assistente termina numa pergunta (como os cartões do Replit). Só na abertura, antes da
-  // primeira resposta da pessoa, elas dizem o segmento (Secretaria de Saúde ou empresa); depois que o segmento foi
-  // respondido e enquanto a organização não está registrada, o assistente pede dados (cidade, CEP): sem botões.
-  const jaRespondeu = mensagens.some((m) => m.papel !== "agente");
+  // Respostas rápidas quando o assistente termina numa pergunta (como os cartões do Replit). Enquanto a organização
+  // não está registrada, o assistente pede dados (o CEP ou a cidade da prefeitura): sem botões.
   const rapidas =
-    enviando || ultima?.papel !== "agente"
-      ? []
-      : !jaRespondeu
-        ? RESPOSTAS_INICIAIS
-        : panorama?.organizacao && ultima.texto.trim().endsWith("?")
-          ? RESPOSTAS_RAPIDAS
-          : [];
+    !enviando && ultima?.papel === "agente" && panorama?.organizacao && ultima.texto.trim().endsWith("?")
+      ? RESPOSTAS_RAPIDAS
+      : [];
   const org = panorama?.organizacao;
   const local = org ? [org.cidade, org.uf].filter(Boolean).join("-") : "";
 
@@ -288,7 +282,6 @@ export function PaginaImplantacao() {
 }
 
 const RESPOSTAS_RAPIDAS = ["Sim, pode seguir", "Quero ajustar antes"];
-const RESPOSTAS_INICIAIS = ["É uma Secretaria de Saúde", "É uma empresa"];
 
 function RespostaDoAssistente({ m }: { m: Mensagem }) {
   return (
@@ -386,25 +379,11 @@ function Canvas({ panorama, tipos, token }: { panorama: Panorama | null; tipos: 
           <div className="grid h-full place-items-center p-8">
             <div className="max-w-md space-y-4 text-center">
               <Building2 className="mx-auto size-8 text-primary-text" />
-              <p className="text-base font-semibold">A sua organização aparece aqui</p>
+              <p className="text-base font-semibold">A sua Secretaria de Saúde aparece aqui</p>
               <p className="text-sm text-muted-foreground">
-                Primeiro, diga ao assistente o que você vai implantar. Depois vêm o cadastro, as áreas (o prédio vai subindo aqui), os agentes e, por último,
-                as unidades no mapa.
+                Primeiro, diga ao assistente o CEP ou a cidade da prefeitura. Depois vêm o cadastro, os setores (a Secretaria virtual vai subindo aqui),
+                os agentes e, por último, as unidades de saúde no mapa, com o CNES.
               </p>
-              <div className="grid gap-2 text-left sm:grid-cols-2">
-                <div className="rounded-xl border border-border bg-background p-3">
-                  <p className="flex items-center gap-2 text-sm font-semibold">
-                    <Landmark className="size-4 text-primary-text" /> Secretaria de Saúde
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">Setores, servidores e as unidades de saúde do município (UBS, UPA, CAPS...), com o CNES.</p>
-                </div>
-                <div className="rounded-xl border border-border bg-background p-3">
-                  <p className="flex items-center gap-2 text-sm font-semibold">
-                    <Building2 className="size-4 text-primary-text" /> Empresa
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">Departamentos, funcionários e as unidades da empresa (matriz, filiais, lojas, depósitos).</p>
-                </div>
-              </div>
             </div>
           </div>
         ) : aba === "resumo" ? (
@@ -440,7 +419,7 @@ function Resumo({ panorama, tipos, rotulos: r, etapas }: { panorama: Panorama; t
   const [conferindo, setConferindo] = useState(false);
   const org = panorama.organizacao;
   const aConferir = panorama.unidades.filter((u) => !u.confirmada).length;
-  // Os campos do cadastro, agrupados (Prefeitura, Secretaria, Secretário(a)... ou Empresa, Sede, Diretor(a)).
+  // Os campos do cadastro, agrupados (Prefeitura, Secretaria, Secretário(a)).
   const grupos = useMemo(() => {
     const mapa = new Map<string, CampoSegmento[]>();
     for (const c of panorama.segmento.campos) mapa.set(c.grupo || r.organizacao, [...(mapa.get(c.grupo || r.organizacao) ?? []), c]);

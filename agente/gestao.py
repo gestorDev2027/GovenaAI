@@ -1,5 +1,5 @@
-"""O cadastro de cada organização no GestorGov (uma Secretaria de Saúde, uma empresa...): a organização, as áreas
-(setores, departamentos), as unidades, as pessoas, as atividades, o organograma (cargos, indicadores, medições,
+"""O cadastro de cada organização no GestorGov (uma Secretaria Municipal de Saúde): a organização, as áreas
+(setores), as unidades, as pessoas, as atividades, o organograma (cargos, indicadores, medições,
 status e alertas; as tarefas e entregas ficam no CompanyOS, agente/trabalho.py), os membros e a auditoria. O que muda por segmento está em agente/segmentos.py.
 
 As tabelas são criadas pelas migrations em supabase/gestorgov/ (não pelo servidor): aqui elas são só
@@ -677,7 +677,7 @@ def registrar_organizacao(*, segmento_id: str, nome: str, quem: str, codigo_ibge
                           longitude: float | None = None, responsavel_nome: str = "", responsavel_email: str = "",
                           session_id: str | None = None) -> dict:
     """Cria (ou atualiza) a organização e abre a implantação. Saúde pública: uma Secretaria de Saúde por município
-    (pelo código IBGE). Empresa: uma por CNPJ, quando ele vem."""
+    (pelo código IBGE). Segmento sem município único: uma por CNPJ, quando ele vem."""
     seg = segmentos.segmento(segmento_id)
     to, tb = _t("organizacoes"), _t("onboardings")
     codigo_ibge = re.sub(r"\D", "", codigo_ibge or "")[:7] or None

@@ -52,7 +52,7 @@ FERRAMENTAS = {
     "consultar_organizacao": ("Consultar a organização",
                               "As áreas, os responsáveis (quem aprova) e as atividades de cada área da organização."),
     "listar_unidades": ("Listar as unidades",
-                        "As unidades da organização (na saúde: UBS, UPA, CAPS...; numa empresa: filiais, lojas...), com endereço."),
+                        "As unidades da organização (UBS, UPA, CAPS...), com endereço."),
     "processos": ("Desenho dos processos",
                   "Cria atividades e grava os processos dos agentes. Só para o Assistente de Processos."),
     "implantacao": ("Implantação da organização",
@@ -549,9 +549,6 @@ TERMOS_DO_SEGMENTO = {
     "saude_publica": {"@@TIPO_AREA@@": "setor", "@@PESSOAS@@": "servidores", "@@LINGUAGEM@@": "de administração pública",
                       "@@DADOS_SENSIVEIS@@": "dados pessoais de pacientes (nome completo, CPF, Cartão SUS)",
                       "@@ORGANIZACAO@@": "Secretaria Municipal de Saúde"},
-    "empresa": {"@@TIPO_AREA@@": "departamento", "@@PESSOAS@@": "funcionários", "@@LINGUAGEM@@": "de empresa",
-                "@@DADOS_SENSIVEIS@@": "dados pessoais de clientes ou de funcionários (CPF, documentos)",
-                "@@ORGANIZACAO@@": "empresa"},
 }
 TERMOS_PADRAO = {"@@TIPO_AREA@@": "área", "@@PESSOAS@@": "pessoas", "@@LINGUAGEM@@": "profissional",
                  "@@DADOS_SENSIVEIS@@": "dados pessoais sensíveis (CPF, documentos, dados de saúde)",
@@ -572,7 +569,7 @@ def instrucoes_iniciais(config: dict, segmento_id: str | None = None, organizaca
 
 def criar(agente_id: str, dados: dict, autor: str, segmento_id: str | None = None, organizacao: str = "") -> Perfil:
     """Um agente novo, em rascunho (não publicado), com instruções e base de modelo. `segmento_id` e `organizacao`
-    põem nas instruções os nomes do segmento (setor ou departamento, servidores ou funcionários)."""
+    põem nas instruções os nomes do segmento (setor, servidores)."""
     agente_id = (agente_id or "").strip()
     if not ID_VALIDO.match(agente_id):
         raise ErroFabrica(422, "O identificador tem de 3 a 30 caracteres: letras minúsculas, números e hífen.")

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils";
 import { FichaUnidade, type UnidadeSaude } from "@/components/unidades/ficha-unidade";
 
 /*
- * As unidades da organização, no painel (unidades de saúde na saúde; matriz, filiais, lojas na empresa): a lista
+ * As unidades da organização, no painel (as unidades de saúde): a lista
  * (sem mapa: o mapa é a aba Cidade/Mapa, /comando), com a ficha de cada uma num painel lateral (conferência, fotos,
  * agente da unidade), os números da implantação e as áreas.
  */
@@ -81,8 +81,8 @@ export function Cidade() {
         <div className="surface-card has-waves">
           <EmptyState icon={<Landmark className="size-5" />} title="Nenhuma organização implantada">
             <p>
-              A implantação é uma conversa com o Assistente de Implantação: ele pergunta se é uma Secretaria de Saúde ou uma empresa, pede os
-              dados do cadastro, monta as áreas, as atividades, os responsáveis e os agentes e, por último, traz as unidades.
+              A implantação é uma conversa com o Assistente de Implantação: ele pergunta a cidade, pede os
+              dados do cadastro, monta os setores, as atividades, os responsáveis e os agentes e, por último, traz as unidades.
             </p>
             <Link
               to="/implantacao"
