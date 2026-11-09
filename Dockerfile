@@ -20,4 +20,6 @@ RUN pip install -r requirements.txt
 COPY . .
 COPY --from=painel /painel/dist ./painel/dist
 # O Render define PORT; localmente, 8080.
-CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8080}"]
+# servidor.py abre a porta na hora e carrega o app.py em segundo plano (o plano Free do Render desiste de
+# esperar um servidor que leva minutos para abrir a porta). GET /saude diz se está carregando, pronto ou com erro.
+CMD ["sh", "-c", "uvicorn servidor:app --host 0.0.0.0 --port ${PORT:-8080}"]
