@@ -34,8 +34,8 @@ import { cn } from "@/lib/utils";
 import { api, sair, type Acesso, type Config, type Permissao, type PermissaoOrganizacao, type Rotulos } from "@/lib/api";
 import { useDaPlataforma, usePode, usePodeNaOrganizacao, useRotulos } from "@/hooks/use-permissoes";
 import { ROTULOS_SAUDE } from "@/lib/rotulos";
-import { useUsuarios } from "@/pages/usuarios";
-import { useContagemAprovacoes } from "@/pages/aprovacoes";
+import { useUsuarios } from "@/hooks/use-usuarios";
+import { useContagemAprovacoes } from "@/hooks/use-tarefas";
 import { useTheme } from "@/hooks/use-theme";
 import { Logo, LogoIcone } from "./logo";
 

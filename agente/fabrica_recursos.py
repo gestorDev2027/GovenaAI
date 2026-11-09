@@ -43,6 +43,8 @@ from agno.utils.log import log_warning
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, MetaData, String, Table, Text, delete, insert, select, text, update
 from sqlalchemy.engine import Engine
 
+from agente import tabelas as _tabelas_banco
+
 ID_VALIDO = re.compile(r"^[a-z0-9-]{3,40}$")
 HOST_VALIDO = re.compile(r"^(?=.{4,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$")
 PARAMETRO_VALIDO = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]{0,40}$")
@@ -144,7 +146,7 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         # criptografia. Só para teste local.
         tabelas["cofre_local"] = Table("fabrica_cofre_local", metadados, Column("nome", String(40), primary_key=True),
                                        Column("valor", Text, nullable=False))
-    metadados.create_all(engine, tables=list(tabelas.values()))
+    _tabelas_banco.criar(engine, list(tabelas.values()))
     _estado.update(engine=engine, tabelas=tabelas, schema=schema)
 
 
