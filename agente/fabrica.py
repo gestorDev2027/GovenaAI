@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from agno.utils.log import log_warning
 from sqlalchemy import (JSON, Boolean, Column, DateTime, Integer, MetaData, String, Table, Text, UniqueConstraint, insert, inspect,
                         select, text, update)
 from sqlalchemy.engine import Engine
@@ -189,6 +190,11 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
     for linha in linhas:
         if linha["origem"] == "painel":
             _ligar_base(linha["id"])
+            if not linha.get("excluido_em"):
+                try:  # os criados antes de a base nascer preenchida (boas-vindas com "[nome do agente]")
+                    _preencher_base(linha["id"], dict(linha["config"] or {}), "Boas-vindas preenchidas com o nome e a área")
+                except Exception as erro:
+                    log_warning(f"Base do agente {linha['id']}: {type(erro).__name__}: {erro}")
         perfis.PERFIS[linha["id"]] = _compor(linha["id"], dict(linha))
     # Agente do código com instruções salvas no painel e nenhum outro campo alterado.
     salvos = {linha["id"] for linha in linhas}
@@ -215,6 +221,61 @@ def _ligar_base(agente_id: str) -> None:
     nova = base.registrar(agente_id, ARQUIVO_BASE_MODELO)
     nova.iniciar(_estado["engine"], _estado["schema"])
     nova.garantir_secoes(base.SECOES_DE_MENSAGEM)
+
+
+# As marcas da base modelo que o agente novo recebe preenchidas (as de agora e as do modelo antigo). [NOME DO
+# CONTATO] e [NOME DO ATENDENTE] ficam: são trocados a cada conversa.
+MARCAS_DA_BASE = ("[nome do agente]", "[área]", "[o que o agente faz]", "[setor]", "[assuntos do agente]")
+O_QUE_FAZ = "cuido das rotinas, preparo os documentos e aviso o que precisa de atenção"
+
+
+def _modelo_preenchido(config: dict) -> str:
+    nome = (config.get("nome") or "").strip()
+    area = (config.get("area") or "").strip() or nome
+    artigo = "o " if nome.lower().startswith("agente") else ""
+    return (ARQUIVO_BASE_MODELO.read_text(encoding="utf-8").replace("[nome do agente]", artigo + nome)
+            .replace("[área]", area).replace("[o que o agente faz]", O_QUE_FAZ))
+
+
+def _secoes(texto: str) -> tuple[str, list[tuple[str, str]]]:
+    """A introdução e as seções "## " (título, conteúdo) de uma base."""
+    partes = re.split(r"^## ", texto, flags=re.MULTILINE)
+    return partes[0], [(p.split("\n", 1) + [""])[:2] for p in partes[1:]]
+
+
+def base_com_marcas(texto: str) -> bool:
+    return any(m in texto for m in MARCAS_DA_BASE) or bool(re.search(r"^## \[", texto, re.MULTILINE))
+
+
+def base_preenchida(texto: str, config: dict) -> str:
+    """A base com as marcas do modelo trocadas pelo nome e pela área do agente: a seção que ainda tem marca volta à
+    do modelo preenchida, a de exemplo ("## [Primeiro assunto]") sai e o que a pessoa escreveu fica como está."""
+    intro_modelo, secoes_modelo = _secoes(_modelo_preenchido(config))
+    do_modelo = {titulo.strip().lower(): corpo for titulo, corpo in secoes_modelo}
+    intro, secoes = _secoes(texto)
+    partes = [(intro_modelo if "Troque os textos entre colchetes" in intro else intro).rstrip()]
+    for titulo, corpo in secoes:
+        titulo = titulo.strip()
+        if titulo.startswith("["):
+            continue
+        if any(m in corpo for m in MARCAS_DA_BASE):
+            corpo = do_modelo.get(titulo.lower(), corpo)
+        partes.append(f"## {titulo}\n{corpo.strip()}")
+    area = (config.get("area") or config.get("nome") or "").strip()
+    resultado = "\n\n".join(p for p in partes if p) + "\n"
+    for marca, valor in (("[setor]", area), ("[área]", area), ("[nome do agente]", config.get("nome") or ""),
+                         ("[assuntos do agente]", "as rotinas e os documentos"), ("[o que o agente faz]", O_QUE_FAZ)):
+        resultado = resultado.replace(marca, valor)
+    return resultado
+
+
+def _preencher_base(agente_id: str, config: dict, observacao: str) -> bool:
+    """Grava a base do agente com as marcas preenchidas, se ainda tiver alguma (nova versão; o histórico fica)."""
+    atual = base.obter(agente_id)
+    if not base_com_marcas(atual.texto()):
+        return False
+    atual.salvar(base_preenchida(atual.texto(), config), observacao)
+    return True
 
 
 def _linha(agente_id: str) -> dict | None:
@@ -578,7 +639,9 @@ def criar(agente_id: str, dados: dict, autor: str, segmento_id: str | None = Non
         raise ErroFabrica(422, "O identificador tem de 3 a 30 caracteres: letras minúsculas, números e hífen.")
     config = _validar(dados)
     texto = instrucoes_iniciais(config, segmento_id, organizacao)
-    return _inserir(agente_id, config, texto, "Criado na fábrica (modelo inicial)", autor)
+    _inserir(agente_id, config, texto, "Criado na fábrica (modelo inicial)", autor)
+    _preencher_base(agente_id, config, "Modelo inicial com o nome e a área do agente")
+    return _recompor(agente_id)
 
 
 def _inserir(agente_id: str, config: dict, texto: str, observacao: str, autor: str) -> Perfil:
