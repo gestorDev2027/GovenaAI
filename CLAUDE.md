@@ -237,12 +237,15 @@ gestao_api.py                 /painel/api/gestao/* (panorama, organizações, ca
 painel_api.py                 painel: acesso, login, implantação, chat, conversas, base, limpeza
 fabrica_api.py                Fábrica de agentes e equipes (skills, ferramentas HTTP, chaves, casos de teste)
 organizacao_api.py            a organização de quem está logado: unidades, fotos, agentes (ficha), cargos, equipe e convites
+integracoes_api.py            Central de integrações: cadastro, teste, ferramentas, pedidos de aprovação e auditoria
 conhecimento_api.py           documentos vetorizados
 banco_api.py                  Observabilidade (leitura do banco)
 agente/segmentos.py           os segmentos: nomes de tela, campos do cadastro, CNES, um por município
 agente/gestao.py              cadastro da organização (tabelas, leitura, gravação, fases) + ViaCEP/IBGE/OSM/CNES
 agente/agentes_organizacao.py os agentes de cada organização (um por área e o das unidades)
 agente/dados_agente.py        a ficha de cada agente e o que ele lê dos dados
+agente/integracoes.py         Central de integrações: integrações, cofre (Vault), execução, limite, aprovação, auditoria, Mem0
+agente/toolbox.py             o processo do MCP Toolbox (configuração a partir do banco, segredos só no ambiente)
 agente/ferramentas_gestao.py  ferramentas dos agentes (implantação e consulta)
 agente/companyos.py           áreas → Products; atividades de rotina → Routines
 agente/segundo_plano.py       tarefas demoradas: dispara (thread ou Render Workflows) e guarda o andamento
@@ -261,7 +264,8 @@ painel/src/                   frontend
   buckets `agentes` e `organizacoes`, Vault, todas as tabelas, RLS), `..._2_saude.sql` (catálogo da saúde: 16 setores,
   14 tipos de unidade com os códigos do CNES, atividades, 38 cargos e 125 indicadores do documento da Secretaria de
   Saúde Virtual), `..._3_empresa.sql` (catálogo da empresa) e `20261112_gestorgov_processos.sql` (os processos das
-  atividades e o vínculo com o CompanyOS; tira as tabelas `entregas` e `pendencias`). Elas substituíram as de 06 a 10/11/2026, que nunca
+  atividades e o vínculo com o CompanyOS; tira as tabelas `entregas` e `pendencias`) e `20261113_gestorgov_integracoes.sql`
+  (a Central de integrações e as funções `integracao_*` do Vault). Elas substituíram as de 06 a 10/11/2026, que nunca
   rodaram em produção. No SQLite local, os catálogos são carregados das migrations a cada início.
 - Tabelas do cadastro: `segmentos`, `tipos_area`, `tipos_unidade`, `modelos_atividade`, `modelos_cargo`,
   `modelos_indicador`, `organizacoes`, `pessoas`, `areas`, `unidades`, `unidade_fotos`, `agentes_area`,
@@ -324,19 +328,42 @@ ferramenta opcional liberada pela ficha do agente, para o que o nativo não cobr
 organização). Separação obrigatória por organização em toda busca; `enable_delete_all_memories=False` sempre.
 
 **Central de integrações = MCP Toolbox for Databases** (pedido de 11/11/2026: o Toolbox não é só para o nosso banco
-nem para a memória; é o centro de integrações externas do sistema). O Toolbox serve ferramentas de muitas fontes:
-o nosso banco, bancos de outros sistemas (Postgres, MySQL, SQL Server, BigQuery...) e APIs REST (fonte `http`, com
-cabeçalhos e chaves). Cada fonte é cadastrada na Central; as ferramentas são agrupadas em toolsets; cada agente
-recebe só os toolsets da ficha dele (`agno.tools.mcp_toolbox.MCPToolbox`, `bound_params` com o `organizacao_id`
-para separar as organizações). Servidores MCP externos (`agno.tools.mcp`) e webhooks de entrada (Edge Functions)
-também entram pela Central. O Mem0 (memória) fica fora do Toolbox. Credenciais no Vault do Supabase: no banco, só a referência; o servidor monta a configuração do Toolbox lendo o
-Vault, e o valor nunca chega ao modelo. Por prefeitura e por agente (cada agente usa só as integrações da ficha dele), com hosts
-liberados, limite de chamadas, teste de conexão e cada chamada na auditoria. O `.env` do Render fica só com o mínimo
-para subir (banco, Supabase, Gemini). Extensões do Supabase previstas: Vault, pgvector, pg_net, pg_cron, Wrappers,
-pgmq; e Realtime para o painel ao vivo.
+nem para a memória; é o centro de integrações externas do sistema). Construída (migration `20261113_gestorgov_integracoes.sql`,
+`agente/integracoes.py`, `agente/toolbox.py`, `integracoes_api.py`, tela `/painel/integracoes`):
+
+- **Tipos:** `postgres`, `mysql` (bancos de outros sistemas, pelo Toolbox), `http` (APIs REST: pelo Toolbox ou, sem ele,
+  direto no servidor com as mesmas travas), `mcp` (servidores MCP externos, JSON-RPC por HTTP chamado no servidor) e
+  `memoria` (Mem0). `nosso_banco` é uma fonte `postgres` no banco do GestorGov: só leitura, cada consulta filtra a
+  organização com `$1`, que o servidor preenche; só a equipe da plataforma cadastra.
+- **Tabelas:** `integracoes` (por organização; hosts liberados, `segredo_ref` = só o nome no Vault, limite por minuto),
+  `integracao_ferramentas` (a SQL ou o caminho HTTP, os parâmetros, `altera_dados`) e `integracao_chamadas` (auditoria:
+  quem, agente, quando, situação, duração; **sem argumentos nem resposta**).
+- **Segredos:** funções `gestorgov.integracao_salvar_segredo`/`_ler_`/`_apagar_` (prefixo `integracao:`). O painel só
+  envia; nunca volta. O servidor monta o `tools.yaml` do Toolbox com `${GG_SEGREDO_<id>}` e põe o valor, lido do Vault
+  na hora, só no ambiente do processo (que não recebe as variáveis do servidor). No SQLite local, tabela sem criptografia.
+- **O agente:** recebe só as ferramentas das integrações da ficha (`fichas_agente.integracoes`) e da organização dele
+  (`fabrica._ferramentas` → `integracoes.ferramentas_do_agente`). Não usamos o `MCPToolbox` do Agno: os agentes rodam
+  com `agent.run` síncrono e ele é assíncrono, e o `load_toolset(bound_params=...)` dele devolve a função MCP crua (o
+  valor preso não é aplicado na execução). O adaptador próprio chama `POST /api/tool/<nome>/invoke` do Toolbox (com
+  `--enable-api`), confere limite, aprovação e argumentos e injeta o `organizacao_id` no servidor. Mudou a ficha ou uma
+  integração: os agentes afetados são remontados na hora (`registro.ativar`) e o Toolbox reinicia.
+- **Nada muda sem uma pessoa:** ferramenta que altera dados (marcada, ou SQL que grava, ou PUT/PATCH/DELETE) não roda na
+  hora: vira um pedido em `integracao_chamadas` (`aguardando_aprovacao`, argumentos com CPF e cartão mascarados) que quem
+  tem "aprovar entregas" aprova em Integrações; aprovado, roda e os argumentos são apagados. Não usamos o
+  `requires_confirmation` do Agno porque o chat e as rotinas não tratam execução pausada (a conversa ficaria sem resposta).
+- **Travas:** host liberado e nunca rede interna (conferido a cada chamada), limite por minuto, resposta cortada e
+  mascarada, permissão de cargo `gerenciar_integracoes` (o dono e a direção) e auditoria do cadastro em `auditoria`.
+- **Toolbox:** `GESTORGOV_TOOLBOX=sim` (desligado por padrão; a Central funciona sem ele). Binário v1.15.0 no Dockerfile
+  (`/usr/local/bin/toolbox`, ~290 MB; `--build-arg COM_TOOLBOX=nao` tira). Local: `GESTORGOV_TOOLBOX_BIN`. Toolsets
+  `org_<id>` e `int_<id>`.
+- **Memória (Mem0):** integração `memoria`, liberada pela ficha. `Mem0Tools` com `user_id` preso (`org-<id>` ou
+  `area-<id>`), vetores no pgvector (`mem0_memorias` no schema), Gemini, telemetria desligada, recusa se `MEM0_API_KEY`
+  existir, `enable_delete_all_memories=False`. O `mem0ai` é opcional (não está no requirements); sem ele, a memória fica
+  indisponível. Webhooks de entrada (Edge Functions) ainda não.
+- Teste local: `.venv\Scripts\python -m testes.integracoes_local` (com `GESTORGOV_TOOLBOX_BIN`, também o Toolbox real).
 
 **Ordem de construção:** 0) generalização em organizações e segmentos (feito em 11/11/2026); 1) o CompanyOS com os
-processos, as aprovações e o Assistente de Processos (feito em 11/11/2026); 2) Central de integrações com o Toolbox e o Vault; 3) rotinas
+processos, as aprovações e o Assistente de Processos (feito em 11/11/2026); 2) Central de integrações com o Toolbox e o Vault (feita: falta rodar o Toolbox real no Render e o Mem0 com o mem0ai instalado); 3) rotinas
 como workflows, com a fila de aprovação por setor; 4) o Mem0 como ferramenta a mais (a memória nativa do Agno já funciona); 5) o criador de agente na implantação.
 
 ## 6. Identidade visual
@@ -379,7 +406,7 @@ Dois níveis, separados:
   (`membros.papel = 'dono'`), entra sem aprovação da plataforma e pode tudo nela. Ele monta o organograma
   (cargos do catálogo ou criados à mão), define as **permissões de cada cargo** (`cargos.permissoes`: ver o painel,
   aprovar e devolver entregas, gerenciar os fluxos dos agentes, criar agentes, definir metas, registrar dados,
-  gerenciar cargos, gerenciar a equipe, ver a auditoria) e convida a equipe por link (`convites`, 7 dias, a pessoa
+  gerenciar cargos, gerenciar a equipe, gerenciar as integrações, ver a auditoria) e convida a equipe por link (`convites`, 7 dias, a pessoa
   cria a senha). O membro pode o que o cargo dele pode; o dono não pode ser bloqueado; ninguém altera o próprio acesso.
 - Toda rota da organização usa a organização de quem está logado: nunca um id vindo da tela.
 - Separação por agente: cada agente da Fábrica guarda o município dono (`fabrica_agentes.municipio_id`); quem é de

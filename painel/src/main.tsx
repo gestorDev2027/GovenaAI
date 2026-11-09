@@ -29,6 +29,7 @@ import { Equipe } from "@/pages/equipe";
 import { AgentesDaOrganizacao } from "@/pages/agentes";
 import { Aprovacoes } from "@/pages/aprovacoes";
 import { Processos } from "@/pages/processos";
+import { Integracoes } from "@/pages/integracoes";
 import { AceitarConvite } from "@/pages/convite";
 import { ColaborarNaImplantacao } from "@/pages/colaborar";
 import { CentralDeComando } from "@/pages/comando";
@@ -80,6 +81,7 @@ const rotas = [
   createRoute({ getParentRoute: () => painel, path: "/agentes", component: AgentesDaOrganizacao }),
   createRoute({ getParentRoute: () => painel, path: "/aprovacoes", component: Aprovacoes }),
   createRoute({ getParentRoute: () => painel, path: "/processos", component: Processos }),
+  createRoute({ getParentRoute: () => painel, path: "/integracoes", component: Integracoes }),
   createRoute({
     getParentRoute: () => painel,
     path: "/chat",

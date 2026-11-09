@@ -37,6 +37,7 @@ from banco_api import criar_rotas_banco
 from conhecimento_api import criar_rotas_conhecimento
 from fabrica_api import criar_rotas_fabrica
 from gestao_api import criar_rotas_gestao
+from integracoes_api import criar_rotas_integracoes
 from organizacao_api import criar_rotas_organizacao
 from painel_api import criar_rotas
 
@@ -66,6 +67,7 @@ base_app = FastAPI(
 base_app.include_router(criar_rotas(agente, agentes))
 base_app.include_router(criar_rotas_gestao())
 base_app.include_router(criar_rotas_organizacao())
+base_app.include_router(criar_rotas_integracoes())  # Central de integrações
 base_app.include_router(criar_rotas_conhecimento(agentes))
 base_app.include_router(criar_rotas_banco(agentes))
 

@@ -239,9 +239,9 @@ def _versao_vigente(agente_id: str) -> dict | None:
 
 # ───────── Perfil ─────────
 
-def _ferramentas(ids: list[str], categorias: dict[str, str], quando: str) -> Callable[[], list]:
-    """As ferramentas marcadas no painel: as do catálogo (cadastro da organização) e as ferramentas HTTP criadas
-    no painel."""
+def _ferramentas(ids: list[str], categorias: dict[str, str], quando: str, agente_id: str | None = None) -> Callable[[], list]:
+    """As ferramentas marcadas no painel: as do catálogo (cadastro da organização), as ferramentas HTTP criadas
+    no painel e as das integrações liberadas na ficha do agente (Central de integrações, agente/integracoes.py)."""
     transferir = criar_transferir(categorias, quando, "Motivo: " + ", ".join(categorias) + ".")
 
     def montar() -> list:
@@ -261,6 +261,15 @@ def _ferramentas(ids: list[str], categorias: dict[str, str], quando: str) -> Cal
         else:
             # Os dados da organização, sempre: a ficha do agente diz o que ele lê (agente/dados_agente.py).
             lista.extend(ferramentas_gestao.FERRAMENTAS_DADOS)
+            if agente_id:
+                try:  # só as integrações da ficha; uma integração com problema nunca derruba o agente
+                    from agente import integracoes
+
+                    lista.extend(integracoes.ferramentas_do_agente(agente_id))
+                except Exception as erro:
+                    from agno.utils.log import log_warning
+
+                    log_warning(f"Integrações fora do agente {agente_id}: {type(erro).__name__}: {erro}")
         lista.append(transferir)
         if "encerrar_atendimento" in ids:
             lista.append(encerrar_atendimento)
@@ -299,7 +308,7 @@ def _compor(agente_id: str, linha: dict | None) -> Perfil:
         quando_transferir=c["quando_transferir"],
         memoria_instrucoes=c["memoria"],
         minutos_inatividade=c["minutos_inatividade"],
-        ferramentas=_ferramentas(c["ferramentas"], c["categorias"], c["quando_transferir"]),
+        ferramentas=_ferramentas(c["ferramentas"], c["categorias"], c["quando_transferir"], agente_id),
         modelo_instrucoes=texto,
         publicado=bool(linha["publicado"]),
         excluido=bool(linha.get("excluido_em")),
