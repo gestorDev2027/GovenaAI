@@ -454,8 +454,9 @@ cd painel; npm run build               # confere os tipos (tsc) e gera o painel
 
 ### Git
 
-- Commits direto na `main` (desde 08/11/2026: só o dono e o Claude trabalham no projeto; sem branch nem PR). O Render
-  publica a cada push na `main`: push só com confirmação.
+- Toda mudança vai num **branch com PR para a `main`** (desde 12/11/2026); o dono revisa e faz o merge no GitHub. Não
+  commitar direto na `main`. O Render publica a cada mudança na `main`, ou seja, no merge do PR. Com mais de uma sessão
+  trabalhando, sincronize o branch com a `main` antes de abrir o PR.
 - Mensagens de commit em português, no imperativo e curtas ("Onboarding: tela com mapa e chat").
 - Nunca commitar `.env`, `dados/`, `node_modules/`, `painel/dist/`, `Claude outputs/`, `*.zip` (estão no
   `.gitignore`).
