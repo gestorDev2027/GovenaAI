@@ -316,10 +316,12 @@ tela, prévia ao lado; depois editável no painel por quem tem "criar agentes"):
 - dados: o que ele enxerga do cadastro (por tipo de dado; `agente/dados_agente.py`);
 - integrações externas liberadas para ele (da Central de integrações).
 
-**Memória: Mem0 auto-hospedado** (`mem0ai` 2.2.1, `Memory.from_config`; o `Mem0Tools` do Agno aceita `config`):
-vetores no pgvector do nosso Supabase em São Paulo (`DATABASE_URL`), modelo e embeddings no Gemini. Nada na nuvem do
-Mem0. Separação obrigatória por prefeitura (filtro por município em toda busca); nunca guarda dado de paciente;
-`enable_delete_all_memories=False` sempre.
+**Memória: a nativa do Agno é a base; o Mem0 é uma ferramenta a mais** (decidido em 12/11/2026). Cada agente já usa
+o `MemoryManager` do Agno (`agente/agente.py`: `update_memory_on_run`, `add_memories_to_context`), com as instruções
+de memória do perfil (nunca dado de paciente ou de cliente). O Mem0 auto-hospedado (`mem0ai`, `Mem0Tools(config=...)`,
+vetores no pgvector do nosso Supabase, modelo e embeddings no Gemini, nada na nuvem do Mem0) entra depois, como
+ferramenta opcional liberada pela ficha do agente, para o que o nativo não cobre (memória compartilhada da área ou da
+organização). Separação obrigatória por organização em toda busca; `enable_delete_all_memories=False` sempre.
 
 **Central de integrações = MCP Toolbox for Databases** (pedido de 11/11/2026: o Toolbox não é só para o nosso banco
 nem para a memória; é o centro de integrações externas do sistema). O Toolbox serve ferramentas de muitas fontes:
@@ -335,7 +337,7 @@ pgmq; e Realtime para o painel ao vivo.
 
 **Ordem de construção:** 0) generalização em organizações e segmentos (feito em 11/11/2026); 1) o CompanyOS com os
 processos, as aprovações e o Assistente de Processos (feito em 11/11/2026); 2) Central de integrações com o Toolbox e o Vault; 3) rotinas
-como workflows, com a fila de aprovação por setor; 4) memória com o Mem0; 5) o criador de agente na implantação.
+como workflows, com a fila de aprovação por setor; 4) o Mem0 como ferramenta a mais (a memória nativa do Agno já funciona); 5) o criador de agente na implantação.
 
 ## 6. Identidade visual
 
