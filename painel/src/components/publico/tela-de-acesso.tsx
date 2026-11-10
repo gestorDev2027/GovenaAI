@@ -41,7 +41,7 @@ function PainelDaMarca() {
       <div className="relative flex h-full flex-col justify-between p-12">
         <div className="space-y-3">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide">
-            <span className="size-1.5 rounded-full bg-[#F4B800]" /> Secretarias de Saúde e empresas
+            <span className="size-1.5 rounded-full bg-[#F4B800]" /> Secretarias Municipais de Saúde
           </span>
           <p className="max-w-md text-3xl leading-tight font-bold">Agentes de IA que trabalham com a sua equipe. <span className="text-[#52A2FF]">Você aprova.</span></p>
         </div>

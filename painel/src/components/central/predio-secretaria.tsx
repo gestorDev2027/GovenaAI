@@ -11,9 +11,9 @@ import { SelosAtencao, type AtencaoPorArea } from "./atencao";
 import { ControleCamera, PisoClicavel, Projetor, useEscuro, type Alvo, type ApiCamera, type Retangulo, type Rotulo } from "./escritorio";
 
 /*
- * O prédio (da organização ou de uma unidade, pages/unidade.tsx) pelo cadastro: cada ÁREA (setor na saúde,
- * departamento na empresa) é uma sala de vidro, com o agente da área sentado na mesa dele, a placa com o nome e o
- * responsável. No centro, o CCO (ou a sala de comando, na empresa), de onde a organização acompanha tudo. As salas
+ * O prédio (da organização ou de uma unidade, pages/unidade.tsx) pelo cadastro: cada ÁREA (setor da secretaria)
+ * é uma sala de vidro, com o agente da área sentado na mesa dele, a placa com o nome e o
+ * responsável. No centro, o CCO, de onde a organização acompanha tudo. As salas
  * nascem na implantação: área nova, sala nova; agente ligado à área, robô na mesa. Quando um agente trabalha (ao
  * vivo), o rosto dele muda (pensando, feliz, alerta). Com `atencao`, a placa mostra o que espera a área (para aceitar,
  * em revisão, em execução) e, com tarefa em execução, o agente fica trabalhando na mesa.

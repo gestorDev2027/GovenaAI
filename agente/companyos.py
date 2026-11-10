@@ -33,9 +33,7 @@ def _slug(texto: str) -> str:
 
 def _instrucoes(atividade: dict, area: dict, org: dict) -> str:
     r = segmentos.de(org).rotulos
-    sensiveis = ("Nunca use nome, CPF ou Cartão SUS de pacientes: só números agregados e códigos."
-                 if segmentos.de(org).id == "saude_publica" else
-                 "Nunca exponha dados pessoais de clientes ou de funcionários: só números agregados e códigos.")
+    sensiveis = "Nunca use nome, CPF ou Cartão SUS de pacientes: só números agregados e códigos."
     return f"""Rotina "{atividade['nome']}" do {r['area']} de {area['nome']} ({org['nome']}).
 
 O que fazer: {atividade['descricao']}

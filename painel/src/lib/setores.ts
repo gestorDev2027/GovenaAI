@@ -35,7 +35,6 @@ const DA_IMPLANTACAO = new Set([
   "registrar_organizacao",
   "salvar_dados_prefeitura",
   "salvar_dados_secretaria",
-  "salvar_dados_empresa",
   "cadastrar_unidade",
   "salvar_areas",
   "montar_cargos",

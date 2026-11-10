@@ -7,8 +7,8 @@ Dois grupos:
 - consulta (agentes das áreas): o que a organização tem, quem aprova e o que cada área faz.
 
 A organização da conversa fica em session_state["organizacao_id"]. Sem ela, vale o padrão do servidor
-(GESTORGOV_ORGANIZACAO ou a única organização cadastrada). Os nomes de tela de cada segmento (setor ou
-departamento, secretário ou diretor) estão em agente/segmentos.py.
+(GESTORGOV_ORGANIZACAO ou a única organização cadastrada). Os nomes de tela de cada segmento (setor,
+servidor, secretário) estão em agente/segmentos.py.
 """
 
 import json
@@ -59,8 +59,8 @@ def _sem_banco() -> str | None:
 
 
 def _sem_organizacao() -> str:
-    return ("Nenhuma organização nesta conversa. Pergunte primeiro o segmento (Secretaria de Saúde ou empresa) e use "
-            "registrar_organizacao.")
+    return ("Nenhuma organização nesta conversa. Pergunte primeiro o CEP ou a cidade da prefeitura (buscar_municipio) "
+            "e use registrar_organizacao.")
 
 
 # Conversas dos casos de teste da Fábrica (agente/fabrica_recursos.py): as ferramentas que gravam não gravam.
@@ -119,7 +119,7 @@ def buscar_municipio(cep: str = "", nome: str = "", uf: str = "") -> str:
     coordenadas para centralizar o mapa. Use antes de registrar_organizacao e confirme com quem conversa.
 
     Args:
-        cep: CEP de qualquer endereço da cidade (ex.: o da prefeitura ou da sede da empresa).
+        cep: CEP de qualquer endereço da cidade (ex.: o da prefeitura ou o da secretaria).
         nome: nome do município, se não houver CEP.
         uf: sigla do estado (ex.: SP), junto com o nome.
     """
@@ -137,23 +137,21 @@ def buscar_municipio(cep: str = "", nome: str = "", uf: str = "") -> str:
     return _json(achado)
 
 
-def registrar_organizacao(run_context: RunContext, segmento: str, nome: str = "", codigo_ibge: str = "",
-                          cidade: str = "", uf: str = "", cep: str = "", cnpj: str = "",
+def registrar_organizacao(run_context: RunContext, segmento: str = segmentos.PADRAO, nome: str = "",
+                          codigo_ibge: str = "", cidade: str = "", uf: str = "", cep: str = "", cnpj: str = "",
                           latitude: float | None = None, longitude: float | None = None) -> str:
-    """Registra a organização e abre a implantação. É o primeiro passo, depois de saber o segmento e confirmar a
-    cidade (buscar_municipio).
-    - saude_publica: a Secretaria Municipal de Saúde de uma cidade (codigo_ibge, cidade, uf e as coordenadas vêm
-      de buscar_municipio; o nome padrão é "Secretaria Municipal de Saúde de <cidade>").
-    - empresa: a empresa (nome = razão social; o CEP da sede traz a cidade; o CNPJ, se ele já disser).
+    """Registra a Secretaria Municipal de Saúde e abre a implantação. É o primeiro passo, depois de confirmar a
+    cidade (buscar_municipio): codigo_ibge, cidade, uf e as coordenadas vêm de buscar_municipio; o nome padrão é
+    "Secretaria Municipal de Saúde de <cidade>".
 
     Args:
-        segmento: saude_publica ou empresa.
-        nome: nome oficial (na empresa, a razão social; na saúde, pode ficar vazio).
+        segmento: saude_publica (o único segmento desta versão; pode ficar de fora).
+        nome: nome oficial da secretaria (pode ficar vazio).
         codigo_ibge: código IBGE de 7 dígitos do município (de buscar_municipio).
         cidade: nome do município.
         uf: sigla do estado.
-        cep: CEP da sede (na empresa, o jeito preferido de achar a cidade).
-        cnpj: CNPJ da empresa, se informado.
+        cep: CEP de um endereço da cidade, se não houver o código IBGE.
+        cnpj: CNPJ da secretaria, se informado.
         latitude: latitude do centro da cidade (de buscar_municipio).
         longitude: longitude do centro da cidade (de buscar_municipio).
     """
@@ -175,8 +173,6 @@ def registrar_organizacao(run_context: RunContext, segmento: str, nome: str = ""
         codigo_ibge, cidade, uf = codigo_ibge or achado.get("codigo_ibge") or "", cidade or achado.get("municipio") or "", uf or achado.get("uf") or ""
     if seg.um_por_municipio and (not (codigo_ibge or "").isdigit() or len(codigo_ibge) != 7):
         return "O código IBGE precisa ter 7 dígitos. Use o que veio de buscar_municipio."
-    if not seg.um_por_municipio and not (nome or "").strip():
-        return "Falta o nome da empresa (a razão social)."
     if latitude is None and cidade:
         coordenadas = gestao.geocodificar(f"{cidade}, {uf}, Brasil")
         if coordenadas:
@@ -290,51 +286,6 @@ def salvar_dados_secretaria(run_context: RunContext, nome: str = "", cnpj_fundo:
         **_ponto_da_sede(oid, rua, numero, bairro, cep)})
 
 
-def salvar_dados_empresa(run_context: RunContext, razao_social: str = "", nome_fantasia: str = "", cnpj: str = "",
-                         ramo: str = "", funcionarios: str = "", cep: str = "", rua: str = "", numero: str = "",
-                         complemento: str = "", bairro: str = "", cidade: str = "", uf: str = "", telefone: str = "",
-                         email: str = "", site: str = "", responsavel_nome: str = "", responsavel_cargo: str = "",
-                         responsavel_email: str = "", responsavel_telefone: str = "") -> str:
-    """(Empresa) Grava os dados da EMPRESA que foram confirmados (só os que vierem preenchidos). Obrigatórios: razão
-    social, CNPJ, ramo de atividade, endereço da sede (CEP, rua, número, bairro, cidade, UF), telefone, e-mail e o(a)
-    diretor(a) responsável (nome, e-mail e telefone). O endereço vira o ponto do prédio.
-
-    Args:
-        razao_social: razão social.
-        nome_fantasia: nome fantasia (opcional).
-        cnpj: CNPJ da empresa.
-        ramo: ramo de atividade (ex.: distribuição de alimentos).
-        funcionarios: número de funcionários (opcional).
-        cep: CEP da sede.
-        rua: logradouro da sede.
-        numero: número da sede.
-        complemento: complemento (opcional).
-        bairro: bairro da sede.
-        cidade: cidade da sede.
-        uf: UF da sede.
-        telefone: telefone com DDD.
-        email: e-mail da empresa.
-        site: site da empresa (opcional).
-        responsavel_nome: nome do(a) diretor(a) responsável.
-        responsavel_cargo: cargo do(a) responsável (opcional).
-        responsavel_email: e-mail do(a) responsável.
-        responsavel_telefone: telefone do(a) responsável, com DDD.
-    """
-    if erro := _sem_banco() or _simulado(run_context):
-        return erro
-    oid = _organizacao(run_context)
-    if not oid:
-        return _sem_organizacao()
-    if erro := _segmento_errado(oid, "empresa"):
-        return erro
-    return _salvar(run_context, oid, {
-        "nome": razao_social, "sigla": nome_fantasia, "cnpj": cnpj, "ramo": ramo, "funcionarios": funcionarios,
-        "cep": cep, "logradouro": rua, "numero": numero, "complemento": complemento, "bairro": bairro, "cidade": cidade,
-        "uf": uf, "telefone": telefone, "email": email, "site": site, "responsavel_nome": responsavel_nome,
-        "responsavel_cargo": responsavel_cargo, "responsavel_email": responsavel_email,
-        "responsavel_telefone": responsavel_telefone, **_ponto_da_sede(oid, rua, numero, bairro, cep)})
-
-
 def buscar_endereco(texto: str) -> str:
     """Procura um endereço na base de endereços (Mapbox e, com um CEP de 8 dígitos, o ViaCEP): devolve rua, número,
     bairro, CEP e o ponto no mapa. Use para completar e conferir o endereço da sede ou de uma unidade. Mostre o que
@@ -364,8 +315,8 @@ def pesquisar_na_web(pergunta: str) -> str:
 
 
 def listar_tipos_area(run_context: RunContext) -> str:
-    """As áreas que uma organização do segmento costuma ter (na saúde, os setores da secretaria; numa empresa, os
-    departamentos), com as sugeridas (padrao=true). Use para propor a estrutura."""
+    """Os setores que uma Secretaria de Saúde costuma ter, com os sugeridos (padrao=true). Use para propor a
+    estrutura."""
     if erro := _sem_banco():
         return erro
     oid = _organizacao(run_context)
@@ -376,10 +327,10 @@ def listar_tipos_area(run_context: RunContext) -> str:
 
 
 def salvar_areas(run_context: RunContext, tipos: list[str], outras: list[str] | None = None) -> str:
-    """Cria as áreas (setores, departamentos) que foram confirmadas. Cada uma vira uma sala do prédio.
+    """Cria os setores que foram confirmados. Cada um vira uma sala do prédio.
 
     Args:
-        tipos: ids de listar_tipos_area (ex.: ["compras", "atencao_primaria"] ou ["emp_financeiro", "emp_comercial"]).
+        tipos: ids de listar_tipos_area (ex.: ["compras", "atencao_primaria"]).
         outras: nomes de áreas que não estão na lista (ex.: ["Núcleo de Educação Permanente"]).
     """
     if erro := _sem_banco():
@@ -411,7 +362,7 @@ def sugerir_atividades(run_context: RunContext, area: str) -> str:
     tirar ou acrescentar.
 
     Args:
-        area: id do tipo de área (ex.: compras, emp_financeiro) ou o nome da área criada.
+        area: id do tipo de área (ex.: compras, regulacao) ou o nome da área criada.
     """
     if erro := _sem_banco():
         return erro
@@ -520,8 +471,8 @@ def cadastrar_responsavel(run_context: RunContext, area: str, nome: str, email: 
 
 
 def sugerir_cargos(run_context: RunContext) -> str:
-    """Os cargos do catálogo do segmento que cabem nas áreas da organização (na saúde: secretário, adjunto,
-    superintendências, coordenações...; numa empresa: diretoria e gerências), com a área e a quem respondem. Só
+    """Os cargos do catálogo que cabem nos setores da secretaria (secretário, adjunto, superintendências,
+    coordenações...), com o setor e a quem respondem. Só
     SUGESTÃO: nada é gravado. Mostre por área e grave só os que forem confirmados, com salvar_cargos."""
     if erro := _sem_banco():
         return erro
@@ -568,7 +519,7 @@ def criar_cargo(run_context: RunContext, nome: str, area: str, nivel: str = "coo
     """Cria um cargo que o organograma padrão não tem, na sala de uma área.
 
     Args:
-        nome: nome do cargo (ex.: Coordenador de Saúde Bucal, Gerente de Vendas).
+        nome: nome do cargo (ex.: Coordenador de Saúde Bucal).
         area: a área (sala) do cargo, pelo nome ou tipo.
         nivel: direcao, superintendencia, coordenacao, unidade ou controle.
         superior: nome do cargo a quem ele responde (opcional).
@@ -602,8 +553,8 @@ def dar_acesso(run_context: RunContext, nome: str, email: str, cargo: str = "") 
 
     Args:
         nome: nome completo.
-        email: e-mail institucional ou corporativo (é o login).
-        cargo: nome do cargo no organograma (ex.: Superintendente de Atenção Primária, Gerente Financeiro).
+        email: e-mail institucional (é o login).
+        cargo: nome do cargo no organograma (ex.: Superintendente de Atenção Primária).
     """
     if erro := _sem_banco():
         return erro
@@ -735,13 +686,12 @@ def acompanhar_importacao(run_context: RunContext) -> str:
 
 def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, cep: str = "", numero: str = "",
                       endereco: str = "", bairro: str = "", cnes: str = "") -> str:
-    """Cadastra (ou corrige) uma unidade da organização (na saúde: UBS, UPA...; numa empresa: matriz, filial, loja,
-    depósito...). Com o CEP, o endereço vem do ViaCEP e o número põe o pino no lugar certo do mapa. Sem CEP, use a
-    rua e o bairro.
+    """Cadastra (ou corrige) uma unidade de saúde (UBS, UPA, CAPS...). Com o CEP, o endereço vem do ViaCEP e o
+    número põe o pino no lugar certo do mapa. Sem CEP, use a rua e o bairro.
 
     Args:
-        nome: nome da unidade (ex.: UBS Jardim Primavera, Loja Centro).
-        tipo: o id do tipo de unidade do segmento (a lista vem na recusa, se o tipo não existir).
+        nome: nome da unidade (ex.: UBS Jardim Primavera).
+        tipo: o id do tipo de unidade (a lista vem na recusa, se o tipo não existir).
         cep: CEP da unidade (8 dígitos). O jeito preferido: peça sempre.
         numero: número do prédio na rua.
         endereco: rua, só se não houver CEP (ou se o CEP for de uma cidade inteira, sem rua).
@@ -763,7 +713,7 @@ def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, cep: str = 
     achado = gestao.endereco_por_cep(cep, numero) if cep else None
     if cep and not achado:
         return "CEP não encontrado no ViaCEP. Confira os 8 dígitos ou cadastre pela rua e bairro."
-    # Na saúde, as unidades são do município da secretaria; uma empresa pode ter unidades em outras cidades.
+    # As unidades são do município da secretaria.
     if achado and seg.um_por_municipio and str(achado.get("codigo_ibge") or "") != str(org.get("codigo_ibge") or ""):
         return (f"Esse CEP é de {achado.get('municipio')}-{achado.get('uf')}, não de {org.get('cidade')}-{org.get('uf')}. "
                 "Confira o CEP.")
@@ -834,7 +784,7 @@ def concluir_implantacao(run_context: RunContext) -> str:
 
 
 FERRAMENTAS_IMPLANTACAO = [
-    buscar_municipio, registrar_organizacao, salvar_dados_prefeitura, salvar_dados_secretaria, salvar_dados_empresa,
+    buscar_municipio, registrar_organizacao, salvar_dados_prefeitura, salvar_dados_secretaria,
     buscar_endereco, pesquisar_na_web, listar_tipos_area, salvar_areas, sugerir_atividades, salvar_atividades,
     nova_atividade, sugerir_cargos, salvar_cargos, criar_cargo, cadastrar_responsavel, montar_agentes, dar_acesso,
     importar_unidades_cnes, acompanhar_importacao, cadastrar_unidade, situacao_implantacao, concluir_implantacao,

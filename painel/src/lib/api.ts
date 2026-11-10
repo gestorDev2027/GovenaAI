@@ -282,7 +282,7 @@ export interface AgenteArea {
   mesa?: number | null;
 }
 
-/** Uma área da organização (setor na saúde, departamento na empresa): uma sala do prédio. */
+/** Uma área da organização (um setor da secretaria): uma sala do prédio. */
 export interface AreaOrganizacao {
   id: string;
   tipo_id: string | null;

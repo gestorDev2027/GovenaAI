@@ -27,8 +27,8 @@ export function usePodeNaOrganizacao(): (permissao: PermissaoOrganizacao) => boo
 }
 
 /**
- * Os nomes de tela do segmento da organização de quem está logado (setor ou departamento, servidor ou
- * funcionário...). `doServidor`: os rótulos que vieram no panorama, que valem por cima. Sem organização, o
+ * Os nomes de tela do segmento da organização de quem está logado (setor, servidor,
+ * Secretaria virtual...). `doServidor`: os rótulos que vieram no panorama, que valem por cima. Sem organização, o
  * padrão (Saúde pública).
  */
 export function useRotulos(doServidor?: Partial<Rotulos> | null): Rotulos {

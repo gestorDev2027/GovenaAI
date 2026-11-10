@@ -14,67 +14,77 @@ import {
   MessagesSquare,
   ScrollText,
   ShieldCheck,
-  Store,
+  Stethoscope,
   UserPlus,
 } from "lucide-react";
 import { CascaPublica } from "@/components/publico/casca";
 import { SimboloGestorGov } from "@/components/layout/logo";
 
 /*
- * Landing page do GestorGov: a promessa e a imagem do produto, os dois segmentos (Secretarias de Saúde e empresas),
+ * Landing page do GestorGov: a promessa e a imagem do produto, o que ele faz numa Secretaria Municipal de Saúde,
  * como funciona, as três visões, a segurança e a chamada final. Pública, sem login. As imagens do produto são
  * ilustrações em HTML do mesmo desenho das telas (a implantação, o prédio com as salas, o painel): leves, sem 3D.
  */
 
-const SEGMENTOS = [
+const NA_SECRETARIA = [
   {
     icone: HeartPulse,
-    nome: "Secretarias de Saúde",
-    resumo: "Cada setor da secretaria com o seu agente: Atenção Primária, Regulação, Farmácia, Compras, Vigilância...",
+    nome: "Um agente por setor",
+    resumo: "Atenção Primária, Regulação, Assistência Farmacêutica, Compras e Licitações, Vigilância, Gestão de Pessoas...",
     exemplos: [
-      "Regulação: aponta quem espera há mais de 90 dias na fila",
-      "Compras: elabora o termo de referência pedido",
-      "Unidades de saúde importadas do CNES, no mapa da cidade",
+      "Atenção Primária: acompanha os indicadores das equipes",
+      "Farmácia: avisa o que está perto de faltar",
+      "Gabinete: prepara ofícios e relatórios para o secretário",
     ],
   },
   {
-    icone: Store,
-    nome: "Empresas",
-    resumo: "Cada departamento com o seu agente: Financeiro, Comercial, Compras, RH, Operações, Atendimento...",
+    icone: Stethoscope,
+    nome: "Regulação e compras",
+    resumo: "Rotinas que o agente faz sozinho, num horário, e documentos que ele prepara quando alguém pede.",
     exemplos: [
-      "Financeiro: avisa as contas a pagar que vencem esta semana",
-      "Comercial: lista as propostas paradas há mais de 10 dias",
-      "Matriz, filiais e lojas no mapa, cada uma com o seu prédio",
+      "Regulação: aponta quem espera há mais de 90 dias na fila",
+      "Compras: elabora o termo de referência pedido",
+      "A decisão clínica é sempre do profissional",
+    ],
+  },
+  {
+    icone: MapPinned,
+    nome: "Unidades do CNES",
+    resumo: "As unidades de saúde do município vêm do CNES e aparecem no mapa da cidade, cada uma com a sua ficha.",
+    exemplos: [
+      "UBS, UPA, CAPS, hospital, farmácia, SAMU",
+      "Fotos e conferência de cada unidade",
+      "Cada unidade com o seu prédio virtual",
     ],
   },
 ];
 
 const PASSOS = [
-  { icone: UserPlus, titulo: "Cadastre a organização", texto: "Crie a conta de quem vai implantar. Leva um minuto." },
+  { icone: UserPlus, titulo: "Cadastre a secretaria", texto: "Crie a conta de quem vai implantar. Leva um minuto." },
   {
     icone: MessagesSquare,
     titulo: "Converse com o assistente",
-    texto: "Ele pergunta o segmento, completa o cadastro com dados públicos (com a fonte) e monta áreas, cargos e agentes com você.",
+    texto: "Ele pergunta a cidade, completa o cadastro com dados públicos (com a fonte) e monta setores, cargos e agentes com você.",
   },
   { icone: ClipboardCheck, titulo: "Os agentes trabalham, você aprova", texto: "Rotinas e documentos chegam prontos. Nada vale sem o “sim” do responsável." },
 ];
 
 const VISOES = [
-  { icone: Building2, titulo: "Prédio virtual", texto: "Cada área numa sala, com o seu agente na mesa. Você vê quem está trabalhando em quê." },
-  { icone: MapPinned, titulo: "Mapa", texto: "As unidades no mapa: UBS, UPA e CAPS da cidade, ou a matriz, as filiais e as lojas." },
+  { icone: Building2, titulo: "Secretaria virtual", texto: "Cada setor numa sala, com o seu agente na mesa e o CCO no centro. Você vê quem está trabalhando em quê." },
+  { icone: MapPinned, titulo: "Cidade", texto: "As unidades de saúde no mapa: UBS, UPA, CAPS e hospitais do município." },
   { icone: LayoutDashboard, titulo: "Painel", texto: "Indicadores com meta, entregas, pendências e aprovações. Tudo do 3D também está aqui." },
 ];
 
 const GARANTIAS = [
-  { icone: ClipboardCheck, titulo: "Uma pessoa aprova", texto: "O agente nunca aprova o próprio trabalho. Quem aprova é o responsável da área, conforme o cargo." },
+  { icone: ClipboardCheck, titulo: "Uma pessoa aprova", texto: "O agente nunca aprova o próprio trabalho. Quem aprova é o responsável do setor, conforme o cargo." },
   { icone: ScrollText, titulo: "Tudo na auditoria", texto: "Quem fez, quando, o que mudou e quem aprovou: de pessoas e de agentes." },
-  { icone: Lock, titulo: "Dados no Brasil", texto: "Banco em São Paulo, chaves num cofre e cada organização separada das outras." },
-  { icone: ShieldCheck, titulo: "LGPD", texto: "Agentes trabalham com números agregados: nada de dados de pacientes ou de clientes." },
+  { icone: Lock, titulo: "Dados no Brasil", texto: "Banco em São Paulo, chaves num cofre e cada secretaria separada das outras." },
+  { icone: ShieldCheck, titulo: "LGPD", texto: "Agentes trabalham com números agregados: nada de nome, CPF ou Cartão SUS de pacientes." },
 ];
 
 export function Inicio() {
   useEffect(() => {
-    document.title = "GestorGov · Agentes de IA para a sua organização";
+    document.title = "GestorGov · Agentes de IA para a Secretaria de Saúde";
   }, []);
 
   return (
@@ -85,13 +95,13 @@ export function Inicio() {
         <div className="relative mx-auto grid w-full max-w-6xl items-center gap-10 px-4 pt-12 pb-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr] lg:pt-20 lg:pb-28">
           <div className="flex flex-col gap-6">
             <span className="inline-flex w-fit items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold tracking-wide">
-              <span className="size-1.5 rounded-full bg-[#F4B800]" /> Secretarias de Saúde e empresas
+              <span className="size-1.5 rounded-full bg-[#F4B800]" /> Secretarias Municipais de Saúde
             </span>
             <h1 className="text-[2.5rem] leading-[1.08] font-bold tracking-tight text-balance sm:text-5xl">
               Agentes de IA que trabalham com a sua equipe. <span className="text-[#52A2FF]">Você aprova.</span>
             </h1>
             <p className="max-w-lg text-base text-white/75 sm:text-lg">
-              Cada área ganha um agente que faz as rotinas, prepara os documentos e aponta o que precisa de atenção. A implantação é uma
+              Cada setor da secretaria ganha um agente que faz as rotinas, prepara os documentos e aponta o que precisa de atenção. A implantação é uma
               conversa de minutos.
             </p>
             <div className="flex flex-wrap gap-3">
@@ -99,7 +109,7 @@ export function Inicio() {
                 to="/cadastro"
                 className="inline-flex h-12 items-center gap-2 rounded-full bg-[#F4B800] px-6 text-sm font-bold text-[#0D1B38] outline-none hover:brightness-105 focus-visible:ring-2 focus-visible:ring-white"
               >
-                Cadastrar organização <ArrowRight className="size-4" />
+                Cadastrar secretaria <ArrowRight className="size-4" />
               </Link>
               <Link
                 to="/entrar"
@@ -113,11 +123,15 @@ export function Inicio() {
         </div>
       </section>
 
-      {/* Os dois segmentos */}
+      {/* Na Secretaria de Saúde */}
       <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-        <Titulo selo="Para quem é" titulo="Uma plataforma, dois jeitos de trabalhar" texto="O assistente monta a organização com os nomes e os modelos do seu segmento." />
-        <ul className="mt-8 grid gap-4 md:grid-cols-2">
-          {SEGMENTOS.map(({ icone: Icone, nome, resumo, exemplos }) => (
+        <Titulo
+          selo="Para quem é"
+          titulo="Feito para a Secretaria Municipal de Saúde"
+          texto="O assistente monta a secretaria com os setores, as atividades e os cargos de uma gestão de saúde do SUS."
+        />
+        <ul className="mt-8 grid gap-4 md:grid-cols-3">
+          {NA_SECRETARIA.map(({ icone: Icone, nome, resumo, exemplos }) => (
             <li key={nome} className="surface-card flex flex-col gap-4 p-6">
               <div className="flex items-center gap-3">
                 <span aria-hidden="true" className="grid size-11 place-items-center rounded-full bg-primary/10 text-primary-text">
@@ -162,7 +176,7 @@ export function Inicio() {
 
       {/* As três visões */}
       <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-        <Titulo selo="As visões" titulo="A mesma organização, de três jeitos" texto="Computador simples também serve: o 3D nunca é obrigatório." />
+        <Titulo selo="As visões" titulo="A mesma secretaria, de três jeitos" texto="Computador simples também serve: o 3D nunca é obrigatório." />
         <ul className="mt-8 grid gap-4 md:grid-cols-3">
           {VISOES.map(({ icone: Icone, titulo, texto }, i) => (
             <li key={titulo} className="surface-card overflow-hidden">
@@ -203,7 +217,7 @@ export function Inicio() {
           <div className="flex items-center gap-4">
             <SimboloGestorGov className="hidden size-14 sm:block" />
             <div>
-              <p className="text-xl font-bold">Monte a sua organização hoje</p>
+              <p className="text-xl font-bold">Monte a sua secretaria hoje</p>
               <p className="mt-1 text-sm text-muted-foreground">O cadastro leva um minuto; o resto é uma conversa com o assistente.</p>
             </div>
           </div>
@@ -211,7 +225,7 @@ export function Inicio() {
             to="/cadastro"
             className="inline-flex h-12 shrink-0 items-center gap-2 rounded-full bg-[#F4B800] px-6 text-sm font-bold text-[#0D1B38] outline-none hover:brightness-105 focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Cadastrar organização <ArrowRight className="size-4" />
+            Cadastrar secretaria <ArrowRight className="size-4" />
           </Link>
         </div>
       </section>
@@ -235,12 +249,12 @@ function Titulo({ selo, titulo, texto }: { selo: string; titulo: string; texto?:
  */
 function JanelaDoProduto() {
   const salas = [
-    { nome: "Financeiro", cor: "#1A63D8", ativo: true },
-    { nome: "Comercial", cor: "#52A2FF", ativo: false },
+    { nome: "Atenção Primária", cor: "#1A63D8", ativo: true },
+    { nome: "Regulação", cor: "#52A2FF", ativo: true },
     { nome: "Compras", cor: "#1BAF7A", ativo: false },
-    { nome: "RH", cor: "#8B5CF6", ativo: false },
-    { nome: "Operações", cor: "#F4B800", ativo: true },
-    { nome: "Atendimento", cor: "#14C4D4", ativo: false },
+    { nome: "Farmácia", cor: "#8B5CF6", ativo: false },
+    { nome: "Vigilância", cor: "#F4B800", ativo: false },
+    { nome: "Gabinete", cor: "#14C4D4", ativo: false },
   ];
   return (
     <figure aria-label="Ilustração da tela de implantação do GestorGov" className="relative">
@@ -250,16 +264,16 @@ function JanelaDoProduto() {
           <span className="size-2.5 rounded-full bg-[#E6EAF2]" />
           <span className="size-2.5 rounded-full bg-[#E6EAF2]" />
           <span className="size-2.5 rounded-full bg-[#E6EAF2]" />
-          <span className="ml-3 truncate text-[11px] text-[#424E6B]">Implantação · Acme Distribuidora · Resende-RJ</span>
+          <span className="ml-3 truncate text-[11px] text-[#424E6B]">Implantação · Secretaria Municipal de Saúde · Resende-RJ</span>
         </div>
         <div className="grid sm:grid-cols-[0.85fr_1.15fr]">
           {/* o chat */}
           <div className="hidden flex-col gap-2.5 border-r border-[#E6EAF2] p-3 text-[11px] leading-snug sm:flex">
-            <p>Para começar: é uma Secretaria Municipal de Saúde ou uma empresa?</p>
-            <p className="ml-auto w-fit rounded-xl bg-[#E8F1FF] px-2.5 py-1.5">É uma empresa</p>
+            <p>Para começar: qual é o CEP da prefeitura (ou a cidade e a UF)?</p>
+            <p className="ml-auto w-fit rounded-xl bg-[#E8F1FF] px-2.5 py-1.5">Resende, RJ</p>
             <p>
-              Sugiro estes departamentos: <b>Financeiro</b>, <b>Comercial</b>, <b>Compras</b>, <b>RH</b>, <b>Operações</b> e{" "}
-              <b>Atendimento</b>. Confere?
+              Sugiro estes setores: <b>Atenção Primária</b>, <b>Regulação</b>, <b>Compras</b>, <b>Farmácia</b>, <b>Vigilância</b> e{" "}
+              <b>Gabinete</b>. Confere?
             </p>
             <p className="ml-auto w-fit rounded-xl bg-[#E8F1FF] px-2.5 py-1.5">Confirmo</p>
             <p className="flex items-center gap-1.5 text-[#424E6B]">
@@ -269,7 +283,7 @@ function JanelaDoProduto() {
           {/* o prédio */}
           <div className="bg-[#F3F6FB] p-3">
             <div className="mb-2 flex items-center justify-between text-[10px] text-[#424E6B]">
-              <span className="font-semibold text-[#0D1B38]">Escritório virtual</span>
+              <span className="font-semibold text-[#0D1B38]">Secretaria virtual</span>
               <span>Etapa 6 de 9 · Agentes</span>
             </div>
             <div className="grid grid-cols-3 gap-1.5">
@@ -288,7 +302,7 @@ function JanelaDoProduto() {
                 </div>
               ))}
             </div>
-            <div className="mt-1.5 rounded-lg bg-[#0D1B38] py-1.5 text-center text-[9px] font-semibold text-white">Sala de comando</div>
+            <div className="mt-1.5 rounded-lg bg-[#0D1B38] py-1.5 text-center text-[9px] font-semibold text-white">CCO · Centro de Comando e Operações</div>
           </div>
         </div>
       </div>
@@ -297,7 +311,7 @@ function JanelaDoProduto() {
         <div className="flex items-center gap-1.5 text-[10px] font-semibold text-[#8A6700]">
           <FileSearch className="size-3" /> Para você aprovar
         </div>
-        <p className="mt-1 text-xs font-medium">Financeiro: 12 contas vencem até sexta (R$ 48 mil)</p>
+        <p className="mt-1 text-xs font-medium">Regulação: 14 pacientes há mais de 90 dias esperando cardiologia</p>
         <div className="mt-2 flex gap-1.5">
           <span className="rounded-full bg-[#1A63D8] px-2.5 py-0.5 text-[10px] font-semibold text-white">Aprovar</span>
           <span className="rounded-full border border-[#DCE3EE] px-2.5 py-0.5 text-[10px] font-semibold">Devolver</span>
