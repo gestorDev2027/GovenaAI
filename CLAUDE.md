@@ -215,7 +215,11 @@ segmento (`agente/agentes_organizacao.py`).
   primeiro nome.
 - Base de conhecimento de cada agente: Markdown editável pelo painel; seções fixas obrigatórias:
   `## Boas-vindas`, `## Transferência para a equipe`, `## Encerramento por inatividade`,
-  `## Pedido fora do atendimento`.
+  `## Pedido fora do atendimento`. O agente novo da Fábrica nasce com a base modelo (`agente/base_conhecimento_modelo.md`)
+  já preenchida com o nome e a área dele (`fabrica.base_preenchida`); ao subir, o servidor preenche a dos que ainda
+  têm as marcas entre colchetes (nova versão, o histórico fica).
+- Na lista de agentes do chat (`/agentes`) não entram os modelos do código (`perfis.MODELOS`) nem os assistentes; quem
+  é membro de uma organização vê só os agentes dela, um por área, mesmo sendo da equipe da plataforma.
 - Documentos (PDF, Word, planilhas) vão no **Conhecimento** do painel e chegam ao agente como trechos
   vetorizados.
 - Casos de teste de cada agente na Fábrica (`fabrica_casos`), com juiz e nota mínima em `agente/datasets.py`
