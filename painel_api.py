@@ -829,11 +829,19 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
         )
 
     @rotas.get("/agentes")
-    def agentes_visiveis(escopo: Escopo = Depends(escopo_painel)) -> dict:
+    def agentes_visiveis(escopo: Escopo = Depends(escopo_painel),
+                         painel_sessao: str | None = Cookie(default=None)) -> dict:
         """Os agentes publicados que quem chama pode ver (e as equipes, só para a plataforma)."""
-        # O Assistente de Implantação não é um agente da organização: fica fora da lista (tem a tela dele, /implantacao).
+        # Quem é de uma organização vê os agentes dela, um por área, mesmo sendo também da equipe da plataforma.
+        sessao = _ler_sessao(painel_sessao) if escopo is None else None
+        contexto = acessos.contexto(sessao["email"]) if sessao else None
+        if contexto:
+            escopo = frozenset(fabrica.agentes_da_organizacao(contexto["organizacao_id"]))
+        # Ficam fora os assistentes (implantação e processos têm a tela deles) e os modelos do código (cada
+        # organização conversa com a cópia dela).
         lista = [{"id": a.id, **perfis.identidade(a.id)} for a in agentes.values()
-                 if perfis.publicado(a.id) and no_escopo(a.id, escopo) and a.id not in perfis.ASSISTENTES]
+                 if perfis.publicado(a.id) and no_escopo(a.id, escopo)
+                 and a.id not in perfis.ASSISTENTES and a.id not in perfis.MODELOS]
         lista_equipes = ([] if escopo is not None else
                          [{"id": e["id"], "nome": e["nome"], "membros": e["membros"], "padrao": e["padrao"]}
                           for e in equipes.listar() if e["publicada"]])

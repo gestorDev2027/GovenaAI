@@ -20,6 +20,8 @@ PERFIS: dict[str, Perfil] = {p.id: p for p in (onboarding.PERFIL, processos.PERF
                                               regulacao.PERFIL, unidade.PERFIL)}
 # Os assistentes do sistema (implantação e processos): têm a tela deles e ficam fora da lista de agentes e das equipes.
 ASSISTENTES = frozenset({onboarding.PERFIL.id, processos.PERFIL.id})
+# Os modelos do código: cada organização conversa com a cópia dela (agente/agentes_organizacao.py), não com eles.
+MODELOS = frozenset({compras.PERFIL.id, atencao_primaria.PERFIL.id, regulacao.PERFIL.id, unidade.PERFIL.id})
 
 for _perfil in PERFIS.values():
     base.registrar(_perfil.id, _perfil.arquivo_base)

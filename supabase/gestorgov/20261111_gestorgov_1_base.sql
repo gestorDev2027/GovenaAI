@@ -2,16 +2,15 @@
 -- GestorGov — banco (esquema consolidado de 11/11/2026)
 -- Rode inteiro, de uma vez, no SQL Editor, num projeto Supabase novo. Depois rode, na ordem:
 --   20261111_gestorgov_2_saude.sql    (catálogo do segmento Saúde pública)
---   20261111_gestorgov_3_empresa.sql  (catálogo do segmento Empresa)
 -- Pode rodar de novo: nada é duplicado.
 --
--- O GestorGov serve a organizações de vários SEGMENTOS (Saúde pública, Empresa...). Cada segmento tem os seus
--- modelos (tipos de área, de unidade, atividades, cargos e indicadores) e os nomes de tela dele
--- (agente/segmentos.py): na saúde, a organização é a Secretaria de Saúde e as áreas são os setores; numa empresa,
--- a organização é a empresa e as áreas são os departamentos.
+-- O GestorGov é focado no setor público: nesta versão, só o segmento Saúde pública (Secretarias Municipais de
+-- Saúde). A estrutura de SEGMENTOS fica para o futuro: cada segmento tem os seus modelos (tipos de área, de
+-- unidade, atividades, cargos e indicadores) e os nomes de tela dele (agente/segmentos.py); na saúde, a
+-- organização é a Secretaria de Saúde e as áreas são os setores.
 --
 --   Organização → Áreas → Atividades → Agente da área → Pessoa que aprova
---               → Unidades (UBS, UPA... ou filiais, lojas, depósitos)
+--               → Unidades (UBS, UPA, CAPS...)
 --
 -- O que este script faz:
 --   1. Schema `gestorgov` e o papel do servidor `gestorgov_app` (sem login até você ligar, no fim).
@@ -36,7 +35,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 create schema if not exists gestorgov;
 comment on schema gestorgov is
-  'GestorGov: agentes de IA que trabalham com as pessoas de cada organização (secretarias de saúde, empresas...).';
+  'GestorGov: agentes de IA que trabalham com as pessoas de cada organização (as Secretarias Municipais de Saúde).';
 
 do $$
 begin
@@ -197,7 +196,7 @@ $$;
 --     Os nomes de tela e os campos obrigatórios de cada segmento ficam em agente/segmentos.py.
 
 create table if not exists gestorgov.segmentos (
-  id          text primary key,                 -- saude_publica, empresa
+  id          text primary key,                 -- saude_publica
   nome        text not null,
   descricao   text,
   ordem       smallint not null default 0
@@ -205,13 +204,12 @@ create table if not exists gestorgov.segmentos (
 comment on table gestorgov.segmentos is 'Segmentos atendidos. Cada organização é de um segmento e usa os modelos dele.';
 
 insert into gestorgov.segmentos (id, nome, descricao, ordem) values
-  ('saude_publica', 'Saúde pública', 'Secretarias municipais de saúde: setores, unidades de saúde (CNES) e o SUS.', 1),
-  ('empresa',       'Empresa',       'Empresas: departamentos, filiais e lojas, com os agentes de cada área.',      2)
+  ('saude_publica', 'Saúde pública', 'Secretarias municipais de saúde: setores, unidades de saúde (CNES) e o SUS.', 1)
 on conflict (id) do update set nome = excluded.nome, descricao = excluded.descricao, ordem = excluded.ordem;
 
 
 create table if not exists gestorgov.tipos_area (
-  id           text primary key,                -- ex.: farmacia; numa empresa, emp_financeiro
+  id           text primary key,                -- ex.: farmacia
   segmento_id  text not null references gestorgov.segmentos(id) on delete cascade,
   nome         text not null,
   descricao    text,
@@ -221,11 +219,11 @@ create table if not exists gestorgov.tipos_area (
 );
 create index if not exists ix_tipos_area_segmento on gestorgov.tipos_area (segmento_id, ordem);
 comment on table gestorgov.tipos_area is
-  'Áreas (setores, departamentos) que uma organização do segmento costuma ter. A implantação sugere as "padrao".';
+  'Áreas (setores) que uma organização do segmento costuma ter. A implantação sugere as "padrao".';
 
 
 create table if not exists gestorgov.tipos_unidade (
-  id            text primary key,               -- ex.: ubs; numa empresa, emp_loja
+  id            text primary key,               -- ex.: ubs
   segmento_id   text references gestorgov.segmentos(id) on delete cascade,  -- vazio = serve a todos
   nome          text not null,
   codigos_cnes  text[] not null default '{}',   -- saúde: "Tipo de estabelecimento" do CNES que cai neste tipo
@@ -282,7 +280,7 @@ create table if not exists gestorgov.modelos_indicador (
   id               text primary key,                          -- ex.: sup_aps__absenteismo_nas_consultas
   modelo_cargo_id  text not null references gestorgov.modelos_cargo(id) on delete cascade,
   nome             text not null,
-  fonte            text not null,                             -- saúde: e-SUS APS, SIM, SINAN...; empresa: ERP, CRM...
+  fonte            text not null,                             -- saúde: e-SUS APS, SIM, SINAN...
   periodicidade    text not null
                    check (periodicidade in ('diaria', 'semanal', 'mensal', 'trimestral', 'quadrimestral', 'anual')),
   unidade          text not null,                             -- %, dias, número, R$...
@@ -295,7 +293,6 @@ create index if not exists ix_modelos_indicador_cargo on gestorgov.modelos_indic
 -- 5.2 Organização (o cliente) ────────────────────────────────────────────────────
 --     Saúde pública: a Secretaria Municipal de Saúde (nome, CNPJ, endereço, secretário como responsável); a cidade
 --     dá o mapa (codigo_ibge, centro e zoom) e a prefeitura, o Fundo e o prefeito ficam em dados_segmento.
---     Empresa: a empresa (razão social, CNPJ, sede, diretor como responsável).
 
 create table if not exists gestorgov.organizacoes (
   id                    uuid primary key default extensions.gen_random_uuid(),
@@ -337,7 +334,7 @@ create table if not exists gestorgov.organizacoes (
 create unique index if not exists ux_organizacoes_saude_ibge on gestorgov.organizacoes (codigo_ibge)
   where segmento_id = 'saude_publica';
 create index if not exists ix_organizacoes_cnpj on gestorgov.organizacoes (cnpj);
-comment on table gestorgov.organizacoes is 'Cada cliente do GestorGov (uma Secretaria de Saúde, uma empresa...).';
+comment on table gestorgov.organizacoes is 'Cada cliente do GestorGov (uma Secretaria Municipal de Saúde).';
 
 drop trigger if exists tg_organizacoes_atualizado on gestorgov.organizacoes;
 create trigger tg_organizacoes_atualizado before update on gestorgov.organizacoes
@@ -372,7 +369,7 @@ create trigger tg_pessoas_atualizado before update on gestorgov.pessoas
   for each row execute function gestorgov.tocar_atualizado_em();
 
 
--- 5.4 Áreas (setores, departamentos: as salas do prédio) ───────────────────────
+-- 5.4 Áreas (setores: as salas do prédio) ─────────────────────────────────────
 
 create table if not exists gestorgov.areas (
   id               uuid primary key default extensions.gen_random_uuid(),

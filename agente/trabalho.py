@@ -1,7 +1,7 @@
 """O trabalho dos agentes no CompanyOS do Agno: áreas, atividades, processos e tarefas.
 
 Como o cadastro vira CompanyOS (decidido em 11/11/2026; CLAUDE.md §5b):
-- Área (setor, departamento)      → Product  (id "area-<area_id>", metadata com a organização e a área)
+- Área (setor)                    → Product  (id "area-<area_id>", metadata com a organização e a área)
 - Atividade (rotina, sob demanda)  → Project  (o id fica em atividades_area.projeto_id)
 - Cada execução da atividade       → Task     (proposta → aceita → em execução → em revisão → concluída)
 - Agente da área                   → executor da Task (precisa estar no registro: `RegistroVivo`)

@@ -87,10 +87,9 @@ export type EtapaExibida = EtapaChat & { inicio: number; fim?: number };
 const SUGESTOES: Record<string, string[]> = {
   onboarding: [
     "Quero implantar a Secretaria de Saúde do meu município",
-    "Quero implantar a minha empresa",
     "Nosso CEP é 01001-000",
     "Importe as unidades do CNES",
-    "Quais setores ou departamentos posso ter?",
+    "Quais setores a secretaria pode ter?",
     "Sugira as atividades da Regulação",
     "O responsável pelas Compras é a Ana",
     "Como está a implantação?",

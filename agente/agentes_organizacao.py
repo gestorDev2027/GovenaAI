@@ -3,8 +3,8 @@
 Cada um é um agente da Fábrica (agente/fabrica.py), publicado e marcado com a organização dona
 (`fabrica_agentes.organizacao_id`): só quem é daquela organização o vê e conversa com ele. Na saúde, os setores com
 modelo no código (Compras, Atenção Primária, Regulação) e as unidades de saúde (agente/perfis/unidade.py) ganham
-uma cópia dele; as demais áreas (e as unidades de uma empresa), um agente novo com o modelo de instruções da Fábrica
-nos nomes do segmento (setor ou departamento, servidores ou funcionários).
+uma cópia dele; os demais setores, um agente novo com o modelo de instruções da Fábrica
+nos nomes do segmento (setor, servidores).
 
 O agente criado com o servidor no ar entra no AgentOS na hora, por `registro.ativar` (app.py liga o montador).
 Pode rodar de novo: o que já existe não é recriado.
@@ -30,8 +30,8 @@ def _slug(texto: str) -> str:
 
 
 def prefixo(org: dict) -> str:
-    """O começo do id dos agentes da organização. Saúde: a cidade e a UF (ex.: itatiaia-rj); empresa: o nome
-    fantasia (ou a razão social)."""
+    """O começo do id dos agentes da organização. Saúde: a cidade e a UF (ex.: itatiaia-rj); num segmento
+    sem município único, a sigla (ou o nome)."""
     if segmentos.de(org).um_por_municipio:
         base = f"{_slug(org.get('cidade') or org['nome'])[:16].strip('-')}-{(org.get('uf') or '').lower()}"
     else:
@@ -40,7 +40,7 @@ def prefixo(org: dict) -> str:
 
 
 def _onde(org: dict) -> str:
-    """Como a organização aparece nas descrições: "Secretaria Municipal de Saúde de Itatiaia-RJ", "Acme Ltda"."""
+    """Como a organização aparece nas descrições: "Secretaria Municipal de Saúde (Itatiaia-RJ)"."""
     if segmentos.de(org).um_por_municipio and org.get("cidade"):
         return f"{org['nome']} ({org['cidade']}-{org.get('uf') or ''})".replace("-)", ")")
     return org.get("sigla") or org["nome"]
@@ -73,10 +73,12 @@ def criar_agentes_das_areas(organizacao_id: str, quem: str, prefixo_id: str | No
     inicio = prefixo_id or prefixo(org)
     ligados = {str(a["area_id"]) for a in gestao.agentes_area(organizacao_id)}
     criados, novos_ligados, falhas = [], [], []
+    # A área cadastrada pelo nome ("outras" em salvar_areas) que bate com um tipo do catálogo usa o modelo dele.
+    tipo_pelo_nome = {_slug(t["nome"]): t["id"] for t in gestao.tipos_area(seg.id)}
     for i, area in enumerate(gestao.areas(organizacao_id)):
         if str(area["id"]) in ligados:
             continue
-        tipo = area.get("tipo_id") or _slug(area["nome"])
+        tipo = area.get("tipo_id") or tipo_pelo_nome.get(_slug(area["nome"])) or _slug(area["nome"])
         agente_id = f"{inicio}-{tipo.replace('_', '-')}"[:30].strip("-")
         try:
             if not perfis.existe(agente_id):
@@ -86,7 +88,7 @@ def criar_agentes_das_areas(organizacao_id: str, quem: str, prefixo_id: str | No
                          "descricao": (f"Faz as rotinas e prepara os documentos do {tipo_area} de {area['nome']} "
                                        f"da {_onde(org)}.")[:200],
                          "cor": CORES[i % len(CORES)]}
-                modelo = MODELO_DA_AREA.get(area.get("tipo_id") or "") if seg.id == "saude_publica" else None
+                modelo = MODELO_DA_AREA.get(tipo) if seg.id == "saude_publica" else None
                 if modelo and perfis.existe(modelo):
                     fabrica.duplicar(modelo, agente_id, {"nome": dados["nome"], "descricao": dados["descricao"], "cor": dados["cor"]}, quem)
                 else:

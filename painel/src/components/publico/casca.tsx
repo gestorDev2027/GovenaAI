@@ -41,12 +41,12 @@ export function CascaPublica({ children, semAcoes = false, escuro = false }: { c
           <div className="space-y-3">
             <Logo tamanho="lg" subtitulo />
             <p className="max-w-md text-sm text-muted-foreground">
-              Agentes de IA que trabalham com a sua equipe, em Secretarias de Saúde e empresas. Toda entrega passa pela aprovação de uma pessoa.
+              Agentes de IA que trabalham com a equipe das Secretarias Municipais de Saúde. Toda entrega passa pela aprovação de uma pessoa.
             </p>
           </div>
           <nav aria-label="Rodapé" className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
             <Link to="/cadastro" className="font-medium hover:underline">
-              Cadastrar organização
+              Cadastrar secretaria
             </Link>
             <Link to="/entrar" className="font-medium hover:underline">
               Entrar
