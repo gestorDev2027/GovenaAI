@@ -1,7 +1,7 @@
 import type { FaseImplantacao, Rotulos } from "@/lib/api";
 
 /*
- * Os nomes de tela de cada segmento (os mesmos de agente/segmentos.py). O servidor manda os rótulos no panorama
+ * Os nomes de tela de cada segmento (os mesmos de agente/segmentos.py; nesta versão, só a Saúde pública). O servidor manda os rótulos no panorama
  * (`segmento.rotulos`); esta tabela é a reserva para quando ainda não chegaram (o contexto de acesso só traz o
  * `segmento_id`) ou quando ainda não há organização (vale o padrão, a Saúde pública).
  */
@@ -26,27 +26,7 @@ export const ROTULOS_SAUDE: Rotulos = {
   centro: "CCO",
 };
 
-export const ROTULOS_EMPRESA: Rotulos = {
-  organizacao: "Empresa",
-  organizacao_curta: "empresa",
-  area: "departamento",
-  areas: "departamentos",
-  Area: "Departamento",
-  Areas: "Departamentos",
-  unidade: "unidade",
-  unidades: "unidades",
-  Unidade: "Unidade",
-  Unidades: "Unidades",
-  pessoa: "funcionário",
-  pessoas: "funcionários",
-  Pessoas: "Funcionários",
-  responsavel: "diretor(a)",
-  predio: "Escritório virtual",
-  mapa: "Mapa",
-  centro: "Sala de comando",
-};
-
-const POR_SEGMENTO: Record<string, Rotulos> = { saude_publica: ROTULOS_SAUDE, empresa: ROTULOS_EMPRESA };
+const POR_SEGMENTO: Record<string, Rotulos> = { saude_publica: ROTULOS_SAUDE };
 
 /** Os rótulos do segmento (os do servidor por cima da tabela; o padrão é a Saúde pública). */
 export function rotulosDe(segmentoId?: string | null, doServidor?: Partial<Rotulos> | null): Rotulos {
@@ -68,7 +48,7 @@ export function fasesDaImplantacao(r: Rotulos): [FaseImplantacao, string][] {
   ];
 }
 
-/** As linhas do totem da entrada do prédio: "Secretaria" / "de Saúde" ou "Empresa". */
+/** As linhas do totem da entrada do prédio: "Secretaria" / "de Saúde". */
 export function totemDe(r: Rotulos): string[] {
   const [primeira, ...resto] = r.organizacao.split(" ");
   return [primeira, resto.join(" ")].filter(Boolean);

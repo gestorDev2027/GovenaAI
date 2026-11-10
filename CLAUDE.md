@@ -5,9 +5,10 @@ Idioma do projeto: **português do Brasil** — código, comentários, mensagens
 
 ## 1. O que é
 
-**GestorGov — Gestão Pública Inteligente** é um ecossistema de agentes de IA para a gestão de **organizações**:
-começou pelas **Secretarias Municipais de Saúde** e, desde 11/11/2026, serve também a **empresas** (segmentos, §2b).
-Cada área da organização (setor da secretaria, departamento da empresa) ganha um agente que trabalha com os servidores: faz as rotinas do
+**GestorGov — Gestão Pública Inteligente** é um ecossistema de agentes de IA para a gestão das **Secretarias
+Municipais de Saúde**. O foco é o **setor público** (decisão de 12/11/2026): o segmento Empresa, criado em 11/11/2026,
+saiu desta versão; a estrutura de segmentos ficou no código e no banco para o futuro (§2b).
+Cada setor da secretaria ganha um agente que trabalha com os servidores: faz as rotinas do
 setor sozinho, prepara documentos sob demanda e aponta o que precisa de atenção. Tudo o que um agente propõe ou
 entrega passa pela aprovação de um servidor responsável.
 
@@ -15,8 +16,8 @@ A ambição de longo prazo é **substituir, módulo por módulo, os ERPs de saú
 caminho até lá: os agentes começam por cima dos dados que a prefeitura já tem (exportações, planilhas,
 documentos) e, aos poucos, o GestorGov passa a ser o lugar onde o dado nasce.
 
-- **Cliente:** organizações de um segmento: Secretarias Municipais de Saúde (`saude_publica`) e empresas
-  (`empresa`). Um segmento novo = uma entrada em `agente/segmentos.py` e o catálogo dele numa migration.
+- **Cliente:** Secretarias Municipais de Saúde (segmento `saude_publica`, o único desta versão). Um segmento novo,
+  no futuro = uma entrada em `agente/segmentos.py` e o catálogo dele numa migration.
 - **Usuários:** servidores internos (secretário, coordenadores de setor, técnicos). **Não é atendimento ao
   cidadão** — ainda (ver §11).
 - **Repositório:** github.com/gestorDev2027/GovenaAI.
@@ -43,35 +44,37 @@ comentários (ex.: "Luna", "Vera", "SDR"): renomeie quando passar por eles.
 
 ```
 Organização → Áreas → Atividades → Agente da área → Pessoa que aprova
-            → Unidades (UBS, UPA... ou matriz, filiais, lojas)
+            → Unidades (UBS, UPA, CAPS...)
 ```
 
-### 2b. Segmentos (generalização de 11/11/2026)
+### 2b. Segmentos (estrutura para o futuro; nesta versão, só a saúde pública)
 
 O motor é um só; o segmento muda os nomes de tela, os campos obrigatórios do cadastro, os modelos (tipos de área e
 de unidade, atividades, cargos, indicadores) e as fontes externas. Tudo em `agente/segmentos.py`; os modelos ficam
-nas migrations com `segmento_id`.
+nas migrations com `segmento_id`. Em 11/11/2026 entrou o segmento Empresa; em 13/11/2026 ele saiu (foco no setor
+público: `20261113_gestorgov_sem_empresa.sql` apaga o catálogo dele de um banco já rodado). A estrutura ficou
+(tabela `segmentos`, `segmento_id`, `organizacoes.dados_segmento`): um segmento novo volta sem refazer nada.
 
-| | Saúde pública (`saude_publica`) | Empresa (`empresa`) |
-|---|---|---|
-| Organização | a Secretaria Municipal de Saúde (a prefeitura, o Fundo e o prefeito ficam em `dados_segmento`) | a empresa (razão social, CNPJ, sede) |
-| Área | setor | departamento |
-| Pessoa | servidor | funcionário |
-| Responsável | secretário(a) de saúde | diretor(a) |
-| Unidades | unidades de saúde, importadas do CNES | matriz, filiais, lojas, depósitos (pelo CEP) |
-| Prédio | Secretaria virtual (CCO no centro) | Escritório virtual (sala de comando) |
-| Uma por município | sim (código IBGE) | não (por CNPJ) |
+| | Saúde pública (`saude_publica`) |
+|---|---|
+| Organização | a Secretaria Municipal de Saúde (a prefeitura, o Fundo e o prefeito ficam em `dados_segmento`) |
+| Área | setor |
+| Pessoa | servidor |
+| Responsável | secretário(a) de saúde |
+| Unidades | unidades de saúde, importadas do CNES |
+| Prédio | Secretaria virtual (CCO no centro) |
+| Uma por município | sim (código IBGE) |
 
 No banco: `organizacoes` (antes `municipios` + `secretarias`), `areas` (antes `setores`), `pessoas` (antes
 `servidores`), `agentes_area`, `atividades_area`, `tipos_area`; tudo por `organizacao_id`. O texto das instruções dos
 agentes da saúde continua falando de setor e secretaria (está certo para a saúde); o modelo da Fábrica
 (`INSTRUCOES_MODELO`) recebe os nomes do segmento na criação (`fabrica.instrucoes_iniciais`).
 
-### Áreas (setores, departamentos)
+### Áreas (setores)
 
-Cada área (na saúde, os setores da secretaria: Compras e Licitações, Atenção Primária, Regulação, Assistência Farmacêutica,
-Vigilância, Gestão de Pessoas, Financeiro, Faturamento, Ouvidoria, Gabinete...; numa empresa, Financeiro, Comercial,
-Compras, RH, Operações, Atendimento...) é uma sala do prédio e tem um agente e um responsável.
+Cada área (os setores da secretaria: Compras e Licitações, Atenção Primária, Regulação, Assistência Farmacêutica,
+Vigilância, Gestão de Pessoas, Financeiro, Faturamento, Ouvidoria, Gabinete...) é uma sala do prédio e tem um agente
+e um responsável.
 
 ### Atividades — dois tipos
 
@@ -80,8 +83,8 @@ Compras, RH, Operações, Atendimento...) é uma sala do prédio e tem um agente
 | **Rotina** | o agente, num horário (a cada hora, diária, semanal, mensal) | Routine do CompanyOS | Regulação, a cada hora: "14 pacientes há mais de 90 dias esperando cardiologia" |
 | **Sob demanda** | um servidor pede pelo chat do setor | Task (ou conversa) | Compras: "elabora o termo de referência de 2.000 seringas" |
 
-Os catálogos estão em `supabase/gestorgov/20261111_gestorgov_2_saude.sql` e `..._3_empresa.sql`
-(`modelos_atividade`). A implantação sugere o catálogo do segmento; o responsável confirma, tira ou acrescenta.
+O catálogo está em `supabase/gestorgov/20261111_gestorgov_2_saude.sql` (`modelos_atividade`). A implantação
+sugere o catálogo; o responsável confirma, tira ou acrescenta.
 
 ### Aprovação (regra inegociável)
 
@@ -126,7 +129,7 @@ senha) → **Implantação** (`/painel/implantacao`). Quem já tem conta usa **E
 Google). A conta nasce pendente para o Painel (o dono aprova), mas já implanta a própria prefeitura: as rotas
 `/implantacao*` exigem só estar logado. Quem cadastra a organização entra em `membros` como dono, e o
 assistente dessa conversa só mexe na organização dela (`conta_email` no estado da sessão). A primeira pergunta do
-assistente é o segmento. Cadastro e login
+assistente é o CEP (ou a cidade) da prefeitura. Cadastro e login
 precisam da `OS_SECURITY_KEY` (é ela que assina a sessão); sem ela, o painel fica aberto e sem login.
 
 O secretário de saúde implanta a prefeitura **conversando** com o Assistente de Implantação. A tela é dividida:
@@ -143,7 +146,7 @@ fases seguintes esperam a próxima mensagem do secretário (o modelo não encade
 
 | # | Fase | O que precisa ficar completo | Ferramentas |
 |---|---|---|---|
-| 1 | `organizacao` | O segmento e os campos obrigatórios dele (`segmentos.py`, `Campo.obrigatorio`; CNPJ com dígitos conferidos). Saúde: prefeitura (CNPJ, endereço, telefone, prefeito) e secretaria (nome, CNPJ do Fundo, endereço, telefone, e-mail, secretário). Empresa: razão social, CNPJ, ramo, sede, telefone, e-mail, diretor | `buscar_municipio`, `registrar_organizacao`, `salvar_dados_prefeitura` e `salvar_dados_secretaria` (saúde), `salvar_dados_empresa` (empresa), `buscar_endereco` (Mapbox + ViaCEP), `pesquisar_na_web` (Google, `agente/pesquisa.py`) |
+| 1 | `organizacao` | Os campos obrigatórios (`segmentos.py`, `Campo.obrigatorio`; CNPJ com dígitos conferidos): prefeitura (CNPJ, endereço, telefone, prefeito) e secretaria (nome, CNPJ do Fundo, endereço, telefone, e-mail, secretário) | `buscar_municipio`, `registrar_organizacao`, `salvar_dados_prefeitura`, `salvar_dados_secretaria`, `buscar_endereco` (Mapbox + ViaCEP), `pesquisar_na_web` (Google, `agente/pesquisa.py`) |
 | 2 | `areas` | Pelo menos uma área (cada uma vira uma sala do prédio) | `listar_tipos_area`, `salvar_areas` |
 | 3 | `atividades` | Toda sala com pelo menos uma atividade | `sugerir_atividades`, `salvar_atividades`, `nova_atividade` |
 | 4 | `cargos` | Toda área com pelo menos um cargo (organograma). O catálogo é só sugestão: grava o que for confirmado | `sugerir_cargos`, `salvar_cargos`, `criar_cargo` |
@@ -200,7 +203,7 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
 | `unidade` | Agente das Unidades de Saúde | consulta | `agente/perfis/unidade.py` |
 
 Os de setor e o das unidades são **modelos da saúde**: cada Secretaria ganha a sua cópia na implantação (§3). As
-demais áreas (e todas as de uma empresa) ganham um agente da Fábrica com o modelo de instruções nos nomes do
+demais áreas ganham um agente da Fábrica com o modelo de instruções nos nomes do
 segmento (`agente/agentes_organizacao.py`).
 
 - Agentes de setor seguem um molde único: `agente/perfis/setor.py` (`perfil_de_setor`). Novo setor no código =
@@ -212,7 +215,11 @@ segmento (`agente/agentes_organizacao.py`).
   primeiro nome.
 - Base de conhecimento de cada agente: Markdown editável pelo painel; seções fixas obrigatórias:
   `## Boas-vindas`, `## Transferência para a equipe`, `## Encerramento por inatividade`,
-  `## Pedido fora do atendimento`.
+  `## Pedido fora do atendimento`. O agente novo da Fábrica nasce com a base modelo (`agente/base_conhecimento_modelo.md`)
+  já preenchida com o nome e a área dele (`fabrica.base_preenchida`); ao subir, o servidor preenche a dos que ainda
+  têm as marcas entre colchetes (nova versão, o histórico fica).
+- Na lista de agentes do chat (`/agentes`) não entram os modelos do código (`perfis.MODELOS`) nem os assistentes; quem
+  é membro de uma organização vê só os agentes dela, um por área, mesmo sendo da equipe da plataforma.
 - Documentos (PDF, Word, planilhas) vão no **Conhecimento** do painel e chegam ao agente como trechos
   vetorizados.
 - Casos de teste de cada agente na Fábrica (`fabrica_casos`), com juiz e nota mínima em `agente/datasets.py`
@@ -263,9 +270,10 @@ painel/src/                   frontend
 - Migrations (`supabase/gestorgov/`, rodar em ordem): `20261111_gestorgov_1_base.sql` (schema, papel, pgvector,
   buckets `agentes` e `organizacoes`, Vault, todas as tabelas, RLS), `..._2_saude.sql` (catálogo da saúde: 16 setores,
   14 tipos de unidade com os códigos do CNES, atividades, 38 cargos e 125 indicadores do documento da Secretaria de
-  Saúde Virtual), `..._3_empresa.sql` (catálogo da empresa) e `20261112_gestorgov_processos.sql` (os processos das
-  atividades e o vínculo com o CompanyOS; tira as tabelas `entregas` e `pendencias`) e `20261113_gestorgov_integracoes.sql`
-  (a Central de integrações e as funções `integracao_*` do Vault). Elas substituíram as de 06 a 10/11/2026, que nunca
+  Saúde Virtual), `20261112_gestorgov_processos.sql` (os processos das atividades e o vínculo com o CompanyOS; tira
+  as tabelas `entregas` e `pendencias`) e `20261113_gestorgov_integracoes.sql` (a Central de integrações e as funções
+  `integracao_*` do Vault). Em banco que já rodou o antigo `..._3_empresa.sql`, rode `20261113_gestorgov_sem_empresa.sql`
+  (tira o segmento Empresa). Elas substituíram as de 06 a 10/11/2026, que nunca
   rodaram em produção. No SQLite local, os catálogos são carregados das migrations a cada início.
 - Tabelas do cadastro: `segmentos`, `tipos_area`, `tipos_unidade`, `modelos_atividade`, `modelos_cargo`,
   `modelos_indicador`, `organizacoes`, `pessoas`, `areas`, `unidades`, `unidade_fotos`, `agentes_area`,

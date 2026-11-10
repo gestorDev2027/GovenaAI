@@ -126,7 +126,7 @@ export function Entrar() {
         <p className="text-center text-sm text-muted-foreground">
           Ainda não tem conta?{" "}
           <Link to="/cadastro" className="inline-flex items-center gap-1 font-semibold text-primary-text hover:underline">
-            <UserPlus className="size-3.5" /> Cadastrar organização
+            <UserPlus className="size-3.5" /> Cadastrar secretaria
           </Link>
         </p>
         {acesso.data?.aceita_chave && <EntrarComChave aoEntrar={() => navegar({ to: "/" })} />}

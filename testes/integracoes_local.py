@@ -26,8 +26,10 @@ def main() -> None:
     banco = Path(tempfile.mkdtemp()) / "teste.db"
     nucleo.criar_agentes(arquivo_banco=str(banco))
 
-    org = gestao.registrar_organizacao(segmento_id="empresa", nome="Empresa Teste", quem="dono@teste.gov.br", cnpj="")
-    outra = gestao.registrar_organizacao(segmento_id="empresa", nome="Outra Empresa", quem="dono@outra.gov.br", cnpj="")
+    org = gestao.registrar_organizacao(segmento_id="saude_publica", nome="Secretaria Municipal de Saúde", quem="dono@teste.gov.br",
+                                     codigo_ibge="3302254", cidade="Itatiaia", uf="RJ")
+    outra = gestao.registrar_organizacao(segmento_id="saude_publica", nome="Secretaria Municipal de Saúde", quem="dono@outra.gov.br",
+                                       codigo_ibge="3304201", cidade="Resende", uf="RJ")
     oid, oid2 = str(org["id"]), str(outra["id"])
     modelo = {"nome": "Agente Teste", "area": "Financeiro", "descricao": "Agente de teste da Central.",
               "ferramentas": ["consultar_organizacao"], "minutos_inatividade": 60, "categorias": {}}

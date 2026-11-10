@@ -17,7 +17,7 @@ import type { SelecaoPredio } from "@/components/central/predio-secretaria";
 import { SelosAtencao, useAtencao, type AtencaoDaArea } from "@/components/central/atencao";
 
 /*
- * O prédio virtual (Secretaria virtual na saúde, Escritório virtual na empresa) pelo cadastro da organização. Cada
+ * O prédio virtual (a Secretaria virtual) pelo cadastro da organização. Cada
  * área é uma sala, com o agente da área na mesa e o responsável na placa; no centro, o CCO (ou a sala de comando).
  * Tudo nasce na implantação. Quando um agente trabalha (ao vivo: agente/ao_vivo.py → /secretaria/eventos), o rosto
  * dele muda. Cada placa mostra o que espera a área (para aceitar, em revisão, em execução; /organizacao/atencao).

@@ -158,7 +158,7 @@ def criar_rotas_organizacao() -> APIRouter:
         if not achado:
             raise HTTPException(status_code=404, detail="CEP não encontrado no ViaCEP. Confira os 8 dígitos.")
         org = gestao.organizacao(quem[1]["organizacao_id"]) or {}
-        # Sem código IBGE na organização (uma empresa sem a cidade cadastrada), não há com o que comparar: null.
+        # Sem código IBGE na organização (ainda sem a cidade cadastrada), não há com o que comparar: null.
         da_cidade = (str(achado.get("codigo_ibge") or "") == str(org["codigo_ibge"])) if org.get("codigo_ibge") else None
         return {**achado, "da_cidade": da_cidade}
 
