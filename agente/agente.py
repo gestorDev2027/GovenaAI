@@ -17,7 +17,7 @@ from agno.utils.log import log_warning
 from dotenv import load_dotenv
 
 from agente import (ao_vivo, aprendizado, base, conhecimento, equipes, fabrica, fabrica_recursos, gestao,
-                    guardrails, perfis, segundo_plano, trabalho, usuarios)
+                    guardrails, integracoes, perfis, segundo_plano, toolbox, trabalho, usuarios)
 from agente.ferramentas import STATUS_EM_ATENDIMENTO
 from agente.listas import PostgresDbAgente
 from agente.perfil import Perfil
@@ -186,6 +186,8 @@ def criar_agentes(arquivo_banco: str | None = None) -> dict[str, Agent]:
     equipes.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)
     usuarios.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # quem pode o quê no painel
     gestao.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # o cadastro da prefeitura
+    integracoes.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # a Central de integrações
+    toolbox.iniciar()  # o MCP Toolbox (só com GESTORGOV_TOOLBOX=sim), em segundo plano
     segundo_plano.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)  # tarefas demoradas
     trabalho.iniciar(banco)  # o CompanyOS: áreas, atividades, processos e tarefas dos agentes
     _indexar_roteiros(em_segundo_plano=True)  # o servidor sobe sem esperar os embeddings
@@ -201,6 +203,7 @@ def criar_agente(arquivo_banco: str | None = None, perfil_id: str = perfis.PADRA
     conhecimento.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)
     fabrica.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)
     gestao.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)
+    integracoes.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)
     segundo_plano.iniciar(banco.db_engine, schema_banco() if not arquivo_banco else None)
     if conhecimento.modo_roteiro() == "busca":  # antes da primeira mensagem, o roteiro precisa estar indexado
         _indexar_roteiros(em_segundo_plano=False)

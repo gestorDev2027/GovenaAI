@@ -33,6 +33,7 @@ const Equipe = lazyRouteComponent(() => import("@/pages/equipe"), "Equipe");
 const AgentesDaOrganizacao = lazyRouteComponent(() => import("@/pages/agentes"), "AgentesDaOrganizacao");
 const Aprovacoes = lazyRouteComponent(() => import("@/pages/aprovacoes"), "Aprovacoes");
 const Processos = lazyRouteComponent(() => import("@/pages/processos"), "Processos");
+const Integracoes = lazyRouteComponent(() => import("@/pages/integracoes"), "Integracoes");
 const AceitarConvite = lazyRouteComponent(() => import("@/pages/convite"), "AceitarConvite");
 const ColaborarNaImplantacao = lazyRouteComponent(() => import("@/pages/colaborar"), "ColaborarNaImplantacao");
 const CentralDeComando = lazyRouteComponent(() => import("@/pages/comando"), "CentralDeComando");
@@ -74,6 +75,7 @@ const rotas = [
   createRoute({ getParentRoute: () => painel, path: "/agentes", component: AgentesDaOrganizacao, loader: preCarregar.agentes }),
   createRoute({ getParentRoute: () => painel, path: "/aprovacoes", component: Aprovacoes, loader: preCarregar.aprovacoes }),
   createRoute({ getParentRoute: () => painel, path: "/processos", component: Processos, loader: preCarregar.processos }),
+  createRoute({ getParentRoute: () => painel, path: "/integracoes", component: Integracoes, loader: () => Integracoes.preload?.() }),
   createRoute({
     getParentRoute: () => painel,
     path: "/chat",

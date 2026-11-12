@@ -98,7 +98,12 @@ def salvar_ficha(organizacao_id: str, agente_id: str, dados: dict, quem: str) ->
             raise ErroDados(422, "Escopo inválido.")
         novo["escopo"] = dados["escopo"]
     if "integracoes" in dados:
-        novo["integracoes"] = [str(i) for i in (dados["integracoes"] or [])][:50]
+        from agente import integracoes
+
+        try:  # só as da Central desta organização (agente/integracoes.py)
+            novo["integracoes"] = integracoes.conferir_da_ficha(organizacao_id, [str(i) for i in (dados["integracoes"] or [])][:50])
+        except integracoes.ErroIntegracao as erro:
+            raise ErroDados(erro.status, erro.detalhe) from erro
     tf = gestao._t("fichas_agente")
     with gestao._estado["engine"].begin() as c:
         existe = c.execute(select(tf.c.agente_id).where(tf.c.agente_id == agente_id)).first()
@@ -108,6 +113,10 @@ def salvar_ficha(organizacao_id: str, agente_id: str, dados: dict, quem: str) ->
             c.execute(insert(tf).values(agente_id=agente_id, organizacao_id=organizacao_id, atualizado_por=quem, atualizado_em=_agora(), **novo))
         gestao.auditar(c, organizacao_id=organizacao_id, origem="pessoa", quem=quem, acao="ficha", entidade="fichas_agente",
                        entidade_id=agente_id, antes={k: atual.get(k) for k in novo}, depois=novo)
+    if novo["integracoes"] != atual.get("integracoes"):
+        from agente import registro
+
+        registro.ativar(agente_id)  # as ferramentas das integrações mudam: o agente é remontado agora
     return ficha(agente_id)
 
 

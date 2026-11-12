@@ -44,8 +44,17 @@ interface Dominio {
   descricao: string;
   operacoes: Operacao[];
 }
+/** As integrações da Central (Integrações), para liberar na ficha. */
+interface IntegracaoDaOrganizacao {
+  id: string;
+  nome: string;
+  tipo: "postgres" | "mysql" | "http" | "mcp" | "memoria";
+  situacao: "ativa" | "pausada";
+  ferramentas: number;
+}
 interface Resposta {
   agentes: AgenteDaOrganizacao[];
+  integracoes: IntegracaoDaOrganizacao[];
   dominios: Dominio[];
   autonomias: { id: string; nome: string }[];
   tons: string[];
@@ -143,7 +152,13 @@ function FichaDoAgente({ agente, catalogo, aoFechar }: { agente: AgenteDaOrganiz
     mutationFn: () =>
       api<Ficha>(`/organizacao/agentes/${encodeURIComponent(agente.id)}/ficha`, {
         method: "PUT",
-        body: JSON.stringify({ caracteristicas: ficha.caracteristicas, memoria: ficha.memoria, permissoes: ficha.permissoes, escopo: ficha.escopo }),
+        body: JSON.stringify({
+          caracteristicas: ficha.caracteristicas,
+          memoria: ficha.memoria,
+          permissoes: ficha.permissoes,
+          escopo: ficha.escopo,
+          integracoes: ficha.integracoes,
+        }),
       }),
     onSuccess: () => {
       toast.success("Ficha salva");
@@ -323,12 +338,48 @@ function FichaDoAgente({ agente, catalogo, aoFechar }: { agente: AgenteDaOrganiz
               {rotulo}
             </label>
           ))}
-          <p className="text-[11px] text-muted-foreground">A memória compartilhada (Mem0, no banco da organização) entra no próximo passo; a escolha já fica guardada.</p>
+          <p className="text-[11px] text-muted-foreground">A memória compartilhada (Mem0, no banco da organização) entra como uma integração do tipo memória, liberada logo abaixo.</p>
         </Secao>
 
         <Secao icone={Plug} titulo="Integrações externas">
-          <p className="text-sm text-muted-foreground">
-            As integrações com outros sistemas (APIs, MCP, bancos) chegam com a Central de integrações, e cada agente usará só as liberadas aqui.
+          {!catalogo.integracoes.length ? (
+            <p className="text-sm text-muted-foreground">
+              Nenhuma integração cadastrada. Cadastre bancos, APIs, servidores MCP e a memória em{" "}
+              <Link to="/integracoes" className="font-semibold text-primary-text hover:underline">
+                Integrações
+              </Link>
+              .
+            </p>
+          ) : (
+            <ul className="space-y-1.5">
+              {catalogo.integracoes.map((i) => (
+                <li key={i.id}>
+                  <label className="flex items-start gap-2 rounded-lg border border-border px-3 py-2 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={ficha.integracoes.includes(i.id)}
+                      onChange={(e) =>
+                        setFicha((f) => ({
+                          ...f,
+                          integracoes: e.target.checked ? [...f.integracoes, i.id] : f.integracoes.filter((x) => x !== i.id),
+                        }))
+                      }
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-medium">{i.nome}</span>
+                      <span className="block text-[11px] text-muted-foreground">
+                        {i.tipo === "memoria" ? "Memória compartilhada" : `${i.tipo} · ${i.ferramentas} ferramenta(s)`}
+                        {i.situacao === "pausada" ? " · pausada" : ""}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="text-[11px] text-muted-foreground">
+            O agente recebe só as ferramentas das integrações marcadas. As que alteram dados viram pedidos que uma pessoa aprova; as chaves ficam no cofre e o agente nunca as vê.
           </p>
         </Secao>
       </fieldset>

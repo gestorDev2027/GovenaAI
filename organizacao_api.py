@@ -235,7 +235,12 @@ def criar_rotas_organizacao() -> APIRouter:
             areas_de.setdefault(a["agente_id"], []).append(nomes.get(str(a["area_id"]), ""))
         lista = [{"id": aid, **perfis.identidade(aid), "areas": areas_de.get(aid, []), "ficha": dados_agente.ficha(aid)}
                  for aid in fabrica.agentes_da_organizacao(oid) if perfis.existe(aid)]
-        return {"agentes": lista,
+        from agente import integracoes
+
+        catalogo = ([{"id": str(i["id"]), "nome": i["nome"], "tipo": i["tipo"], "situacao": i["situacao"],
+                      "ferramentas": len(i["ferramentas"])} for i in integracoes.integracoes(oid)]
+                    if integracoes.disponivel() else [])
+        return {"agentes": lista, "integracoes": catalogo,
                 "dominios": [{"id": k, "nome": n, "descricao": d, "operacoes": list(o)} for k, (n, d, o) in dados_agente.DOMINIOS.items()],
                 "autonomias": [{"id": k, "nome": n} for k, n in dados_agente.AUTONOMIAS.items()], "tons": list(dados_agente.TONS)}
 

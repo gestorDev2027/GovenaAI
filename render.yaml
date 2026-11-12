@@ -63,6 +63,11 @@ services:
       # troque para "sim" e acrescente RENDER_API_KEY (Account Settings → API Keys) só neste serviço.
       - key: GESTORGOV_WORKFLOWS
         value: nao
+      # ── Central de integrações (agente/integracoes.py, agente/toolbox.py) ──
+      # O MCP Toolbox roda no mesmo container (bancos externos e APIs). Desligado: as APIs HTTP rodam direto no
+      # servidor e os bancos externos esperam. Ligue no Starter ou acima (não medido no Free, de 512 MB).
+      - key: GESTORGOV_TOOLBOX
+        value: nao
 
   # Render Workflows (opcional, pago por segundo de uso): cada tarefa numa máquina própria, com novas tentativas
   # (tarefas/main.py). Não recebe conexões: lê e grava no mesmo Supabase. Fica comentado porque o deploy atual é um

@@ -23,3 +23,6 @@ tzdata
 pillow>=11
 # SDK do Render Workflows: o servidor dispara as tarefas e o serviço gestorgov-tarefas as roda (tarefas/main.py)
 render==1.8.0
+# Memória compartilhada da Central de integrações (tipo "memoria", agente/integracoes.py): opcional e pesado (puxa
+# vários clientes de bancos vetoriais). Sem ele, a integração de memória fica indisponível e o resto funciona.
+# mem0ai

@@ -166,6 +166,7 @@ export type PermissaoOrganizacao =
   | "gerenciar_unidades"
   | "gerenciar_cargos"
   | "gerenciar_equipe"
+  | "gerenciar_integracoes"
   | "ver_auditoria";
 
 export interface ContextoOrganizacao {

@@ -17,6 +17,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
+# MCP Toolbox for Databases (Central de integrações, agente/toolbox.py): o binário oficial, ~290 MB. Só roda com
+# GESTORGOV_TOOLBOX=sim. Para uma imagem sem ele: --build-arg COM_TOOLBOX=nao.
+ARG COM_TOOLBOX=sim
+ARG TOOLBOX_VERSAO=1.15.0
+RUN if [ "$COM_TOOLBOX" = "sim" ]; then \
+      python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mcp-toolbox-for-databases/v${TOOLBOX_VERSAO}/linux/amd64/toolbox', '/usr/local/bin/toolbox')" \
+      && chmod +x /usr/local/bin/toolbox; \
+    fi
 COPY . .
 COPY --from=painel /painel/dist ./painel/dist
 # O Render define PORT; localmente, 8080.
