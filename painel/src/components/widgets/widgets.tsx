@@ -1,6 +1,6 @@
 import type { ComponentType, CSSProperties, ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Info, RefreshCw } from "lucide-react";
+import { ArrowDownRight, ArrowUpRight, Construction, Info, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCountUp } from "@/hooks/use-count-up";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
@@ -30,13 +30,13 @@ export function InfoTip({ children, className }: { children: ReactNode; classNam
   );
 }
 
-/* ───────── KpiCard (ícone e dica em cima, rótulo e número embaixo) ───────── */
+/* ───────── KpiCard: cartão compacto, rótulo pequeno e o número grande (como o "Consumo" do Ramo) ───────── */
 
 type Accent = "primary" | "cyan" | "green" | "amber" | "violet" | "red";
 
-// Quadrado do ícone: o tom a 10–16% com o ícone na cor cheia.
+// Quadradinho do ícone: o tom a 10–16% com o ícone na cor cheia.
 const ACCENT_CHIP: Record<Accent, string> = {
-  primary: "bg-primary/10 text-primary-text",
+  primary: "bg-primary/12 text-primary-text",
   cyan: "bg-accent/14 text-accent",
   green: "bg-success/14 text-success",
   amber: "bg-warning/16 text-warning-text",
@@ -53,6 +53,9 @@ export function KpiCard({
   icon,
   accent = "primary",
   insight,
+  comparacao,
+  detalhe,
+  children,
   className,
   style,
 }: {
@@ -64,6 +67,12 @@ export function KpiCard({
   icon?: ReactNode;
   accent?: Accent;
   insight?: ReactNode;
+  /** O selo pequeno ao lado do número (SeloComparacao). */
+  comparacao?: ReactNode;
+  /** Uma linha curta embaixo do número. */
+  detalhe?: ReactNode;
+  /** O pé do cartão (ex.: uma BarraParticipacao). */
+  children?: ReactNode;
   className?: string;
   style?: CSSProperties;
 }) {
@@ -73,25 +82,26 @@ export function KpiCard({
 
   const card = (
     <div
-      className={cn(
-        "surface-card group flex min-h-[132px] flex-col justify-between p-5",
-        insight && "is-interactive cursor-help",
-        className,
-      )}
+      className={cn("surface-card group flex min-w-0 flex-col gap-3 p-4", insight && "is-interactive cursor-help", className)}
       style={style}
     >
-      <div className="flex items-start justify-between gap-3">
-        {icon && (
-          <span className={cn("grid size-11 shrink-0 place-items-center rounded-xl [&_svg]:size-5", ACCENT_CHIP[accent])}>
-            {icon}
-          </span>
-        )}
-        {hint && <span className="text-right text-xs text-muted-foreground">{hint}</span>}
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-2">
+          {icon && (
+            <span aria-hidden="true" className={cn("grid size-7 shrink-0 place-items-center rounded-md [&_svg]:size-4", ACCENT_CHIP[accent])}>
+              {icon}
+            </span>
+          )}
+          <span className="line-clamp-2 text-xs leading-tight font-medium text-muted-foreground sm:truncate">{label}</span>
+        </span>
+        {hint && <span className="shrink-0 text-right text-2xs text-muted-foreground">{hint}</span>}
       </div>
-      <div className="mt-4 flex min-w-0 flex-col">
-        <span className="truncate text-sm font-medium text-muted-foreground">{label}</span>
-        <span className="num mt-1 text-3xl leading-none font-bold tracking-tight text-foreground">{display}</span>
+      <div className="flex min-w-0 flex-wrap items-end gap-x-2.5 gap-y-1">
+        <span className="num text-[1.75rem] leading-none font-semibold tracking-tight text-foreground sm:text-3xl">{display}</span>
+        {comparacao}
       </div>
+      {detalhe && <p className="-mt-1 line-clamp-2 text-xs text-muted-foreground">{detalhe}</p>}
+      {children}
     </div>
   );
 
@@ -103,6 +113,127 @@ export function KpiCard({
         {insight}
       </HoverCardContent>
     </HoverCard>
+  );
+}
+
+/* ───────── Selo de comparação: "▲ 12% vs. mês passado", pequeno, ao lado do número ───────── */
+
+const TOM_SELO = {
+  bom: "bg-success/14 text-success",
+  ruim: "bg-destructive/14 text-destructive",
+  neutro: "bg-secondary text-muted-foreground",
+} as const;
+
+/** `direcao` desenha a seta; `tom` diz se é bom, ruim ou neutro. A cor não é a única pista: o texto diz o que mudou. */
+export function SeloComparacao({
+  children,
+  direcao,
+  tom = "neutro",
+  title,
+}: {
+  children: ReactNode;
+  direcao?: "sobe" | "desce";
+  tom?: keyof typeof TOM_SELO;
+  title?: string;
+}) {
+  const Seta = direcao === "sobe" ? ArrowUpRight : direcao === "desce" ? ArrowDownRight : null;
+  return (
+    <span title={title} className={cn("mb-0.5 inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-2xs font-semibold", TOM_SELO[tom])}>
+      {Seta && <Seta aria-hidden="true" className="size-3" />}
+      {children}
+    </span>
+  );
+}
+
+/* ───────── Barra de participação: rótulo, valor e % numa linha, a barra fina embaixo ───────── */
+
+/** "Quanto disto é daquilo". `cor` é a da série (token ou cor do catálogo); sem ela, a primária. */
+export function BarraParticipacao({
+  rotulo,
+  valor,
+  total,
+  cor,
+  i = 0,
+}: {
+  rotulo: ReactNode;
+  valor: number;
+  total: number;
+  cor?: string;
+  /** A posição na lista: escalona a entrada da barra. */
+  i?: number;
+}) {
+  const pct = total > 0 ? Math.round((valor / total) * 100) : 0;
+  const fundo = cor ?? "var(--color-primary)";
+  return (
+    <div className="min-w-0">
+      <div className="flex items-baseline justify-between gap-3 text-xs">
+        <span className="flex min-w-0 items-center gap-2">
+          <span aria-hidden="true" className="size-2 shrink-0 rounded-full" style={{ background: fundo }} />
+          <span className="truncate">{rotulo}</span>
+        </span>
+        <span className="shrink-0 text-muted-foreground">
+          <span className="num font-semibold text-foreground">{valor.toLocaleString("pt-BR")}</span>
+          <span className="mx-1" aria-hidden="true">·</span>
+          <span className="num">{pct}%</span>
+        </span>
+      </div>
+      <div aria-hidden="true" className="trilha mt-1.5 h-1.5 overflow-hidden rounded-full">
+        <div className="grow-bar h-full rounded-full" style={{ width: `${pct}%`, background: fundo, ["--i" as string]: i }} />
+      </div>
+    </div>
+  );
+}
+
+/* ───────── Em construção: as telas novas entram vazias, sem números inventados ───────── */
+
+export function EmConstrucao({
+  icone: Icone,
+  titulo,
+  children,
+  itens,
+  fontes,
+}: {
+  icone: ComponentType<{ className?: string }>;
+  titulo: string;
+  children: ReactNode;
+  /** O que a tela vai ter (texto, não dado). */
+  itens: string[];
+  /** De onde os números vão vir. */
+  fontes?: string;
+}) {
+  return (
+    <section className="surface-card" aria-labelledby="em-construcao-titulo">
+      <div className="flex flex-col gap-6 p-5 sm:p-8 lg:flex-row lg:items-start lg:gap-10">
+        <div className="flex min-w-0 flex-1 flex-col gap-3">
+          <span className="inline-flex w-fit items-center gap-1.5 rounded-full bg-warning/16 px-2.5 py-1 text-2xs font-semibold tracking-wide text-warning-text uppercase">
+            <Construction aria-hidden="true" className="size-3.5" />
+            Em construção
+          </span>
+          <h2 id="em-construcao-titulo" className="flex items-center gap-2.5 text-xl font-semibold">
+            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary-text">
+              <Icone className="size-[18px]" />
+            </span>
+            {titulo}
+          </h2>
+          <div className="max-w-prose text-sm leading-relaxed text-muted-foreground">{children}</div>
+          <p className="max-w-prose rounded-lg border border-border bg-secondary/50 px-3 py-2.5 text-xs leading-relaxed text-muted-foreground">
+            Esta tela ainda não mostra números: nada aqui é inventado. Cada indicador entra quando a fonte real estiver
+            ligada{fontes ? ` (${fontes})` : ""}.
+          </p>
+        </div>
+        <div className="min-w-0 lg:w-80">
+          <p className="mb-2 text-2xs font-semibold tracking-wider text-muted-foreground uppercase">O que vai ter</p>
+          <ul className="flex flex-col gap-2">
+            {itens.map((item) => (
+              <li key={item} className="flex items-start gap-2.5 rounded-lg border border-dashed border-border px-3 py-2.5 text-sm">
+                <span aria-hidden="true" className="mt-1.5 size-1.5 shrink-0 rounded-full bg-primary" />
+                {item}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
   );
 }
 

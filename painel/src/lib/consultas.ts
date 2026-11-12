@@ -111,6 +111,11 @@ export const preCarregar = {
       })
       .catch(() => undefined);
   },
+  // O Painel usa o panorama e o catálogo da tela de unidades e a contagem das aprovações.
+  painel: () => {
+    preCarregar.cidade();
+    preCarregar.aprovacoes();
+  },
   aprovacoes: () => pre(["organizacao-tarefas", "abertas"], "/organizacao/tarefas?situacao=abertas"),
   cargos: () => pre(["organizacao-cargos"], "/organizacao/cargos"),
   equipe: () => pre(["organizacao-equipe"], "/organizacao/equipe"),

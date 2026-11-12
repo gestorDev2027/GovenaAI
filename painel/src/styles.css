@@ -6,8 +6,8 @@
 /* =========================================================
    Painel do GestorGov. Cores da marca: azul-marinho #0D1B38, azul #1A63D8, azul-claro #52A2FF,
    amarelo #F4B800 (só destaque e alerta) e cinza-azulado #424E6B. Meio-termo entre o institucional e o moderno:
-   menu azul-marinho com o item ativo em pílula azul, cartões brancos com cantos médios, sem degradês fortes.
-   Claro + escuro obrigatórios. Toda animação nova entra no bloco `prefers-reduced-motion` do fim.
+   menu azul-marinho com o item ativo em pílula azul, cartões com cantos médios, sem degradês fortes.
+   Claro + escuro obrigatórios; o escuro azul-marinho é o padrão desde a repaginação de 12/11/2026. Toda animação nova entra no bloco `prefers-reduced-motion` do fim.
    ========================================================= */
 
 /* Raios das classes rounded-*: médios (rounded-full continua redondo, para pontos, avatares e selos). */
@@ -146,49 +146,51 @@
   --sidebar-ring: #52A2FF;
 }
 
-/* ---------------- ESCURO ---------------- */
+/* ---------------- ESCURO (o padrão desde 12/11/2026) ----------------
+   Azul-marinho profundo, como nas telas de referência (Sala de situação, Execução orçamentária) e no dashboard
+   "Consumo" do Ramo: fundo quase preto-azulado, cartões um tom acima com borda fina, números grandes em branco. */
 .dark {
   color-scheme: dark;
-  --background: #0A1530;
+  --background: #060D1E;
   --foreground: #EEF3FB;
-  --card: #0F1F42;
+  --card: #0C1730;
   --card-foreground: #EEF3FB;
-  --popover: #0F1F42;
+  --popover: #0F1C39;
   --popover-foreground: #EEF3FB;
-  --primary: #3B82F0;
+  --primary: #2F7AEE;
   --primary-foreground: #FFFFFF;
   --primary-text: #7DB6FF;
   --accent: #52A2FF;
-  --accent-foreground: #0A1530;
-  --secondary: #16294F;
+  --accent-foreground: #060D1E;
+  --secondary: #13213F;
   --secondary-foreground: #EEF3FB;
-  --muted: #16294F;
-  --muted-foreground: #A5B3CC;
-  --border: #22365F;
-  --input: #2C4170;
+  --muted: #13213F;
+  --muted-foreground: #9DACC6;
+  --border: #1A2A4A;
+  --input: #263A62;
   --ring: #52A2FF;
   --destructive: oklch(0.68 0.21 25);
   --destructive-foreground: oklch(0.16 0.04 258);
   --success: oklch(0.76 0.16 155);
   --success-foreground: oklch(0.16 0.04 258);
   --warning: #F4B800;
-  --warning-foreground: #0A1530;
+  --warning-foreground: #060D1E;
   --warning-text: #FFD34D;
   --chart-1: #52A2FF;
-  --chart-2: #3B82F0;
+  --chart-2: #2F7AEE;
   --chart-3: #F4B800;
   --chart-4: #A5B3CC;
   --chart-5: #7DB6FF;
   --viz-1: #52A2FF;
   --viz-2: #F4B800;
   --viz-3: #2BC48A;
-  --sidebar: #071029;
+  --sidebar: #040A18;
   --sidebar-foreground: #DCE5F5;
-  --sidebar-primary: #3B82F0;
+  --sidebar-primary: #2F7AEE;
   --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #16294F;
+  --sidebar-accent: #101C37;
   --sidebar-accent-foreground: #EEF3FB;
-  --sidebar-border: #1D3058;
+  --sidebar-border: #14223F;
   --sidebar-ring: #52A2FF;
 }
 
@@ -382,6 +384,11 @@
       linear-gradient(to left, var(--color-card) 30%, transparent),
       linear-gradient(to right, rgb(0 0 0 / 0.45), transparent),
       linear-gradient(to left, rgb(0 0 0 / 0.45), transparent);
+  }
+
+  /* Barras de participação (cartões do Painel e listas): trilha discreta e o preenchimento na cor da série. */
+  .trilha {
+    background-color: color-mix(in oklab, var(--color-foreground) 8%, transparent);
   }
 
   .thin-scroll {

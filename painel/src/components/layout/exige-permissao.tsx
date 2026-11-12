@@ -22,19 +22,20 @@ export function ExigePermissao({
   ouNaOrganizacao,
   children,
 }: {
-  permissao: Permissao;
+  /** A permissão da plataforma. Sem ela, vale só a da organização (`ouNaOrganizacao`). */
+  permissao?: Permissao;
   /** Também libera quem tem esta permissão na organização dele (a tela mostra só os dados da organização). */
   ouNaOrganizacao?: PermissaoOrganizacao;
   children: ReactNode;
 }) {
   const pode = usePode();
   const podeNaOrganizacao = usePodeNaOrganizacao();
-  if (pode(permissao) || (!!ouNaOrganizacao && podeNaOrganizacao(ouNaOrganizacao))) return <>{children}</>;
+  if ((!!permissao && pode(permissao)) || (!!ouNaOrganizacao && podeNaOrganizacao(ouNaOrganizacao))) return <>{children}</>;
   return (
     <div className="px-4 py-16 sm:px-8">
       <div className="surface-card mx-auto max-w-md">
         <EmptyState icon={<Lock className="size-5" />} title="Você não tem acesso a esta tela">
-          É preciso a permissão “{NOME[permissao]}”. Peça ao dono do painel.
+          {permissao ? `É preciso a permissão “${NOME[permissao]}”. Peça ao dono do painel.` : "O seu cargo não dá acesso a esta tela. Peça ao dono da organização."}
         </EmptyState>
       </div>
     </div>
