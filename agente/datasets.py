@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from agno.utils.log import log_warning
 from sqlalchemy import Boolean, Column, DateTime, Integer, MetaData, String, Table, insert, select, update
 
+from agente import tabelas
+
 TABELA_AVALIACOES = "avaliacoes_humanas"
 ORIGEM_GUARDRAIL = "guardrail"
 TRANSFERIR = "transferir_para_humano"
@@ -124,7 +126,7 @@ class Frases:
         self._cache: tuple[float, list[dict]] | None = None
         if engine is not None:
             try:
-                self.tabela.metadata.create_all(engine, tables=[self.tabela])
+                tabelas.criar(engine, [self.tabela])
                 self._semear()
             except Exception as erro:
                 log_warning(f"Guardrail: frases sem banco, usando as padrão: {type(erro).__name__}: {erro}")

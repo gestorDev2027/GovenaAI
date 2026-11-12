@@ -25,7 +25,7 @@ from typing import Any
 from agno.utils.log import log_warning
 from sqlalchemy import insert, select, update
 
-from agente import gestao
+from agente import gestao, tabelas
 
 TIPOS_PASSO = ("agente", "aceite", "aprovacao", "revisao")
 PASSOS_DE_GENTE = ("aceite", "aprovacao", "revisao")
@@ -423,7 +423,7 @@ def _tabela_execucao():
             Column("erro", Text),
             Column("atualizado_em", DateTime(timezone=True)),
         )
-        m.create_all(gestao._estado["engine"], tables=[_estado["execucao"]])
+        tabelas.criar(gestao._estado["engine"], [_estado["execucao"]])
     return _estado["execucao"]
 
 

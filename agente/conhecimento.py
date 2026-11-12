@@ -31,7 +31,7 @@ from agno.utils.log import log_info, log_warning
 from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, MetaData, String, Table, Text, delete, func, insert, select, update
 from sqlalchemy.engine import Engine
 
-from agente import armazenamento, leitura_arquivos, vetores
+from agente import armazenamento, leitura_arquivos, tabelas, vetores
 
 TIPOS_ACEITOS = {
     "application/pdf": ".pdf",
@@ -119,7 +119,7 @@ def iniciar(engine: Engine, schema: str | None) -> None:
         Column("atualizado_em", DateTime(timezone=True), nullable=False),
         Column("atualizado_por", String(200), nullable=False),
     )
-    metadados.create_all(engine, tables=[_estado["documentos"], _estado["trechos"], _estado["exemplos"], _estado["bases"]])
+    tabelas.criar(engine, [_estado["documentos"], _estado["trechos"], _estado["exemplos"], _estado["bases"]])
     _estado["engine"] = engine
 
 

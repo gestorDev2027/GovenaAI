@@ -155,6 +155,11 @@ def _indexar_em_segundo_plano(agente_id: str, texto: str) -> None:
     threading.Thread(target=_indexar_roteiro, args=(agente_id, texto), daemon=True).start()
 
 
+# Segundos de espera antes de vetorizar os roteiros na subida do servidor: o trabalho (ler, comparar e, se mudou,
+# chamar os embeddings) fica para depois de o servidor estar no ar, em vez de disputar a CPU com a subida.
+ESPERA_INDEXAR = float(os.getenv("GESTORGOV_ESPERA_INDEXAR", "20"))
+
+
 def _indexar_roteiros(em_segundo_plano: bool) -> None:
     """Vetoriza a versão vigente do roteiro de cada agente (só se mudou) e a cada versão salva no painel."""
     import threading
@@ -165,7 +170,9 @@ def _indexar_roteiros(em_segundo_plano: bool) -> None:
 
     base.ao_salvar(_indexar_em_segundo_plano)
     if em_segundo_plano:
-        threading.Thread(target=todos, daemon=True).start()
+        tarefa = threading.Timer(ESPERA_INDEXAR, todos)
+        tarefa.daemon = True
+        tarefa.start()
     else:
         todos()
 

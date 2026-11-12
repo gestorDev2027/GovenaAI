@@ -16,6 +16,8 @@ from pathlib import Path
 from sqlalchemy import Column, DateTime, Integer, MetaData, String, Table, Text, insert, select
 from sqlalchemy.engine import Engine
 
+from agente import tabelas
+
 ARQUIVO_PADRAO = Path(__file__).parent / "base_conhecimento.md"
 AGENTE_PADRAO = "onboarding"
 MARCA_NOME = "[NOME DO CONTATO]"
@@ -80,7 +82,7 @@ class BaseConhecimento:
         """Liga a base ao banco (no Postgres, dentro do schema do agente) e carrega a versão vigente."""
         self._engine = engine
         self._tabela = self._criar_tabela(schema)
-        self._tabela.metadata.create_all(engine, tables=[self._tabela])
+        tabelas.criar(engine, [self._tabela])
         self._carregar()
 
     def _padrao(self) -> dict:

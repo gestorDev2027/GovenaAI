@@ -151,11 +151,13 @@ if PASTA_PAINEL.exists():
 
 # Rotinas de manutenção (idempotentes a cada reinício). As herdadas do NexaAgents saem do banco.
 _rotinas = ScheduleManager(agente.db)
-for _antiga in _rotinas.list() or []:
+_existentes = _rotinas.list() or []
+for _antiga in _existentes:
     if getattr(_antiga, "name", None) in ("encerrar-conversas-inativas", "avaliacoes-diarias"):
         _rotinas.delete(_antiga.id)
-# Limpeza diária dos traces e execuções antigas de rotinas.
-_rotinas.create(
+# Limpeza diária dos traces e execuções antigas de rotinas. Gravada só quando muda: o create do Agno confere o fuso
+# carregando a lista inteira de fusos do pytz (0,35 s num PC, segundos no Render), e a cada início regravava igual.
+_LIMPEZA = dict(
     name="limpeza",
     description="Apaga traces e execuções de rotinas antigas.",
     cron="0 3 * * *",
@@ -163,8 +165,35 @@ _rotinas.create(
     endpoint="/painel/api/manutencao/limpeza",
     method="POST",
     timeout_seconds=300,
-    if_exists="update",
 )
+_atual = next((r for r in _existentes if getattr(r, "name", None) == "limpeza"), None)
+if _atual is None or any(getattr(_atual, campo, None) != valor for campo, valor in {
+        **_LIMPEZA, "cron_expr": _LIMPEZA["cron"]}.items() if campo != "cron"):
+    _rotinas.create(**_LIMPEZA, if_exists="update")
+
+
+def _rastrear_so_o_gemini() -> None:
+    """O rastreamento (tracing=True) instrumenta cada classe de modelo do Agno. Para achá-las, o openinference
+    importa TODOS os provedores (OpenAI, Anthropic, AWS, Azure...): 1,2 s num PC, o maior peso da subida. O GestorGov
+    só usa o Gemini (agentes, Fábrica, memória), então só ele é instrumentado: os traces ficam iguais."""
+    try:
+        import openinference.instrumentation.agno as instrumentacao
+        from agno.models.google import Gemini
+    except ImportError:
+        return
+
+    def so_o_gemini():
+        def subclasses(classe):
+            for filha in classe.__subclasses__():
+                yield from subclasses(filha)
+                yield filha
+
+        return sorted({Gemini, *subclasses(Gemini)}, key=lambda c: len(c.__mro__), reverse=True)
+
+    instrumentacao.find_model_subclasses = so_o_gemini
+
+
+_rastrear_so_o_gemini()
 agent_os = AgentOS(
     id="gestorgov",
     name="GestorGov",

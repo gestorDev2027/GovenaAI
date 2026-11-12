@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 from sqlalchemy import JSON, Column, DateTime, MetaData, String, Table, delete, insert, select, update
 from sqlalchemy.engine import Engine
 
+from agente import tabelas
+
 PERMISSOES: dict[str, tuple[str, str]] = {
     "ver_painel": ("Ver o painel", "Cidade, Central de comando e conversas com os agentes."),
     "usar_chat": ("Usar o chat", "Conversar com agentes e equipes pelo painel."),
@@ -87,7 +89,7 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         Column("criado_em", DateTime(timezone=True), nullable=False),
         Column("atualizado_em", DateTime(timezone=True), nullable=True),
     )
-    tabela.metadata.create_all(engine, tables=[tabela, contas])
+    tabelas.criar(engine, [tabela, contas])
     _estado.update(engine=engine, tabela=tabela, contas=contas)
 
 

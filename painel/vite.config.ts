@@ -8,6 +8,8 @@ import { fileURLToPath, URL } from "node:url";
 export default defineConfig({
   base: "/painel/",
   plugins: [react(), tailwindcss()],
+  // A versão deste build: descarta o cache guardado no navegador depois de cada deploy (lib/consultas.ts).
+  define: { "import.meta.env.VITE_VERSAO": JSON.stringify(Date.now().toString(36)) },
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },
   },

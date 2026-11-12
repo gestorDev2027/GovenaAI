@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Bot, Check, ChevronDown, ClipboardCheck, FileCheck2, Hand, Inbox, ListChecks, Loader2, ShieldCheck, Undo2, User, X } from "lucide-react";
 import { api } from "@/lib/api";
+import { passoDa, useTarefasAbertas, type Passo } from "@/hooks/use-tarefas";
 import { cn } from "@/lib/utils";
 import { fmtDataHora } from "@/lib/formato";
 import { useRotulos } from "@/hooks/use-permissoes";
@@ -57,33 +58,7 @@ export interface Tarefa {
   erro?: string | null;
 }
 
-type Passo = "aceitar" | "acoes" | "revisar";
 type Aba = Passo | "todas";
-
-/** Em que passo a tarefa espera uma pessoa (ou nenhum). */
-export function passoDa(t: Tarefa): Passo | null {
-  if (t.situacao === "backlog") return "aceitar";
-  if (t.situacao === "in_progress" && t.aguardando_aprovacao) return "acoes";
-  if (t.situacao === "in_review") return "revisar";
-  return null;
-}
-
-/** As tarefas que esperam uma pessoa (atualiza a cada 30 s). O menu usa para o contador. */
-export function useTarefasAbertas(ligado = true) {
-  return useQuery({
-    queryKey: ["organizacao-tarefas", "abertas"],
-    queryFn: () => api<{ tarefas: Tarefa[] }>("/organizacao/tarefas?situacao=abertas"),
-    enabled: ligado,
-    // Enquanto um agente trabalha numa tarefa, a cada 5 s (a pausa ou a entrega aparecem logo); parado, a cada 30 s.
-    refetchInterval: (q) => ((q.state.data as { tarefas: Tarefa[] } | undefined)?.tarefas.some((t) => t.andamento === "rodando") ? 5_000 : 30_000),
-  });
-}
-
-/** Quantas tarefas esperam uma decisão sua. */
-export function useContagemAprovacoes(ligado = true): number {
-  const abertas = useTarefasAbertas(ligado);
-  return (abertas.data?.tarefas ?? []).filter((t) => t.posso_decidir && passoDa(t)).length;
-}
 
 const ABAS: { id: Aba; label: string; icone: typeof Bot }[] = [
   { id: "aceitar", label: "Aceitar", icone: Hand },
