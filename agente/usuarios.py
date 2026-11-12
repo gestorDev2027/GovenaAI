@@ -18,7 +18,7 @@ import hmac
 import os
 import secrets
 import threading
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import JSON, Column, DateTime, MetaData, String, Table, delete, insert, select, update
 from sqlalchemy.engine import Engine
@@ -89,8 +89,18 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         Column("criado_em", DateTime(timezone=True), nullable=False),
         Column("atualizado_em", DateTime(timezone=True), nullable=True),
     )
-    tabelas.criar(engine, [tabela, contas])
-    _estado.update(engine=engine, tabela=tabela, contas=contas)
+    # Links para redefinir a senha (gerados por quem gerencia usuários). Só o hash do token fica guardado.
+    redefinicoes = Table(
+        "painel_redefinicoes_senha", tabela.metadata,
+        Column("token_hash", String(64), primary_key=True),
+        Column("email", String(200), nullable=False, index=True),
+        Column("criado_por", String(200), nullable=False),
+        Column("criado_em", DateTime(timezone=True), nullable=False),
+        Column("expira_em", DateTime(timezone=True), nullable=False),
+        Column("usado_em", DateTime(timezone=True), nullable=True),
+    )
+    tabelas.criar(engine, [tabela, contas, redefinicoes])
+    _estado.update(engine=engine, tabela=tabela, contas=contas, redefinicoes=redefinicoes)
 
 
 # ───────── Senhas (scrypt, da biblioteca padrão) ─────────
@@ -137,6 +147,85 @@ def entrar_com_senha(email: str, senha: str) -> dict | None:
     if not conta or not _senha_confere(senha, conta["senha_hash"]):
         return None
     return registrar_acesso(email, conta["nome"])
+
+
+# ───────── Redefinir a senha (link gerado no painel; sem serviço de e-mail) ─────────
+VALIDADE_REDEFINICAO = timedelta(hours=24)
+
+
+def _hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def gerar_link_senha(email: str, por: str) -> dict:
+    """Gera o link (token de uso único, 24 h) para a pessoa criar uma senha nova. Cancela os links anteriores dela.
+    O token só volta aqui: no banco fica o hash. Regras: só o dono gera para administradores; o dono só pela chave
+    de acesso (equipe técnica) ou por ele mesmo."""
+    email = email.strip().lower()
+    alvo = usuario(email)
+    if alvo is None:
+        raise ErroUsuario(404, f"Usuário desconhecido: {email}.")
+    eu = usuario(por) if por != SISTEMA else {"papel": "dono"}
+    papel_eu = (eu or {}).get("papel")
+    if alvo["papel"] == "dono" and por not in (SISTEMA, email):
+        raise ErroUsuario(403, "O link do dono só sai pela chave de acesso da equipe técnica.")
+    if alvo["papel"] == "administrador" and papel_eu != "dono":
+        raise ErroUsuario(403, "Só o dono gera o link de um administrador.")
+    token = secrets.token_urlsafe(32)
+    agora = _agora()
+    tr = _estado["redefinicoes"]
+    with _estado["engine"].begin() as conexao:
+        conexao.execute(delete(tr).where(tr.c.email == email, tr.c.usado_em.is_(None)))
+        conexao.execute(insert(tr).values(token_hash=_hash_token(token), email=email, criado_por=por, criado_em=agora,
+                                          expira_em=agora + VALIDADE_REDEFINICAO))
+        tabela = _estado["tabela"]
+        conexao.execute(update(tabela).where(tabela.c.email == email).values(atualizado_em=agora, atualizado_por=por))
+    return {"token": token, "email": email, "expira_em": _iso(agora + VALIDADE_REDEFINICAO)}
+
+
+def _redefinicao_valida(token: str) -> dict:
+    tr = _estado["redefinicoes"]
+    with _estado["engine"].connect() as conexao:
+        linha = conexao.execute(select(tr).where(tr.c.token_hash == _hash_token(token or ""))).mappings().first()
+    if not linha:
+        raise ErroUsuario(404, "Link inválido. Peça um link novo a quem administra o GestorGov.")
+    if linha["usado_em"]:
+        raise ErroUsuario(410, "Este link já foi usado. Peça um link novo se precisar.")
+    expira = linha["expira_em"]
+    if expira.tzinfo is None:  # SQLite devolve sem fuso
+        expira = expira.replace(tzinfo=timezone.utc)
+    if expira < _agora():
+        raise ErroUsuario(410, "Este link venceu. Peça um link novo a quem administra o GestorGov.")
+    return dict(linha)
+
+
+def ler_link_senha(token: str) -> dict:
+    """O e-mail e o nome de quem vai criar a senha nova (para a tela)."""
+    linha = _redefinicao_valida(token)
+    pessoa = usuario(linha["email"]) or {}
+    return {"email": linha["email"], "nome": pessoa.get("nome") or linha["email"]}
+
+
+def redefinir_senha(token: str, senha: str) -> dict:
+    """Troca a senha (ou cria a conta, se a pessoa só entrava com o Google) e gasta o link."""
+    if len(senha or "") < SENHA_MINIMA:
+        raise ErroUsuario(422, f"A senha precisa ter pelo menos {SENHA_MINIMA} caracteres.")
+    linha = _redefinicao_valida(token)
+    email, agora = linha["email"], _agora()
+    tr, contas = _estado["redefinicoes"], _estado["contas"]
+    pessoa = usuario(email) or {}
+    with _trava, _estado["engine"].begin() as conexao:
+        gasto = conexao.execute(update(tr).where(tr.c.token_hash == linha["token_hash"], tr.c.usado_em.is_(None))
+                                .values(usado_em=agora))
+        if gasto.rowcount != 1:  # outra aba usou o mesmo link ao mesmo tempo
+            raise ErroUsuario(410, "Este link já foi usado. Peça um link novo se precisar.")
+        if conexao.execute(select(contas.c.email).where(contas.c.email == email)).first():
+            conexao.execute(update(contas).where(contas.c.email == email).values(senha_hash=_hash_senha(senha),
+                                                                                 atualizado_em=agora))
+        else:
+            conexao.execute(insert(contas).values(email=email, nome=pessoa.get("nome") or email,
+                                                  senha_hash=_hash_senha(senha), criado_em=agora))
+    return {"email": email, "nome": pessoa.get("nome") or email}
 
 
 def disponivel() -> bool:

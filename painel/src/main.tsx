@@ -34,6 +34,7 @@ const Aprovacoes = lazyRouteComponent(() => import("@/pages/aprovacoes"), "Aprov
 const Processos = lazyRouteComponent(() => import("@/pages/processos"), "Processos");
 const Integracoes = lazyRouteComponent(() => import("@/pages/integracoes"), "Integracoes");
 const AceitarConvite = lazyRouteComponent(() => import("@/pages/convite"), "AceitarConvite");
+const RedefinirSenha = lazyRouteComponent(() => import("@/pages/redefinir-senha"), "RedefinirSenha");
 const ColaborarNaImplantacao = lazyRouteComponent(() => import("@/pages/colaborar"), "ColaborarNaImplantacao");
 const CentralDeComando = lazyRouteComponent(() => import("@/pages/comando"), "CentralDeComando");
 const Secretaria3D = lazyRouteComponent(() => import("@/pages/secretaria"), "Secretaria3D");
@@ -157,6 +158,8 @@ const router = createRouter({
     createRoute({ getParentRoute: () => raiz, path: "/cadastro", component: Cadastro }),
     createRoute({ getParentRoute: () => raiz, path: "/implantacao", component: PaginaImplantacao }),
     createRoute({ getParentRoute: () => raiz, path: "/convite/$token", component: AceitarConvite }),
+    // O link de redefinir a senha (gerado em Usuários): a pessoa cria a senha nova e entra.
+    createRoute({ getParentRoute: () => raiz, path: "/redefinir-senha/$token", component: RedefinirSenha }),
     // O link da implantação compartilhada: um colaborador entra com o código de segurança e continua a implantação.
     createRoute({ getParentRoute: () => raiz, path: "/colaborar/$token", component: ColaborarNaImplantacao }),
   ]),
