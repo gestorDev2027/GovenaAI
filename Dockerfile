@@ -17,9 +17,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install -r requirements.txt
-# MCP Toolbox for Databases (Central de integrações, agente/toolbox.py): o binário oficial, ~290 MB. Só roda com
-# GESTORGOV_TOOLBOX=sim. Para uma imagem sem ele: --build-arg COM_TOOLBOX=nao.
-ARG COM_TOOLBOX=sim
+# MCP Toolbox for Databases (Central de integrações, agente/toolbox.py): o binário oficial, ~290 MB. Fica FORA da
+# imagem por padrão (deploy mais rápido e imagem menor); só serve com GESTORGOV_TOOLBOX=sim. Para pôr na imagem:
+# --build-arg COM_TOOLBOX=sim (no Render: Settings → Docker Build Args, ou dockerBuildArgs no Blueprint).
+ARG COM_TOOLBOX=nao
 ARG TOOLBOX_VERSAO=1.15.0
 RUN if [ "$COM_TOOLBOX" = "sim" ]; then \
       python -c "import urllib.request; urllib.request.urlretrieve('https://storage.googleapis.com/mcp-toolbox-for-databases/v${TOOLBOX_VERSAO}/linux/amd64/toolbox', '/usr/local/bin/toolbox')" \

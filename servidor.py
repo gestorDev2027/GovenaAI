@@ -120,7 +120,10 @@ async def app(scope, receive, send):
     if scope["type"] == "http" and scope.get("path") in ("/saude", "/painel/api/saude"):
         import json
 
-        return await _responder(send, 200, json.dumps(_situacao(), ensure_ascii=False).encode(), "application/json")
+        situacao = _situacao()
+        # 200 só com o sistema pronto: no deploy, o Render (healthCheckPath) mantém a versão antiga no ar até lá.
+        status = 200 if situacao.get("situacao") == "pronto" else 503
+        return await _responder(send, status, json.dumps(situacao, ensure_ascii=False).encode(), "application/json")
 
     if _estado["ativo"] is not None:
         return await _estado["ativo"](scope, receive, send)

@@ -440,7 +440,12 @@ Dois níveis, separados:
 - `render.yaml` (Blueprint) + `Dockerfile` (etapa Node constrói o painel; etapa Python roda o servidor).
 - O `render.yaml` está com `plan: starter`. O plano free dorme após 15 min sem acesso (acorda em ~1 min) e as
   rotinas não rodam enquanto dorme: serve só para demonstração. Cliente real: `starter` ou acima.
-- Região Virginia (o Render não tem Brasil).
+  O serviço em produção (`govenaai.onrender.com`) foi criado à mão, no plano grátis: o `render.yaml` só vale se
+  o Blueprint for aplicado. Medido em 12/11/2026 (Docker local, 512 MB): o sistema sobe em ~5 s e usa ~160 MB.
+- `/saude` responde 200 só com o sistema pronto (503 carregando ou com erro); é o `healthCheckPath`.
+- O Toolbox (~290 MB) fica fora da imagem por padrão (`COM_TOOLBOX=nao`): para usar, build arg `COM_TOOLBOX=sim`.
+- Região Virginia (o Render não tem Brasil): cada consulta ao Supabase (São Paulo) custa ~0,12 s de ida e volta.
+  Leituras que repetem consultas vão dentro de `gestao.leitura_unica()` (o panorama caiu de ~22 para 11 consultas).
 - Variáveis secretas: `GOOGLE_API_KEY`, `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
   `PAINEL_DONO`, `PAINEL_GOOGLE_CLIENT_ID`, `PAINEL_DOMINIOS` (opcional). `OS_SECURITY_KEY` é gerada pelo Render.
 
