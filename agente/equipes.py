@@ -30,10 +30,10 @@ from agno.db.base import SessionType
 from agno.team import Team
 from agno.team.mode import TeamMode
 from agno.utils.log import log_warning
-from sqlalchemy import JSON, Boolean, Column, DateTime, MetaData, String, Table, Text, insert, inspect, select, text, update
+from sqlalchemy import JSON, Boolean, Column, DateTime, MetaData, String, Table, Text, insert, select, text, update
 from sqlalchemy.engine import Engine
 
-from agente import guardrails, listas, perfis
+from agente import guardrails, listas, perfis, tabelas
 from agente.ferramentas import STATUS_EM_ATENDIMENTO
 
 ID_VALIDO = re.compile(r"^[a-z0-9-]{3,30}$")
@@ -91,14 +91,15 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         Column("excluida_em", DateTime(timezone=True), nullable=True),
         Column("excluida_por", String(200), nullable=True),
     )
-    tabela.metadata.create_all(engine, tables=[tabela])
+    tabelas.criar(engine, [tabela])
     # Colunas que chegaram depois da tabela (create_all não altera tabelas existentes).
-    existentes = {c["name"] for c in inspect(engine).get_columns(tabela.name, schema=schema)}
+    existentes = tabelas.colunas(engine, tabela)
     nome = f"{schema}.{tabela.name}" if schema else tabela.name
     for coluna in (tabela.c.excluida_em, tabela.c.excluida_por):
         if coluna.name not in existentes:
             with engine.begin() as conexao:
                 conexao.execute(text(f"ALTER TABLE {nome} ADD COLUMN {coluna.name} {coluna.type.compile(dialect=engine.dialect)}"))
+            tabelas.esquecer(engine, schema)
     with engine.connect() as conexao:
         linhas = [dict(l) for l in conexao.execute(select(tabela)).mappings().all()]
     _estado.update(engine=engine, tabela=tabela, config={l["id"]: l for l in linhas})

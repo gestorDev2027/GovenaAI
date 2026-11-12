@@ -29,11 +29,11 @@ from pathlib import Path
 from typing import Callable
 
 from agno.utils.log import log_warning
-from sqlalchemy import (JSON, Boolean, Column, DateTime, Integer, MetaData, String, Table, Text, UniqueConstraint, insert, inspect,
+from sqlalchemy import (JSON, Boolean, Column, DateTime, Integer, MetaData, String, Table, Text, UniqueConstraint, insert,
                         select, text, update)
 from sqlalchemy.engine import Engine
 
-from agente import base, fabrica_recursos, perfis
+from agente import base, fabrica_recursos, perfis, tabelas
 from agente.ferramentas import criar_transferir, encerrar_atendimento
 from agente.instrucoes_agente import MARCADOR_BASE, InstrucoesDoAgente
 from agente.perfil import Perfil
@@ -179,7 +179,7 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         Column("em", DateTime(timezone=True), nullable=False),
         UniqueConstraint("agente", "versao", name="fabrica_instrucoes_agente_versao"),
     )
-    metadados.create_all(engine, tables=[agentes, instrucoes])
+    tabelas.criar(engine, [agentes, instrucoes])
     _garantir_colunas(engine, agentes, ("excluido_em", "excluido_por", "organizacao_id"))
     fabrica_recursos.iniciar(engine, schema)  # skills, ferramentas do painel e casos de teste
     # Os perfis do código, antes de qualquer alteração (guardados uma vez: iniciar pode ser chamado de novo nos testes).
@@ -205,11 +205,12 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
 
 def _garantir_colunas(engine: Engine, tabela: Table, nomes: tuple[str, ...]) -> None:
     """Acrescenta colunas novas a uma tabela criada antes delas (create_all não altera tabelas)."""
-    existentes = {c["name"] for c in inspect(engine).get_columns(tabela.name, schema=tabela.schema)}
+    existentes = tabelas.colunas(engine, tabela)
     nome = f"{tabela.schema}.{tabela.name}" if tabela.schema else tabela.name
     for coluna in (tabela.c[n] for n in nomes if n not in existentes):
         with engine.begin() as conexao:
             conexao.execute(text(f"ALTER TABLE {nome} ADD COLUMN {coluna.name} {coluna.type.compile(dialect=engine.dialect)}"))
+        tabelas.esquecer(engine, tabela.schema)
 
 
 def disponivel() -> bool:

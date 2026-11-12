@@ -1,49 +1,43 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import {
+  Navigate,
   Outlet,
   RouterProvider,
   createRootRoute,
   createRoute,
   createRouter,
+  lazyRouteComponent,
 } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import "./styles.css";
-import { ErroAcesso } from "@/lib/api";
+import { aoRestaurar, persistencia, preCarregar, queryClient } from "@/lib/consultas";
 import { AppShell } from "@/components/layout/app-shell";
 import { AccessGate } from "@/components/layout/access-gate";
 import { ExigePermissao } from "@/components/layout/exige-permissao";
-import { Chat } from "@/pages/chat";
-import { BaseConhecimento } from "@/pages/base";
-import { Fabrica } from "@/pages/fabrica";
-import { Usuarios } from "@/pages/usuarios";
-import { Observabilidade } from "@/pages/observabilidade";
-import { Cidade } from "@/pages/cidade";
-import { Inicio } from "@/pages/inicio";
-import { Entrar } from "@/pages/entrar";
-import { Cadastro } from "@/pages/cadastro";
-import { PaginaImplantacao } from "@/pages/implantacao";
-import { Cargos } from "@/pages/cargos";
-import { Equipe } from "@/pages/equipe";
-import { AgentesDaOrganizacao } from "@/pages/agentes";
-import { Aprovacoes } from "@/pages/aprovacoes";
-import { Processos } from "@/pages/processos";
-import { AceitarConvite } from "@/pages/convite";
-import { ColaborarNaImplantacao } from "@/pages/colaborar";
-import { CentralDeComando } from "@/pages/comando";
-import { Secretaria3D } from "@/pages/secretaria";
-import { Unidade3D } from "@/pages/unidade";
-import { Navigate } from "@tanstack/react-router";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      retry: (falhas, erro) => !(erro instanceof ErroAcesso) && falhas < 2,
-    },
-  },
-});
+// Cada tela num pacote próprio, baixado na primeira visita (ou antes, quando o mouse passa no link: preload "intent").
+const Chat = lazyRouteComponent(() => import("@/pages/chat"), "Chat");
+const BaseConhecimento = lazyRouteComponent(() => import("@/pages/base"), "BaseConhecimento");
+const Fabrica = lazyRouteComponent(() => import("@/pages/fabrica"), "Fabrica");
+const Usuarios = lazyRouteComponent(() => import("@/pages/usuarios"), "Usuarios");
+const Observabilidade = lazyRouteComponent(() => import("@/pages/observabilidade"), "Observabilidade");
+const Cidade = lazyRouteComponent(() => import("@/pages/cidade"), "Cidade");
+const Inicio = lazyRouteComponent(() => import("@/pages/inicio"), "Inicio");
+const Entrar = lazyRouteComponent(() => import("@/pages/entrar"), "Entrar");
+const Cadastro = lazyRouteComponent(() => import("@/pages/cadastro"), "Cadastro");
+const PaginaImplantacao = lazyRouteComponent(() => import("@/pages/implantacao"), "PaginaImplantacao");
+const Cargos = lazyRouteComponent(() => import("@/pages/cargos"), "Cargos");
+const Equipe = lazyRouteComponent(() => import("@/pages/equipe"), "Equipe");
+const AgentesDaOrganizacao = lazyRouteComponent(() => import("@/pages/agentes"), "AgentesDaOrganizacao");
+const Aprovacoes = lazyRouteComponent(() => import("@/pages/aprovacoes"), "Aprovacoes");
+const Processos = lazyRouteComponent(() => import("@/pages/processos"), "Processos");
+const AceitarConvite = lazyRouteComponent(() => import("@/pages/convite"), "AceitarConvite");
+const ColaborarNaImplantacao = lazyRouteComponent(() => import("@/pages/colaborar"), "ColaborarNaImplantacao");
+const CentralDeComando = lazyRouteComponent(() => import("@/pages/comando"), "CentralDeComando");
+const Secretaria3D = lazyRouteComponent(() => import("@/pages/secretaria"), "Secretaria3D");
+const Unidade3D = lazyRouteComponent(() => import("@/pages/unidade"), "Unidade3D");
 
 const raiz = createRootRoute({ component: Outlet });
 
@@ -74,12 +68,12 @@ const Inicial = () => <Navigate to="/cidade" replace />;
 
 const rotas = [
   createRoute({ getParentRoute: () => painel, path: "/", component: Inicial }),
-  createRoute({ getParentRoute: () => painel, path: "/cidade", component: Cidade }),
-  createRoute({ getParentRoute: () => painel, path: "/cargos", component: Cargos }),
-  createRoute({ getParentRoute: () => painel, path: "/equipe", component: Equipe }),
-  createRoute({ getParentRoute: () => painel, path: "/agentes", component: AgentesDaOrganizacao }),
-  createRoute({ getParentRoute: () => painel, path: "/aprovacoes", component: Aprovacoes }),
-  createRoute({ getParentRoute: () => painel, path: "/processos", component: Processos }),
+  createRoute({ getParentRoute: () => painel, path: "/cidade", component: Cidade, loader: preCarregar.cidade }),
+  createRoute({ getParentRoute: () => painel, path: "/cargos", component: Cargos, loader: preCarregar.cargos }),
+  createRoute({ getParentRoute: () => painel, path: "/equipe", component: Equipe, loader: preCarregar.equipe }),
+  createRoute({ getParentRoute: () => painel, path: "/agentes", component: AgentesDaOrganizacao, loader: preCarregar.agentes }),
+  createRoute({ getParentRoute: () => painel, path: "/aprovacoes", component: Aprovacoes, loader: preCarregar.aprovacoes }),
+  createRoute({ getParentRoute: () => painel, path: "/processos", component: Processos, loader: preCarregar.processos }),
   createRoute({
     getParentRoute: () => painel,
     path: "/chat",
@@ -87,6 +81,7 @@ const rotas = [
     validateSearch: (s: Record<string, unknown>): { agente?: string } => ({
       agente: typeof s.agente === "string" ? s.agente : undefined,
     }),
+    loader: () => Chat.preload?.(),
     component: () => <ExigePermissao permissao="usar_chat" ouNaOrganizacao="ver_painel"><Chat /></ExigePermissao>,
   }),
   createRoute({
@@ -101,6 +96,7 @@ const rotas = [
   createRoute({
     getParentRoute: () => painel,
     path: "/usuarios",
+    loader: () => Usuarios.preload?.(),
     component: () => <ExigePermissao permissao="gerenciar_usuarios"><Usuarios /></ExigePermissao>,
   }),
   createRoute({
@@ -113,6 +109,7 @@ const rotas = [
       secao: typeof s.secao === "string" ? s.secao : undefined,
       aba: typeof s.aba === "string" ? s.aba : undefined,
     }),
+    loader: () => Fabrica.preload?.(),
     component: () => <ExigePermissao permissao="editar_agentes"><Fabrica /></ExigePermissao>,
   }),
   createRoute({
@@ -122,6 +119,7 @@ const rotas = [
       grupo: typeof s.grupo === "string" ? s.grupo : undefined,
       tabela: typeof s.tabela === "string" ? s.tabela : undefined,
     }),
+    loader: () => Observabilidade.preload?.(),
     component: () => <ExigePermissao permissao="ver_banco"><Observabilidade /></ExigePermissao>,
   }),
 ];
@@ -147,6 +145,10 @@ const router = createRouter({
     createRoute({ getParentRoute: () => raiz, path: "/colaborar/$token", component: ColaborarNaImplantacao }),
   ]),
   basepath: "/painel",
+  // Ao passar o mouse (ou focar pelo teclado) num link, baixa o pacote da tela e os dados dela (loaders acima).
+  defaultPreload: "intent",
+  // Quem decide se os dados ainda valem é o cache do TanStack Query (lib/consultas.ts), não o router.
+  defaultPreloadStaleTime: 0,
   defaultNotFoundComponent: () => <div className="p-6 text-sm text-muted-foreground">Página não encontrada.</div>,
 });
 
@@ -158,9 +160,9 @@ declare module "@tanstack/react-router" {
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider client={queryClient} persistOptions={persistencia} onSuccess={aoRestaurar}>
       <RouterProvider router={router} />
       <Toaster richColors position="top-right" />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>,
 );

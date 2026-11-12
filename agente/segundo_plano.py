@@ -24,6 +24,8 @@ from agno.utils.log import log_info, log_warning
 from sqlalchemy import JSON, Column, DateTime, MetaData, String, Table, Text, insert, select, update
 from sqlalchemy.engine import Engine
 
+from agente import tabelas
+
 ATIVAS = ("na_fila", "rodando")
 # Estados finais de uma execução no Render (TaskRun.status).
 FINAIS_RENDER_COM_ERRO = ("failed", "canceled")
@@ -55,7 +57,7 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         Column("iniciada_em", DateTime(timezone=True)),
         Column("concluida_em", DateTime(timezone=True)),
     )
-    metadados.create_all(engine, tables=[_estado["tabela"]])
+    tabelas.criar(engine, [_estado["tabela"]])
     _estado["engine"] = engine
 
 

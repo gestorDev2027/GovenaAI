@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { Ban, Calendar, Check, Clock3, Crown, Pencil, Search, ShieldCheck, Trash2, UserCheck, UserRound, Users } from "lucide-react";
 import { api, type OpcoesUsuarios, type Permissao, type SituacaoUsuario, type UsuarioPainel } from "@/lib/api";
 import { fmtDataHora, fmtRelativo } from "@/lib/formato";
+import { useUsuarios } from "@/hooks/use-usuarios";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/fields";
@@ -27,14 +28,6 @@ const SITUACAO: Record<SituacaoUsuario, { rotulo: string; tom: "alerta" | "suces
 };
 
 type Filtro = "todos" | SituacaoUsuario;
-
-export const useUsuarios = (habilitado = true) =>
-  useQuery({
-    queryKey: ["usuarios"],
-    queryFn: () => api<{ usuarios: UsuarioPainel[]; voce: string }>("/usuarios"),
-    enabled: habilitado,
-    refetchInterval: 60_000,
-  });
 
 const useOpcoesUsuarios = () =>
   useQuery({ queryKey: ["usuarios-opcoes"], queryFn: () => api<OpcoesUsuarios>("/usuarios/opcoes"), staleTime: Infinity });
