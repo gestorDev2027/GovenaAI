@@ -17,6 +17,9 @@ import re
 import threading
 import time
 import unicodedata
+import contextlib
+import contextvars
+import functools
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -247,14 +250,55 @@ def _t(nome: str) -> Table:
     return _estado["t"][nome]
 
 
-def _linhas(consulta) -> list[dict]:
+# Leitura única: dentro de um `with leitura_unica()`, a mesma consulta vai ao banco uma vez só (o banco fica em
+# São Paulo e o servidor na Virgínia: cada ida e volta custa ~0,12 s). Vale só durante a leitura (sem cache entre
+# pedidos), então nada fica velho. O panorama, por exemplo, lia a organização 4 vezes e as áreas 2.
+_memo: contextvars.ContextVar[dict | None] = contextvars.ContextVar("gestao_memo", default=None)
+
+
+@contextlib.contextmanager
+def leitura_unica():
+    if _memo.get() is not None:  # já dentro de uma: usa a mesma
+        yield
+        return
+    marca = _memo.set({})
+    try:
+        yield
+    finally:
+        _memo.reset(marca)
+
+
+def _lendo_uma_vez(funcao):
+    @functools.wraps(funcao)
+    def embrulho(*args, **kwargs):
+        with leitura_unica():
+            return funcao(*args, **kwargs)
+    return embrulho
+
+
+def _executar(consulta, primeira: bool):
+    memo = _memo.get()
+    chave = None
+    if memo is not None:
+        compilada = consulta.compile(_estado["engine"])
+        chave = (primeira, str(compilada), repr(sorted(compilada.params.items(), key=lambda kv: kv[0])))
+        if chave in memo:
+            return memo[chave]
     with _estado["engine"].connect() as c:
-        return [dict(r) for r in c.execute(consulta).mappings().all()]
+        resultado = c.execute(consulta).mappings()
+        linhas = resultado.first() if primeira else resultado.all()
+    valor = (dict(linhas) if linhas else None) if primeira else [dict(r) for r in linhas]
+    if chave is not None:
+        memo[chave] = valor
+    return valor
+
+
+def _linhas(consulta) -> list[dict]:
+    return [dict(r) for r in _executar(consulta, False)]  # cópias: quem lê pode alterar a lista sem afetar o memo
 
 
 def _uma(consulta) -> dict | None:
-    with _estado["engine"].connect() as c:
-        r = c.execute(consulta).mappings().first()
+    r = _executar(consulta, True)
     return dict(r) if r else None
 
 
@@ -640,6 +684,7 @@ def _com_fotos(organizacao_id: str, lista: list[dict]) -> list[dict]:
     return [{**u, "foto_id": principal.get(str(u["id"])), "fotos": quantas.get(str(u["id"]), 0)} for u in lista]
 
 
+@_lendo_uma_vez
 def panorama(organizacao_id: str) -> dict:
     """Tudo o que a tela precisa para desenhar o mapa e o prédio: a organização (com o segmento e os nomes de tela),
     as áreas com atividades, agentes e responsáveis, as unidades, as pessoas e a fase da implantação."""
@@ -830,6 +875,7 @@ FASES = ("organizacao", "areas", "atividades", "cargos", "responsaveis", "agente
 # continua disponível para cadastrá-las).
 
 
+@_lendo_uma_vez
 def pendencias(organizacao_id: str) -> dict[str, list[str]]:
     """O que falta em cada fase (vazio = fase completa)."""
     org = organizacao(organizacao_id) or {}
@@ -872,6 +918,7 @@ def pendencias(organizacao_id: str) -> dict[str, list[str]]:
     }
 
 
+@_lendo_uma_vez
 def fase_atual(organizacao_id: str, falta: dict | None = None) -> str:
     """A primeira fase que ainda tem pendência (na ordem); tudo completo, a revisão."""
     if ((organizacao(organizacao_id) or {}).get("situacao")) == "ativo":
@@ -880,6 +927,7 @@ def fase_atual(organizacao_id: str, falta: dict | None = None) -> str:
     return next((f for f in FASES if falta.get(f)), "revisao")
 
 
+@_lendo_uma_vez
 def bloqueio(organizacao_id: str, fase: str) -> list[str]:
     """O que falta nas fases ANTES de `fase` (vazio = pode trabalhar nela)."""
     falta = pendencias(organizacao_id)

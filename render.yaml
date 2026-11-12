@@ -10,6 +10,8 @@ services:
     # O plano gratuito "dorme" sem acesso e para as rotinas (Scheduler e CompanyOS): use no mínimo o Starter.
     plan: starter
     autoDeploy: true
+    # servidor.py responde /saude na hora (carregando, pronto ou erro): o Render só troca a versão quando está no ar.
+    healthCheckPath: /saude
     envVars:
       # ── Modelo (Gemini) ──
       - key: GOOGLE_API_KEY
