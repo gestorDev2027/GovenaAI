@@ -9,10 +9,12 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
     <title>GestorGov · Gestão Pública Inteligente</title>
     <script>
-      // Aplica o tema salvo antes da primeira pintura. O padrão é o claro (institucional).
+      // Aplica o tema antes da primeira pintura. O padrão é o escuro azul-marinho (12/11/2026); o claro fica na escolha.
       try {
-        if (localStorage.getItem("theme") === "dark") document.documentElement.classList.add("dark");
-      } catch (e) {}
+        if (localStorage.getItem("theme") !== "light") document.documentElement.classList.add("dark");
+      } catch (e) {
+        document.documentElement.classList.add("dark");
+      }
     </script>
   </head>
   <body>

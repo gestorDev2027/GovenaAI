@@ -6,7 +6,7 @@ import { api, type RespostaPanorama } from "@/lib/api";
 import { useAcesso, useRotulos } from "@/hooks/use-permissoes";
 import { fasesDaImplantacao } from "@/lib/rotulos";
 import { fmtInt } from "@/lib/formato";
-import { EmptyState, PageHeader, PageLoader } from "@/components/widgets/widgets";
+import { BarraParticipacao, EmptyState, KpiCard, PageHeader, PageLoader } from "@/components/widgets/widgets";
 import { Table, TableCell, TableEmpty, TableHead, TableHeader, TableRow, TableWrapper } from "@/components/ui/tabela";
 import { Slideover } from "@/components/comando/slideover";
 import { cn } from "@/lib/utils";
@@ -61,7 +61,7 @@ export function Cidade() {
   return (
     <div className="space-y-5 px-4 pb-8 sm:px-8">
       <PageHeader
-        title={r.Unidades}
+        title="Território"
         icon={MapPinned}
         description={
           org
@@ -98,13 +98,14 @@ export function Cidade() {
       {org && (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Numero icone={Building2} rotulo={r.Unidades} valor={fmtInt(unidades.length)} />
-            <Numero icone={Landmark} rotulo={`${r.Areas} da ${r.organizacao_curta}`} valor={fmtInt(dados?.areas.length ?? 0)} />
-            <Numero icone={Users} rotulo={`${r.Pessoas} cadastrados`} valor={fmtInt(dados?.pessoas.length ?? 0)} />
-            <Numero
-              icone={Rocket}
-              rotulo="Implantação"
-              valor={org.situacao === "ativo" ? "Concluída" : "Em andamento"}
+            <KpiCard icon={<Building2 />} accent="cyan" label={r.Unidades} count={unidades.length} />
+            <KpiCard icon={<Landmark />} label={`${r.Areas} da ${r.organizacao_curta}`} count={dados?.areas.length ?? 0} />
+            <KpiCard icon={<Users />} accent="green" label={`${r.Pessoas} cadastrados`} count={dados?.pessoas.length ?? 0} />
+            <KpiCard
+              icon={<Rocket />}
+              accent="amber"
+              label="Implantação"
+              value={<span className="text-xl sm:text-2xl">{org.situacao === "ativo" ? "Concluída" : "Em andamento"}</span>}
               detalhe={org.situacao !== "ativo" && fase ? `etapa: ${(fases.get(fase) ?? fase).toLowerCase()}` : undefined}
             />
           </div>
@@ -121,16 +122,12 @@ export function Cidade() {
 
           {porTipo.length > 0 && (
             <section className="surface-card p-4">
-              <h2 className="mb-3 text-sm font-semibold">Unidades por tipo</h2>
-              <ul className="flex flex-wrap gap-2">
-                {porTipo.map(([tipo, n]) => (
-                  <li key={tipo} className="flex items-center gap-2 rounded-md border border-border bg-background px-3 py-1.5 text-sm">
-                    <span aria-hidden="true" className="size-2.5 rounded-full" style={{ background: tipos.get(tipo)?.cor ?? "#424E6B" }} />
-                    <span>{tipos.get(tipo)?.nome ?? tipo}</span>
-                    <span className="num font-semibold">{fmtInt(n)}</span>
-                  </li>
+              <h2 className="mb-3 text-sm font-semibold">{r.Unidades} por tipo</h2>
+              <div className="grid gap-x-8 gap-y-3.5 sm:grid-cols-2 xl:grid-cols-3">
+                {porTipo.map(([tipo, n], i) => (
+                  <BarraParticipacao key={tipo} rotulo={tipos.get(tipo)?.nome ?? tipo} valor={n} total={unidades.length} cor={tipos.get(tipo)?.cor ?? "#424E6B"} i={i} />
                 ))}
-              </ul>
+              </div>
             </section>
           )}
 
@@ -218,17 +215,3 @@ export function Cidade() {
   );
 }
 
-function Numero({ icone: Icone, rotulo, valor, detalhe }: { icone: typeof Building2; rotulo: string; valor: string; detalhe?: string }) {
-  return (
-    <div className="surface-card flex items-center gap-3 p-4">
-      <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-md bg-primary/10 text-primary-text">
-        <Icone className="size-5" />
-      </span>
-      <div className="min-w-0">
-        <div className="text-xs text-muted-foreground">{rotulo}</div>
-        <div className="num text-xl font-semibold">{valor}</div>
-        {detalhe && <div className="text-xs text-muted-foreground">{detalhe}</div>}
-      </div>
-    </div>
-  );
-}

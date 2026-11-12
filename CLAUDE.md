@@ -96,7 +96,7 @@ sugere o catálogo; o responsável confirma, tira ou acrescenta.
 
 1. **Cidade** (`/painel/comando`, abre em outra aba) — mapa real do município, plano (satélite visto de cima, com
    zoom), com um pino por unidade de saúde (UBS, UPA, CAPS, hospital, farmácia, SAMU...). O mapa não é 3D. Só
-   unidades: setores e agentes ficam na Secretaria. No painel (`/painel/cidade`, "Unidades de saúde") não há mapa:
+   unidades: setores e agentes ficam na Secretaria. No painel (`/painel/cidade`, "Território") não há mapa:
    é a lista, com a ficha num painel lateral.
    **Cada unidade em 3D** (`/painel/unidade/<id>`, abre pela ficha em outra aba; `pages/unidade.tsx`): o prédio da
    unidade em Three.js, como a Secretaria, com as salas do tipo (UPA: classificação de risco, consultórios, sala
@@ -106,7 +106,11 @@ sugere o catálogo; o responsável confirma, tira ou acrescenta.
    prédio pelo cadastro: cada SETOR é uma sala de vidro com o agente do setor na mesa e a placa (setor, agente,
    responsável); no centro, o CCO (Centro de Comando e Operações). Quando um agente trabalha, o rosto dele muda
    (`agente/ao_vivo.py` → `/secretaria/eventos`). Um botão leva à Cidade e outro volta.
-3. **Painel** — tabelas, aprovações, relatórios: onde o servidor trabalha no dia a dia.
+3. **Painel** — tabelas, aprovações, relatórios: onde o servidor trabalha no dia a dia. Menu (repaginação de
+   12/11/2026, pelas telas de referência do dono): Gestão (Painel, Telão, Editais, Produção, Análises), Operação
+   (Agentes, Território, Aprovações, Auditoria, Chat), Ao vivo (a Central com o prédio e o mapa, em outra aba) e a
+   gestão da secretaria; no topo, a busca das telas (Ctrl+K), o selo "Ao vivo", o sino e o usuário. Telão, Editais,
+   Produção, Análises e Auditoria ainda estão "em construção" (`pages/modulos.tsx`): sem números até haver fonte real.
 
 Mais o **conversacional** presente em todas as visões: o chat com o agente do setor (ou com a recepção, numa
 equipe). A **Central de comando** tem janelas flutuantes arrastáveis (unidades, alertas), painéis laterais de
@@ -397,7 +401,9 @@ inteligente").
 - Implantação no estilo do Replit (a referência de interface preferida): chat fino à esquerda (assistente em texto
   limpo, servidor em balão azul-claro, "Trabalhou por N s", respostas rápidas quando o assistente pergunta) e o
   canvas grande à direita, com a barra fina (Secretaria · Cidade · Resumo e o progresso das etapas).
-- Claro e escuro obrigatórios. Tokens em `painel/src/styles.css`; logo em
+- Claro e escuro obrigatórios; o **escuro azul-marinho é o padrão** (desde 12/11/2026; o claro fica na escolha da
+  pessoa). Cartões compactos com o número grande (`KpiCard`), a comparação num selo pequeno (`SeloComparacao`) e
+  barras de participação (`BarraParticipacao`), em `components/widgets/widgets.tsx`. Tokens em `painel/src/styles.css`; logo em
   `painel/src/components/layout/logo.tsx` (SVG, o texto acompanha o tema). O símbolo da Central 3D e dos avatares
   está em `painel/public/espaco/gestorgov-branco.png` e `gestorgov-cor.png`.
 - Acessibilidade: seguir o eMAG (contraste, teclado, leitor de tela). Amarelo sobre branco não passa como texto.

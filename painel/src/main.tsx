@@ -2,7 +2,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import {
-  Navigate,
   Outlet,
   RouterProvider,
   createRootRoute,
@@ -39,6 +38,13 @@ const ColaborarNaImplantacao = lazyRouteComponent(() => import("@/pages/colabora
 const CentralDeComando = lazyRouteComponent(() => import("@/pages/comando"), "CentralDeComando");
 const Secretaria3D = lazyRouteComponent(() => import("@/pages/secretaria"), "Secretaria3D");
 const Unidade3D = lazyRouteComponent(() => import("@/pages/unidade"), "Unidade3D");
+const PainelGeral = lazyRouteComponent(() => import("@/pages/painel"), "PainelGeral");
+// Os módulos novos da repaginação (12/11/2026): entram vazios, "em construção", num pacote só.
+const Telao = lazyRouteComponent(() => import("@/pages/modulos"), "Telao");
+const Editais = lazyRouteComponent(() => import("@/pages/modulos"), "Editais");
+const Producao = lazyRouteComponent(() => import("@/pages/modulos"), "Producao");
+const Analises = lazyRouteComponent(() => import("@/pages/modulos"), "Analises");
+const Auditoria = lazyRouteComponent(() => import("@/pages/modulos"), "Auditoria");
 
 const raiz = createRootRoute({ component: Outlet });
 
@@ -64,11 +70,19 @@ const painel = createRoute({
   ),
 });
 
-/** A tela inicial é a cidade (o Painel de gestão entra aqui quando existir). */
-const Inicial = () => <Navigate to="/cidade" replace />;
-
 const rotas = [
-  createRoute({ getParentRoute: () => painel, path: "/", component: Inicial }),
+  // A tela inicial é o Painel (a visão geral com os números do cadastro).
+  createRoute({ getParentRoute: () => painel, path: "/", component: PainelGeral, loader: preCarregar.painel }),
+  createRoute({ getParentRoute: () => painel, path: "/telao", component: Telao, loader: () => Telao.preload?.() }),
+  createRoute({ getParentRoute: () => painel, path: "/editais", component: Editais, loader: () => Editais.preload?.() }),
+  createRoute({ getParentRoute: () => painel, path: "/producao", component: Producao, loader: () => Producao.preload?.() }),
+  createRoute({ getParentRoute: () => painel, path: "/analises", component: Analises, loader: () => Analises.preload?.() }),
+  createRoute({
+    getParentRoute: () => painel,
+    path: "/auditoria",
+    loader: () => Auditoria.preload?.(),
+    component: () => <ExigePermissao ouNaOrganizacao="ver_auditoria"><Auditoria /></ExigePermissao>,
+  }),
   createRoute({ getParentRoute: () => painel, path: "/cidade", component: Cidade, loader: preCarregar.cidade }),
   createRoute({ getParentRoute: () => painel, path: "/cargos", component: Cargos, loader: preCarregar.cargos }),
   createRoute({ getParentRoute: () => painel, path: "/equipe", component: Equipe, loader: preCarregar.equipe }),

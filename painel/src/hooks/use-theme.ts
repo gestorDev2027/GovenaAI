@@ -3,14 +3,15 @@ import { useCallback, useEffect, useState } from "react";
 export type Theme = "light" | "dark";
 
 function readInitial(): Theme {
-  if (typeof window === "undefined") return "light";
+  if (typeof window === "undefined") return "dark";
   try {
     const stored = localStorage.getItem("theme");
     if (stored === "light" || stored === "dark") return stored;
   } catch {
-    /* sem armazenamento: claro, o padrão do painel */
+    /* sem armazenamento: vale o padrão */
   }
-  return "light";
+  // O padrão é o escuro azul-marinho (repaginação de 12/11/2026); o claro continua a um clique.
+  return "dark";
 }
 
 export function useTheme() {
