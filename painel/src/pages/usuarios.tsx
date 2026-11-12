@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Ban, Calendar, Check, Clock3, Crown, Pencil, Search, ShieldCheck, Trash2, UserCheck, UserRound, Users } from "lucide-react";
+import { Ban, Calendar, Check, Clock3, Copy, Crown, KeyRound, Pencil, Search, ShieldCheck, Trash2, UserCheck, UserRound, Users } from "lucide-react";
 import { api, type OpcoesUsuarios, type Permissao, type SituacaoUsuario, type UsuarioPainel } from "@/lib/api";
 import { fmtDataHora, fmtRelativo } from "@/lib/formato";
 import { useUsuarios } from "@/hooks/use-usuarios";
@@ -327,6 +327,8 @@ function FormUsuario({
             </p>
           )}
 
+          <LinkDeSenha email={usuario.email} />
+
           {!dono && (
             <>
               <SecaoPainel titulo="Papel">
@@ -392,5 +394,53 @@ function FormUsuario({
         </div>
       )}
     </PainelLateral>
+  );
+}
+
+/**
+ * Senha esquecida: gera um link de uso único (24 h) para a pessoa criar uma senha nova. Não há envio de e-mail: quem
+ * administra copia o link e manda (WhatsApp, e-mail). Gerar de novo cancela o link anterior.
+ */
+function LinkDeSenha({ email }: { email: string }) {
+  const [link, setLink] = useState<{ url: string; expira_em: string } | null>(null);
+  useEffect(() => setLink(null), [email]);
+  const gerar = useMutation({
+    mutationFn: () =>
+      api<{ caminho: string; expira_em: string }>(`/usuarios/${encodeURIComponent(email)}/link-senha`, { method: "POST" }),
+    onSuccess: (r) => setLink({ url: `${window.location.origin}${r.caminho}`, expira_em: r.expira_em }),
+    onError: (e: Error) => toast.error("Não foi possível gerar o link", { description: e.message }),
+  });
+  const copiar = async () => {
+    if (!link) return;
+    try {
+      await navigator.clipboard.writeText(link.url);
+      toast.success("Link copiado", { description: "Mande para a pessoa. Ele vale uma vez só." });
+    } catch {
+      toast.error("Não deu para copiar: selecione o link e copie à mão.");
+    }
+  };
+  return (
+    <SecaoPainel titulo="Senha">
+      {link ? (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">
+            Mande este link para a pessoa criar uma senha nova. Vale até {fmtDataHora(link.expira_em)} e uma vez só.
+          </p>
+          <div className="flex gap-2">
+            <Input readOnly value={link.url} aria-label="Link para redefinir a senha" onFocus={(e) => e.currentTarget.select()} className="font-mono text-xs" />
+            <Button variant="outline" onClick={copiar}>
+              <Copy /> Copiar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm text-muted-foreground">Esqueceu a senha? Gere um link para a pessoa criar outra.</p>
+          <Button variant="outline" disabled={gerar.isPending} onClick={() => gerar.mutate()}>
+            <KeyRound /> Gerar link para redefinir a senha
+          </Button>
+        </div>
+      )}
+    </SecaoPainel>
   );
 }

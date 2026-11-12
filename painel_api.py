@@ -121,6 +121,10 @@ def _validar_google(credencial: str) -> dict:
     )
 
 
+class PedidoSenhaNova(BaseModel):
+    senha: str = Field(min_length=8, max_length=200)
+
+
 class PedidoUsuario(BaseModel):
     papel: str | None = Field(default=None, max_length=20)
     permissoes: list[str] | None = Field(default=None, max_length=30)
@@ -623,6 +627,40 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
             usuarios.remover(email, quem)
         except usuarios.ErroUsuario as erro:
             raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
+
+    # ───────── Redefinir a senha: o link sai no painel (Usuários) e quem administra manda para a pessoa ─────────
+
+    @rotas.post("/usuarios/{email}/link-senha", dependencies=protegido)
+    def link_senha(email: str, quem: str = Depends(exigir("gerenciar_usuarios"))) -> dict:
+        try:
+            gerado = usuarios.gerar_link_senha(email, quem)
+        except usuarios.ErroUsuario as erro:
+            raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
+        log_warning(f"Link de redefinir senha gerado para {gerado['email']} por {quem}.")
+        return {"caminho": f"/painel/redefinir-senha/{gerado['token']}", "email": gerado["email"],
+                "expira_em": gerado["expira_em"]}
+
+    @rotas.get("/redefinir-senha/{token}")
+    def ver_link_senha(token: str) -> dict:
+        if not usuarios.disponivel():
+            raise HTTPException(status_code=503, detail="O login não está ligado neste servidor.")
+        try:
+            return usuarios.ler_link_senha(token)
+        except usuarios.ErroUsuario as erro:
+            raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
+
+    @rotas.post("/redefinir-senha/{token}")
+    async def usar_link_senha(token: str, pedido: PedidoSenhaNova, resposta: Response) -> dict:
+        if not _chave() or not usuarios.disponivel():
+            raise HTTPException(status_code=503, detail="O login não está ligado neste servidor (falta OS_SECURITY_KEY).")
+        try:
+            dele = await run_in_threadpool(usuarios.redefinir_senha, token, pedido.senha)
+        except usuarios.ErroUsuario as erro:
+            raise HTTPException(status_code=erro.status, detail=erro.detalhe) from erro
+        _FALHAS_LOGIN.pop(dele["email"], None)  # senha nova: zera as tentativas erradas
+        log_warning(f"Senha redefinida por link: {dele['email']}.")
+        _gravar_sessao(resposta, dele["email"], dele["nome"])
+        return {"email": dele["email"], "nome": dele["nome"]}
 
     @rotas.post("/logout")
     def logout(resposta: Response) -> dict:

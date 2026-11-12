@@ -416,6 +416,10 @@ Dois níveis, separados:
 
 - **Plataforma** (equipe GestorGov): `painel_usuarios` (agente/usuarios.py), com o dono em `PAINEL_DONO`. Vê as telas
   de configuração (Fábrica, Conhecimento, Observabilidade, Usuários), a Cidade, a Central de comando e o chat.
+- **Senha esquecida** (não há envio de e-mail): em Usuários, quem tem "gerenciar usuários" gera um link
+  (`/painel/redefinir-senha/<token>`, 24 h, uso único; gerar de novo cancela o anterior; no banco só o hash, tabela
+  `painel_redefinicoes_senha`) e manda para a pessoa. Só o dono gera o de administradores; o do dono, só pela chave de
+  acesso (equipe técnica). Quem só entrava com o Google ganha uma conta de senha pelo mesmo link.
 - **Organização** (agente/acessos.py, rotas em organizacao_api.py): quem cadastra a organização é o **dono** dela
   (`membros.papel = 'dono'`), entra sem aprovação da plataforma e pode tudo nela. Ele monta o organograma
   (cargos do catálogo ou criados à mão), define as **permissões de cada cargo** (`cargos.permissoes`: ver o painel,

@@ -106,9 +106,12 @@ export function Entrar() {
             />
           </Campo>
           {erro && (
-            <p role="alert" className="text-sm text-destructive">
-              {erro}
-            </p>
+            <div role="alert" className="space-y-1">
+              <p className="text-sm text-destructive">{erro}</p>
+              <p className="text-xs text-muted-foreground">
+                Esqueceu a senha? Peça a quem administra o GestorGov um link para criar uma senha nova.
+              </p>
+            </div>
           )}
           <Button type="submit" size="lg" className="h-11 w-full" disabled={enviando || !email.trim() || !senha}>
             {enviando ? <Loader2 className="animate-spin" /> : <LogIn />}
