@@ -47,7 +47,7 @@ export function LogoMarca({ className, sobreEscuro = false }: { className?: stri
 const TAMANHOS = {
   sm: { simbolo: "size-7", nome: "text-[17px]", espaco: "gap-2" }, // barras finas (implantação)
   md: { simbolo: "size-8", nome: "text-[20px]", espaco: "gap-2.5" }, // cabeçalhos e menu
-  lg: { simbolo: "size-11", nome: "text-[26px]", espaco: "gap-3" }, // telas de acesso e rodapé da landing
+  lg: { simbolo: "size-11", nome: "text-[26px]", espaco: "gap-3" }, // telas de acesso
 } as const;
 
 /**

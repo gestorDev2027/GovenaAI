@@ -128,9 +128,10 @@ Unidade importada do CNES chega "a conferir". Quem cadastra e confere precisa da
 
 ## 3. O onboarding conversacional (a primeira experiência do cliente)
 
-Caminho de quem chega: **landing page** (`/painel/inicio`) → **Cadastrar** (`/painel/cadastro`: nome, e-mail e
-senha) → **Implantação** (`/painel/implantacao`). Quem já tem conta usa **Entrar** (`/painel/entrar`: e-mail e senha, ou
-Google). A conta nasce pendente para o Painel (o dono aprova), mas já implanta a própria prefeitura: as rotas
+Caminho de quem chega (sem landing page dentro do sistema, decisão de 14/11/2026: a landing é a apresentação
+comercial, fora dele): **Entrar** (`/painel/entrar`: e-mail e senha, ou Google; é para onde vai quem abre o sistema sem
+estar logado) → **Cadastrar secretaria** (`/painel/cadastro`: nome, e-mail e senha) → **Implantação**
+(`/painel/implantacao`). O endereço antigo da landing (`/painel/inicio`) leva ao painel, que manda ao login quem não entrou. A conta nasce pendente para o Painel (o dono aprova), mas já implanta a própria prefeitura: as rotas
 `/implantacao*` exigem só estar logado. Quem cadastra a organização entra em `membros` como dono, e o
 assistente dessa conversa só mexe na organização dela (`conta_email` no estado da sessão). A primeira pergunta do
 assistente é o CEP (ou a cidade) da prefeitura. Cadastro e login
