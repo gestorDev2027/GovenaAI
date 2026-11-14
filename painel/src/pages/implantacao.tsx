@@ -176,7 +176,7 @@ export function PaginaImplantacao() {
     <div className="flex h-dvh flex-col overflow-hidden bg-[#F6F7F9] text-foreground dark:bg-[#0A1328]">
       <header className="flex h-12 shrink-0 items-center justify-between gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3">
-          <Link to="/inicio" aria-label="GestorGov — início" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <Link to="/" aria-label="GestorGov — painel" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
             <Logo tamanho="sm" />
           </Link>
           <span className="h-5 w-px bg-border" aria-hidden="true" />

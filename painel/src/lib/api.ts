@@ -127,7 +127,7 @@ export async function sair() {
   salvarChave("");
   window.google?.accounts.id.disableAutoSelect();
   await api("/logout", { method: "POST" }).catch(() => null);
-  window.location.assign("/painel/inicio");
+  window.location.assign("/painel/entrar");
 }
 
 /* ───────── Tipos das respostas ───────── */

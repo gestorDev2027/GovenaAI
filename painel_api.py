@@ -521,7 +521,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
 
     @rotas.post("/cadastro")
     async def cadastro(pedido: PedidoCadastro, resposta: Response) -> dict:
-        """Cadastro pela landing page: cria a conta e já entra. A pessoa vai para a implantação da organização."""
+        """Cadastro (a tela Criar conta, aberta pelo login): cria a conta e já entra. A pessoa vai para a implantação da organização."""
         if not _chave() or not usuarios.disponivel():
             raise HTTPException(status_code=503, detail="O cadastro não está ligado neste servidor (falta OS_SECURITY_KEY).")
         email = pedido.email.strip().lower()
