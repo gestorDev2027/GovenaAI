@@ -29,7 +29,7 @@ from pydantic import BaseModel, Field
 from starlette.concurrency import run_in_threadpool
 
 from agente import acessos, ao_vivo, base, conhecimento, equipes, fabrica, gestao, listas, perfis, usuarios
-from agente.atendimento import responder, responder_em_etapas
+from agente.atendimento import mensagem_de_falha, responder, responder_em_etapas
 from agente.ferramentas import STATUS_EM_ATENDIMENTO
 
 # Horário de Brasília (sem horário de verão desde 2019).
@@ -849,7 +849,7 @@ def criar_rotas(agente: Agent, agentes: dict[str, Agent] | None = None) -> APIRo
                     fila.put(evento)
             except Exception as erro:
                 log_warning(f"Chat de teste falhou: {type(erro).__name__}: {erro}")
-                fila.put({"tipo": "erro", "mensagem": "O agente não conseguiu responder agora."})
+                fila.put({"tipo": "erro", "mensagem": mensagem_de_falha(str(erro))})
             finally:
                 fila.put(None)
 
