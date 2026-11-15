@@ -1,4 +1,4 @@
-import { ChartColumnBig, FilePen, Library, MonitorPlay, ScrollText } from "lucide-react";
+import { ChartColumnBig, FilePen, Library, Megaphone, MonitorPlay, ScrollText } from "lucide-react";
 import { useRotulos } from "@/hooks/use-permissoes";
 import { EmConstrucao, PageHeader } from "@/components/widgets/widgets";
 
@@ -101,6 +101,31 @@ export function Analises() {
         ]}
       >
         <p>As contas da saúde em números, do total até o empenho, para o secretário e o setor financeiro.</p>
+      </EmConstrucao>
+    </Pagina>
+  );
+}
+
+export function Ouvidoria() {
+  const r = useRotulos();
+  return (
+    <Pagina>
+      <PageHeader title="Ouvidoria" icon={Megaphone} description="As manifestações do cidadão sobre a saúde, do registro à resposta." semAtualizar />
+      <EmConstrucao
+        icone={Megaphone}
+        titulo="Ouvidoria do SUS no município"
+        fontes="as manifestações registradas pela ouvidoria do município"
+        itens={[
+          `Cada manifestação classificada pelo agente (reclamação, solicitação, elogio, denúncia) e encaminhada à ${r.unidade} ou ao setor certo`,
+          "O prazo de resposta de cada uma, com alerta antes de vencer",
+          "A resposta redigida pelo agente e aprovada por uma pessoa antes de sair",
+          `As manifestações por bairro e por ${r.unidade}, para achar onde o problema se repete`,
+        ]}
+      >
+        <p>
+          O que o cidadão diz sobre a saúde, num lugar só. O agente organiza e propõe a resposta; quem responde em nome da
+          {` ${r.organizacao_curta}`} é sempre uma pessoa.
+        </p>
       </EmConstrucao>
     </Pagina>
   );

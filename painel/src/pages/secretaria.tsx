@@ -121,7 +121,7 @@ export function Secretaria3D() {
           <SimboloGestorGov sobreEscuro className="size-7" />
           <span className="hidden flex-col leading-tight sm:flex">
             <span className="text-sm font-bold">{r.predio}</span>
-            <span className="text-[10px] text-white/60">{org ? [org.sigla || org.nome, local].filter(Boolean).join(" · ") : "GestorGov"}</span>
+            <span className="text-[10px] text-white/60">{org ? [org.sigla || org.nome, local].filter(Boolean).join(" · ") : "Gestor GOV"}</span>
           </span>
         </Link>
         <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />

@@ -120,7 +120,7 @@ export function Unidade3D() {
   const agente = agentes.find((a) => a.id === unidade?.agente_id);
 
   useEffect(() => {
-    document.title = nome ? `${nome} · GestorGov` : "Unidade · GestorGov";
+    document.title = nome ? `${nome} · Gestor GOV` : "Unidade · Gestor GOV";
   }, [nome]);
   useEffect(() => setSelecao(null), [id]);
 

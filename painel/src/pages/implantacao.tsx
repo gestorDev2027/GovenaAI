@@ -88,7 +88,7 @@ export function PaginaImplantacao() {
   }, [desde]);
 
   useEffect(() => {
-    document.title = "Implantação · GestorGov";
+    document.title = "Implantação · Gestor GOV";
   }, []);
   useEffect(() => {
     if (dados.error instanceof ErroAcesso) navegar({ to: "/entrar" });

@@ -23,12 +23,12 @@ export function SimboloGestorGov({ className, sobreEscuro = false }: { className
   );
 }
 
-/** O nome: "Gestor" na cor do texto e "Gov" em azul, numa palavra só. */
+/** O nome, como na apresentação: "Gestor" na cor do texto e "GOV" em azul. */
 function Nome({ sobreEscuro, className }: { sobreEscuro: boolean; className?: string }) {
   return (
-    <span className={cn("leading-none font-bold tracking-[-0.025em]", className)}>
-      <span className={sobreEscuro ? "text-white" : "text-foreground"}>Gestor</span>
-      <span className={sobreEscuro ? "text-[#52A2FF]" : "text-[#1A63D8] dark:text-[#52A2FF]"}>Gov</span>
+    <span className={cn("leading-none font-bold tracking-[-0.025em] whitespace-nowrap", className)}>
+      <span className={sobreEscuro ? "text-white" : "text-foreground"}>Gestor</span>{" "}
+      <span className={sobreEscuro ? "text-[#52A2FF]" : "text-[#1A63D8] dark:text-[#52A2FF]"}>GOV</span>
     </span>
   );
 }
@@ -36,7 +36,7 @@ function Nome({ sobreEscuro, className }: { sobreEscuro: boolean; className?: st
 /** A logo em linha, com a altura dada por `className` (o símbolo acompanha). Para placas e lugares sem tamanho fixo. */
 export function LogoMarca({ className, sobreEscuro = false }: { className?: string; sobreEscuro?: boolean }) {
   return (
-    <span className={cn("inline-flex items-center gap-2", className)} role="img" aria-label="GestorGov">
+    <span className={cn("inline-flex items-center gap-2", className)} role="img" aria-label="Gestor GOV">
       <SimboloGestorGov className="h-full w-auto" sobreEscuro={sobreEscuro} />
       <Nome sobreEscuro={sobreEscuro} className="text-[1.05em]" />
     </span>
@@ -68,12 +68,18 @@ export function Logo({
 }) {
   const t = TAMANHOS[tamanho];
   return (
-    <span className={cn("inline-flex items-center", t.espaco, className)} role="img" aria-label="GestorGov, gestão pública inteligente">
+    <span className={cn("inline-flex items-center", t.espaco, className)} role="img" aria-label="Gestor GOV, gestão pública inteligente">
       <SimboloGestorGov className={t.simbolo} sobreEscuro={sobreEscuro} />
       <span className="flex flex-col gap-1.5">
         <Nome sobreEscuro={sobreEscuro} className={t.nome} />
         {subtitulo && (
-          <span className={cn("text-[11px] leading-none font-medium tracking-wide", sobreEscuro ? "text-white/60" : "text-muted-foreground")}>
+          <span
+            className={cn(
+              "text-[8px] leading-none font-semibold tracking-[0.16em] whitespace-nowrap uppercase",
+              tamanho === "lg" && "text-[10px] tracking-[0.22em]",
+              sobreEscuro ? "text-white/60" : "text-muted-foreground",
+            )}
+          >
             Gestão pública inteligente
           </span>
         )}

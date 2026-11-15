@@ -46,6 +46,7 @@ const Editais = lazyRouteComponent(() => import("@/pages/modulos"), "Editais");
 const Producao = lazyRouteComponent(() => import("@/pages/modulos"), "Producao");
 const Analises = lazyRouteComponent(() => import("@/pages/modulos"), "Analises");
 const Auditoria = lazyRouteComponent(() => import("@/pages/modulos"), "Auditoria");
+const Ouvidoria = lazyRouteComponent(() => import("@/pages/modulos"), "Ouvidoria");
 
 const raiz = createRootRoute({ component: Outlet });
 
@@ -78,6 +79,7 @@ const rotas = [
   createRoute({ getParentRoute: () => painel, path: "/editais", component: Editais, loader: () => Editais.preload?.() }),
   createRoute({ getParentRoute: () => painel, path: "/producao", component: Producao, loader: () => Producao.preload?.() }),
   createRoute({ getParentRoute: () => painel, path: "/analises", component: Analises, loader: () => Analises.preload?.() }),
+  createRoute({ getParentRoute: () => painel, path: "/ouvidoria", component: Ouvidoria, loader: () => Ouvidoria.preload?.() }),
   createRoute({
     getParentRoute: () => painel,
     path: "/auditoria",

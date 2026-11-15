@@ -29,7 +29,7 @@ export function RedefinirSenha() {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    document.title = "Senha nova · GestorGov";
+    document.title = "Senha nova · Gestor GOV";
   }, []);
 
   const diferentes = confirma.length > 0 && senha !== confirma;
