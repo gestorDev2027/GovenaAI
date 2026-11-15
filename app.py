@@ -30,7 +30,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
-from agente import companyos, perfis, registro, rotinas, segundo_plano
+from agente import agentes_organizacao, companyos, perfis, registro, rotinas, segundo_plano
 from agente.equipes import EQUIPES
 from agente.agente import _modelo, criar_agentes, montar_agente
 from banco_api import criar_rotas_banco
@@ -104,6 +104,8 @@ def _montar_agora(agente_id: str) -> None:
 
 registro.montador = _montar_agora
 registro.agentes = agentes  # o mesmo dicionário: o agente criado agora também vira executor no CompanyOS
+# Cada unidade com o seu agente: as que ainda usam o agente compartilhado antigo ganham o próprio (em segundo plano).
+agentes_organizacao.migrar_agentes_das_unidades()
 
 # Cache do painel. O build pode gravar os arquivos com data de 1980; sem Cache-Control, o
 # navegador calcula a validade pela idade do arquivo (anos) e continua mostrando um painel antigo

@@ -179,8 +179,13 @@ def criar_rotas_organizacao() -> APIRouter:
             raise HTTPException(status_code=422, detail="Tipo de unidade inválido.")
         conferida = dados.pop("conferida", True)
         dados.pop("situacao", None)
-        return gestao.salvar_unidade(quem[1]["organizacao_id"], quem=quem[0], origem="manual", confirmada=conferida,
-                                     origem_auditoria="pessoa", **dados)
+        unidade = gestao.salvar_unidade(quem[1]["organizacao_id"], quem=quem[0], origem="manual", confirmada=conferida,
+                                        origem_auditoria="pessoa", **dados)
+        # A unidade nova ganha o seu agente (agente/agentes_organizacao.py), sem segurar a resposta.
+        from agente import agentes_organizacao
+
+        agentes_organizacao.agentes_das_unidades_em_segundo_plano(quem[1]["organizacao_id"], quem[0])
+        return unidade
 
     @rotas.put("/organizacao/unidades/{unidade_id}")
     def alterar_unidade(unidade_id: str, pedido: PedidoUnidade, quem: tuple = Depends(_precisa("gerenciar_unidades"))) -> dict:

@@ -205,11 +205,18 @@ Todos usam **Gemini** (`AGENTE_MODELO`, padrão `gemini-3.6-flash`) — agentes,
 | `compras` | Agente de Compras e Licitações | consulta | `agente/perfis/compras.py` |
 | `atencao_primaria` | Agente da Atenção Primária | consulta | `agente/perfis/atencao_primaria.py` |
 | `regulacao` | Agente de Regulação | consulta | `agente/perfis/regulacao.py` |
-| `unidade` | Agente das Unidades de Saúde | consulta | `agente/perfis/unidade.py` |
+| `unidade` | Modelo do agente de cada unidade de saúde (uma cópia por unidade, com a unidade nas instruções) | consulta | `agente/perfis/unidade.py` |
 
 Os de setor e o das unidades são **modelos da saúde**: cada Secretaria ganha a sua cópia na implantação (§3). As
 demais áreas ganham um agente da Fábrica com o modelo de instruções nos nomes do
 segmento (`agente/agentes_organizacao.py`).
+
+**Um agente por unidade (decisão de 15/11/2026).** Cada unidade de saúde ganha o seu agente
+(`agentes_organizacao.agentes_das_unidades`): cópia do modelo `unidade`, com o nome, o tipo, o CNES e o endereço da
+unidade na primeira linha das instruções, área "Unidades de Saúde" e `unidades.agente_id` apontando para ele. Nasce ao
+cadastrar a unidade (assistente ou painel) e, na importação do CNES, em segundo plano. Ao subir, o servidor dá agente
+próprio às unidades que ainda usam o agente compartilhado antigo (`<prefixo>-unidades`), que sai do ar quando nenhuma
+unidade usa mais (as conversas ficam). Renomear a unidade não muda as instruções do agente (editar pela Fábrica).
 
 - Agentes de setor seguem um molde único: `agente/perfis/setor.py` (`perfil_de_setor`). Novo setor no código =
   um arquivo de 20 linhas + registrar em `agente/perfis/__init__.py` + `agente/base_conhecimento_<id>.md` +
@@ -539,8 +546,8 @@ Reestruturação aprovada em 07/11/2026 (uma etapa por vez, cada uma com commit 
       implantação; falta: os cargos dentro das salas)
 - [x] 6. Implantação na ordem nova: prefeitura, setores, atividades, responsáveis e agentes, com a Secretaria
       virtual se montando ao lado; por último as unidades no mapa real, cada uma com o seu prédio e o agente
-- [ ] 7. Visão 3D de cada unidade com o agente dela (feito: o prédio com as salas do tipo e o agente na gerência);
-      falta: um agente próprio por unidade (hoje é um por prefeitura) e as salas com a equipe, o estoque e a produção
+- [ ] 7. Visão 3D de cada unidade com o agente dela (feito: o prédio com as salas do tipo e o agente na gerência;
+      um agente próprio por unidade desde 15/11/2026, ver abaixo); falta: as salas com a equipe, o estoque e a produção
 
 - [ ] Primeiro deploy validado no Render (build do painel, CompanyOS agendando de verdade)
 - [ ] **Tela de onboarding**: chat à esquerda; à direita, mapa (MapLibre + OpenStreetMap, sem custo por uso) e

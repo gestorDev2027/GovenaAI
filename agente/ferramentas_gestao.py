@@ -608,13 +608,15 @@ def _sincronizar_trabalho(oid: str, quem: str) -> None:
         log_warning(f"CompanyOS: não deu para montar a organização {oid}: {type(erro).__name__}: {erro}")
 
 
-def _agente_das_unidades(run_context: RunContext, oid: str) -> str | None:
-    """O agente das unidades da organização (criado na primeira unidade) passa a cuidar das unidades novas."""
+def _agentes_das_unidades(run_context: RunContext, oid: str, em_segundo_plano: bool = False) -> None:
+    """Cada unidade ganha o seu agente (agente/agentes_organizacao.py). Muitas de uma vez (o CNES): em segundo plano."""
     from agente import agentes_organizacao
 
-    agente_id = agentes_organizacao.agente_das_unidades(oid, _quem(run_context))
+    if em_segundo_plano:
+        agentes_organizacao.agentes_das_unidades_em_segundo_plano(oid, _quem(run_context))
+    else:
+        agentes_organizacao.agentes_das_unidades(oid, _quem(run_context))
     gestao.sincronizar_etapa(oid)
-    return agente_id
 
 
 # Quanto a ferramenta espera a importação do CNES terminar antes de responder "ainda importando".
@@ -635,10 +637,10 @@ def _resultado_cnes(run_context: RunContext, oid: str, execucao: dict | None) ->
         motivo = "erro na fonte" if execucao["situacao"] == "erro" else resultado.get("motivo") or "sem resultados"
         return (f"O CNES não respondeu ({motivo}). Pergunte quantas e quais unidades a rede tem "
                 "(UBS, UPA, CAPS, hospital...) e cadastre com cadastrar_unidade.")
-    agente_unidades = _agente_das_unidades(run_context, oid)
+    _agentes_das_unidades(run_context, oid, em_segundo_plano=True)
     return _feito(oid, {"importadas": resultado["importadas"], "por_tipo": resultado.get("por_tipo") or {},
                         "particulares_fora": resultado.get("particulares_fora") or 0,
-                        "agente_das_unidades": agente_unidades,
+                        "agentes_das_unidades": "cada unidade ganha o seu agente (sendo criados agora)",
                         "orientacao": "Mostre o resumo por tipo (são as unidades públicas e as conveniadas ao SUS; os "
                                       "consultórios particulares ficaram de fora) e pergunte se está certo e se falta "
                                       "alguma."})
@@ -728,7 +730,7 @@ def cadastrar_unidade(run_context: RunContext, nome: str, tipo: str, cep: str = 
                                     cep=cep, cnes=cnes if seg.usa_cnes else "", latitude=ponto[0] if ponto else None,
                                     longitude=ponto[1] if ponto else None, coordenadas_origem=ponto[2] if ponto else None,
                                     quem=_quem(run_context), session_id=_sessao(run_context))
-    _agente_das_unidades(run_context, oid)
+    _agentes_das_unidades(run_context, oid)
     return _feito(oid, {"salva": True, "unidade": {k: unidade.get(k) for k in ("id", "nome", "tipo_id", "endereco", "numero",
                                                                                "bairro", "cep")},
                         "no_mapa": bool(ponto), "ponto_pelo": ponto[2] if ponto else None})
