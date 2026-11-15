@@ -23,6 +23,7 @@ import {
   LayoutDashboard,
   Library,
   Map as Mapa,
+  Megaphone,
   MonitorPlay,
   Network,
   Plug,
@@ -49,6 +50,7 @@ import { useDaPlataforma, usePode, usePodeNaOrganizacao, useRotulos } from "@/ho
 import { ROTULOS_SAUDE } from "@/lib/rotulos";
 import { useUsuarios } from "@/hooks/use-usuarios";
 import { useContagemAprovacoes } from "@/hooks/use-tarefas";
+import { useAgentes } from "@/hooks/use-agentes";
 import { useTheme } from "@/hooks/use-theme";
 import { Logo, LogoIcone } from "./logo";
 
@@ -73,8 +75,12 @@ type Item = {
   permissao?: Permissao;
   naOrganizacao?: PermissaoOrganizacao;
   contagem?: number;
+  /** aviso (amarelo): algo espera a pessoa; info (azul): só quantos são. */
+  contagemTom?: "aviso" | "info";
   /** Tela nova ainda vazia: o menu mostra "em breve". */
   emConstrucao?: boolean;
+  /** Na busca: abre o chat com este agente. */
+  agente?: string;
 };
 // O ícone da SEÇÃO só aparece no menu recolhido e nunca repete o de um item da própria seção.
 // daPlataforma: a seção é da equipe GestorGov (aprovada no painel); as outras são da organização de quem entrou.
@@ -85,32 +91,37 @@ type Secao = {
   itens: Item[];
   daPlataforma?: boolean;
   soSemOrganizacao?: boolean;
+  /** Sem título nem recolher: os itens direto no menu (a lista principal, como na apresentação). */
+  plana?: boolean;
 };
 
 // A organização de quem entrou (dono e membros, pelo cargo) e, para a equipe GestorGov, as visões da plataforma,
 // o trabalho com os agentes e a configuração. Os nomes seguem o segmento (Cidade ou Mapa, Secretaria ou Escritório...).
-// Repaginação de 12/11/2026 (telas de referência do dono): Painel e os módulos em cima, a operação no meio, as visões
-// ao vivo (outra aba) e a gestão da organização embaixo. Os módulos novos entram "em construção" (sem números).
+// Repaginação pela apresentação (15/11/2026): a lista principal sem título, na ordem das telas da apresentação
+// (Painel, Telão, Editais, Produção, Análises, Agentes, Ouvidoria, Território, Auditoria); embaixo, o trabalho do dia,
+// as visões ao vivo (outra aba) e a gestão da organização. Os módulos novos entram "em construção" (sem números).
 const secoesDo = (r: Rotulos): Secao[] => [
   {
     titulo: "Gestão",
     icone: Gauge,
+    plana: true,
     itens: [
       { to: "/", rotulo: "Painel", icone: LayoutDashboard, naOrganizacao: "ver_painel" },
       { to: "/telao", rotulo: "Telão", icone: MonitorPlay, naOrganizacao: "ver_painel", emConstrucao: true },
       { to: "/editais", rotulo: "Editais", icone: Library, naOrganizacao: "ver_painel", emConstrucao: true },
       { to: "/producao", rotulo: "Produção", icone: FilePen, naOrganizacao: "ver_painel", emConstrucao: true },
       { to: "/analises", rotulo: "Análises", icone: ChartColumnBig, naOrganizacao: "ver_painel", emConstrucao: true },
+      { to: "/agentes", rotulo: "Agentes", icone: Bot, naOrganizacao: "ver_painel" },
+      { to: "/ouvidoria", rotulo: "Ouvidoria", icone: Megaphone, naOrganizacao: "ver_painel", emConstrucao: true },
+      { to: "/cidade", rotulo: "Território", icone: MapPinned, naOrganizacao: "ver_painel" },
+      { to: "/auditoria", rotulo: "Auditoria", icone: ScrollText, naOrganizacao: "ver_auditoria", emConstrucao: true },
     ],
   },
   {
-    titulo: "Operação",
+    titulo: "Trabalho",
     icone: Briefcase,
     itens: [
-      { to: "/agentes", rotulo: "Agentes", icone: Bot, naOrganizacao: "ver_painel" },
-      { to: "/cidade", rotulo: "Território", icone: MapPinned, naOrganizacao: "ver_painel" },
       { to: "/aprovacoes", rotulo: "Aprovações", icone: ClipboardCheck, naOrganizacao: "ver_painel" },
-      { to: "/auditoria", rotulo: "Auditoria", icone: ScrollText, naOrganizacao: "ver_auditoria", emConstrucao: true },
       { to: "/chat", rotulo: "Chat com os agentes", icone: MessagesSquare, naOrganizacao: "ver_painel" },
     ],
   },
@@ -266,7 +277,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               aria-label="GestorGov — painel"
               className="inline-flex rounded-lg p-0.5 transition-transform duration-300 outline-none group-hover/logo:scale-[1.03] focus-visible:ring-2 focus-visible:ring-sidebar-ring"
             >
-              {recolhidoNaTela ? <LogoIcone /> : <Logo sobreEscuro />}
+              {recolhidoNaTela ? <LogoIcone /> : <Logo sobreEscuro subtitulo />}
             </Link>
           </div>
           <Conteudo recolhido={recolhidoNaTela} ativo={ativo} />
@@ -306,18 +317,34 @@ function BarraDoTopo() {
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join("");
-  const { podeVerPainel } = useSecoes();
+  const { podeVerPainel, secoes } = useSecoes();
   const daPlataforma = useDaPlataforma();
+  const caminho = usarCaminho().replace(/\/+$/, "") || "/";
+  // A trilha, como na apresentação ("Análises › Execução orçamentária"): a organização, a seção (se tiver título no
+  // menu) e a tela.
+  const achado = secoes.flatMap((s) => s.itens.map((i) => ({ s, i }))).find(({ i }) => i.to === caminho && !i.novaAba);
+  const raiz = org ? org.sigla || r.organizacao_curta : "Gestor GOV";
+  const trilha = achado ? [raiz, ...(achado.s.plana ? [] : [achado.s.titulo]), achado.i.rotulo] : [raiz];
   return (
     <div className="relative z-30 hidden h-16 shrink-0 items-center gap-4 border-b border-border bg-card/70 px-6 backdrop-blur-xl md:flex">
-      <div className="hidden min-w-0 flex-1 lg:block">
-        <p className="truncate text-sm font-semibold">
-          {org?.organizacao ? [org.organizacao, [org.cidade, org.uf].filter(Boolean).join("-")].filter(Boolean).join(" · ") : "GestorGov"}
-        </p>
-        <p className="truncate text-xs text-muted-foreground">
-          {org ? `${r.organizacao} · ${org.situacao_organizacao === "ativo" ? "implantação concluída" : "implantação em andamento"}` : "Plataforma"}
-        </p>
-      </div>
+      <nav aria-label="Você está em" className="hidden min-w-0 flex-1 lg:block">
+        <ol className="flex min-w-0 items-center gap-1.5 text-sm">
+          {trilha.map((parte, i) => {
+            const ultima = i === trilha.length - 1;
+            return (
+              <li key={`${i}-${parte}`} className={cn("flex min-w-0 items-center gap-1.5", !ultima && "shrink-0")}>
+                {i > 0 && <ChevronRight aria-hidden="true" className="size-3.5 shrink-0 text-muted-foreground/70" />}
+                <span
+                  aria-current={ultima ? "page" : undefined}
+                  className={cn("truncate", ultima ? "font-semibold text-foreground" : "text-muted-foreground")}
+                >
+                  {parte}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </nav>
       <div className="min-w-0 flex-1 lg:max-w-md">
         <BuscaGeral />
       </div>
@@ -354,7 +381,7 @@ function SeloAoVivo() {
       className="inline-flex h-8 items-center gap-2 rounded-full border border-success/35 bg-success/10 px-3 text-xs font-semibold text-success transition-colors outline-none hover:bg-success/16 focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span aria-hidden="true" className="pulse-live size-2 rounded-full bg-success" />
-      Ao vivo
+      <span className="tracking-[0.12em] uppercase">Ao vivo</span>
       <span className="sr-only">(abre a Central ao vivo em outra aba)</span>
     </a>
   );
@@ -369,7 +396,7 @@ const semAcento = (s: string) =>
     .toLowerCase();
 
 function BuscaGeral({ sobreEscuro = false }: { sobreEscuro?: boolean }) {
-  const { secoes } = useSecoes();
+  const { secoes, agentes, podeVerPainel } = useSecoes();
   const navegar = useNavigate();
   const [texto, setTexto] = useState("");
   const [aberta, setAberta] = useState(false);
@@ -386,9 +413,14 @@ function BuscaGeral({ sobreEscuro = false }: { sobreEscuro?: boolean }) {
         vistos.add(i.to);
         todos.push({ ...i, secao: s.titulo });
       }
+    // Os agentes da organização: escolher um abre o chat com ele.
+    if (podeVerPainel)
+      for (const a of agentes)
+        todos.push({ to: "/chat", agente: a.id, rotulo: a.nome, icone: Bot, secao: a.cargo || a.area || "Agente" });
     const q = semAcento(texto.trim());
-    return q ? todos.filter((i) => semAcento(`${i.rotulo} ${i.secao}`).includes(q)) : todos;
-  }, [secoes, texto]);
+    // Sem texto, só as telas (a lista de agentes aparece ao digitar).
+    return q ? todos.filter((i) => semAcento(`${i.rotulo} ${i.secao}`).includes(q)) : todos.filter((i) => !i.agente);
+  }, [secoes, agentes, podeVerPainel, texto]);
 
   // Ctrl+K (ou ⌘K) leva à busca de qualquer tela do painel. A da gaveta não escuta: a do topo já escuta.
   useEffect(() => {
@@ -419,7 +451,8 @@ function BuscaGeral({ sobreEscuro = false }: { sobreEscuro?: boolean }) {
     setAberta(false);
     setTexto("");
     campo.current?.blur();
-    if (item.novaAba) window.open(`/painel${item.to}`, "_blank", "noopener");
+    if (item.agente) void navegar({ to: "/chat", search: { agente: item.agente } });
+    else if (item.novaAba) window.open(`/painel${item.to}`, "_blank", "noopener");
     else void navegar({ to: item.to });
   }
 
@@ -439,8 +472,8 @@ function BuscaGeral({ sobreEscuro = false }: { sobreEscuro?: boolean }) {
         aria-controls={listaId}
         aria-autocomplete="list"
         aria-activedescendant={aberta && visiveis[marcado] ? `${listaId}-${marcado}` : undefined}
-        aria-label="Buscar no painel"
-        placeholder="Buscar no painel"
+        aria-label="Buscar tela ou agente"
+        placeholder="Buscar tela ou agente…"
         value={texto}
         onChange={(e) => {
           setTexto(e.target.value);
@@ -479,15 +512,15 @@ function BuscaGeral({ sobreEscuro = false }: { sobreEscuro?: boolean }) {
         <ul
           id={listaId}
           role="listbox"
-          aria-label="Telas do painel"
+          aria-label="Telas e agentes"
           className="thin-scroll absolute inset-x-0 top-full z-50 mt-1.5 max-h-80 overflow-y-auto rounded-xl border border-border bg-popover p-1 text-popover-foreground shadow-lg animate-in fade-in-0 zoom-in-95"
         >
-          {visiveis.length === 0 && <li className="px-3 py-2.5 text-sm text-muted-foreground">Nenhuma tela com esse nome.</li>}
+          {visiveis.length === 0 && <li className="px-3 py-2.5 text-sm text-muted-foreground">Nenhuma tela ou agente com esse nome.</li>}
           {visiveis.map((item, i) => {
             const Icone = item.icone;
             return (
               <li
-                key={item.to}
+                key={item.agente ? `agente-${item.agente}` : item.to}
                 id={`${listaId}-${i}`}
                 role="option"
                 aria-selected={i === marcado}
@@ -499,7 +532,7 @@ function BuscaGeral({ sobreEscuro = false }: { sobreEscuro?: boolean }) {
                 <Icone aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
                 <span className="truncate">{item.rotulo}</span>
                 <span className="ml-auto shrink-0 text-2xs text-muted-foreground">
-                  {item.emConstrucao ? "em breve" : item.novaAba ? "outra aba" : item.secao}
+                  {item.agente ? `${item.secao} · conversar` : item.emConstrucao ? "em breve" : item.novaAba ? "outra aba" : item.secao}
                 </span>
               </li>
             );
@@ -591,16 +624,29 @@ function useSecoes() {
   const usuarios = useUsuarios(daPlataforma && pode("gerenciar_usuarios"));
   const pendentes = usuarios.data?.usuarios.filter((u) => u.situacao === "pendente").length ?? 0;
   const aprovacoes = useContagemAprovacoes(temOrganizacao && podeNaOrganizacao("ver_painel"));
+  const agentes = useAgentes();
+  const contagens: Record<string, Pick<Item, "contagem" | "contagemTom">> = {
+    "/usuarios": { contagem: pendentes, contagemTom: "aviso" },
+    "/aprovacoes": { contagem: aprovacoes, contagemTom: "aviso" },
+    "/agentes": { contagem: agentes.length, contagemTom: "info" },
+  };
   const secoes = secoesDo(r)
     .filter((s) => (s.daPlataforma ? daPlataforma && !(s.soSemOrganizacao && temOrganizacao) : temOrganizacao))
     .map((s) => ({
       ...s,
       itens: s.itens
         .filter((i) => (i.naOrganizacao ? podeNaOrganizacao(i.naOrganizacao) : !i.permissao || pode(i.permissao)))
-        .map((i) => (i.to === "/usuarios" ? { ...i, contagem: pendentes } : i.to === "/aprovacoes" ? { ...i, contagem: aprovacoes } : i)),
+        .map((i) => (contagens[i.to] ? { ...i, ...contagens[i.to] } : i)),
     }))
     .filter((s) => s.itens.length);
-  return { secoes, pendentes, aprovacoes, temOrganizacao, podeVerPainel: temOrganizacao && podeNaOrganizacao("ver_painel") };
+  return {
+    secoes,
+    pendentes,
+    aprovacoes,
+    agentes,
+    temOrganizacao,
+    podeVerPainel: temOrganizacao && podeNaOrganizacao("ver_painel"),
+  };
 }
 
 function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) => boolean }) {
@@ -609,9 +655,11 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
   const usuario = acesso.data?.usuario;
   const org = acesso.data?.organizacao;
   const r = useRotulos();
-  const organizacao = org?.organizacao || "GestorGov";
+  const organizacao = org?.organizacao || "Gestor GOV";
   const quem = usuario?.email ?? (acesso.data?.requer_chave ? "acesso pela chave" : "acesso local, sem login");
-  const { secoes } = useSecoes();
+  const { secoes, agentes } = useSecoes();
+  const lugar = org ? [org.cidade, org.uf].filter(Boolean).join(" · ") : "";
+  const online = agentes.length ? `${agentes.length} ${agentes.length === 1 ? "agente online" : "agentes online"}` : "Nenhum agente no ar ainda";
 
   return (
     <>
@@ -645,8 +693,28 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
         </div>
       </div>
 
-      {/* Rodapé: quem está conectado, tema, ajuda e sair */}
+      {/* Rodapé: o cartão do município (como na apresentação) ou, sem organização, quem está conectado; tema, ajuda e sair */}
       <div className={cn("flex shrink-0 flex-col gap-2 border-t border-sidebar-border/70 p-2", recolhido && "items-center")}>
+        {org ? (
+          recolhido ? (
+            <span
+              title={`${lugar || organizacao} · ${online}`}
+              className="grid size-10 place-items-center rounded-xl border border-sidebar-border bg-sidebar-accent/50"
+            >
+              <span aria-hidden="true" className={cn("size-2 rounded-full", agentes.length ? "pulse-live bg-success" : "bg-sidebar-foreground/40")} />
+              <span className="sr-only">{online}</span>
+            </span>
+          ) : (
+            <div className="rounded-xl border border-sidebar-border bg-sidebar-accent/50 px-3.5 py-3">
+              <p className="truncate text-sm font-semibold text-white">{lugar || organizacao}</p>
+              <p className="truncate text-[11px] text-sidebar-foreground/60">{lugar ? organizacao : r.organizacao}</p>
+              <p className="mt-2 flex items-center gap-1.5 text-[11px] text-sidebar-foreground/80">
+                <span aria-hidden="true" className={cn("size-2 shrink-0 rounded-full", agentes.length ? "pulse-live bg-success" : "bg-sidebar-foreground/40")} />
+                {online}
+              </p>
+            </div>
+          )
+        ) : (
         <div
           className={cn(
             "group/user flex min-w-0 items-center rounded-xl transition-colors",
@@ -664,11 +732,12 @@ function Conteudo({ recolhido, ativo }: { recolhido: boolean; ativo: (i: Item) =
             <span className="flex min-w-0 flex-col leading-tight">
               <span className="truncate text-xs font-semibold text-white">{usuario?.nome || organizacao}</span>
               <span className="truncate text-[10px] text-sidebar-foreground/60">
-                {org ? (org.papel === "dono" ? `Dono da ${r.organizacao_curta}` : org.cargo ?? "Sem cargo") : quem}
+                {quem}
               </span>
             </span>
           )}
         </div>
+        )}
 
         <div className={cn("flex items-center gap-1.5", recolhido && "flex-col")}>
           <button
@@ -722,7 +791,25 @@ function SecaoDoMenu({
     if (temAtivo) setAberta(true); // a seção do item ativo nunca fica fechada
   }, [temAtivo]);
 
+  if (recolhido && secao.plana) {
+    return (
+      <div className="flex flex-col items-center gap-1">
+        {secao.itens.map((item) => (
+          <ItemRecolhido key={item.to} item={item} ativo={ativo(item)} />
+        ))}
+      </div>
+    );
+  }
   if (recolhido) return <SecaoRecolhida secao={secao} ativo={ativo} temAtivo={temAtivo} />;
+  if (secao.plana) {
+    return (
+      <div className="flex flex-col gap-0.5">
+        {secao.itens.map((item) => (
+          <ItemMenu key={item.to} item={item} ativo={ativo(item)} />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className={cn(!primeira && "mt-1")}>
@@ -752,11 +839,30 @@ function SecaoDoMenu({
   );
 }
 
-// Item do menu: h-10, ícone de 18px que cresce no hover; o ativo é uma pílula azul (como nas referências).
+// Item do menu: h-10, ícone de 18px que cresce no hover; o ativo, como na apresentação: fundo um tom mais claro e a
+// barra amarela à esquerda.
 const ITEM_BASE =
   "group/item relative flex h-10 items-center justify-start gap-3 overflow-hidden rounded-xl px-3 text-sm font-medium transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring";
 const ITEM_INATIVO = "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-white";
-const ITEM_ATIVO = "bg-primary font-semibold text-white shadow-[0_10px_24px_-10px_rgba(26,99,216,0.9)]";
+const ITEM_ATIVO =
+  "bg-sidebar-accent font-semibold text-white ring-1 ring-white/[0.06] before:absolute before:inset-y-1.5 before:left-0 before:w-[3px] before:rounded-full before:bg-warning";
+
+/** O número ao lado do item: azul quando só conta (agentes), amarelo quando algo espera a pessoa (aprovações). */
+function Contagem({ item }: { item: Item }) {
+  if (!item.contagem) return null;
+  const aviso = item.contagemTom !== "info";
+  return (
+    <span
+      title={aviso ? "Esperando você" : undefined}
+      className={cn(
+        "num ml-auto grid h-5 min-w-6 place-items-center rounded-full px-1.5 text-[11px] font-semibold",
+        aviso ? "bg-warning text-warning-foreground" : "bg-sidebar-primary text-white",
+      )}
+    >
+      {item.contagem > 99 ? "99+" : item.contagem}
+    </span>
+  );
+}
 
 function IconeDoItem({ icone: Icone, ativo }: { icone: Item["icone"]; ativo: boolean }) {
   return (
@@ -800,10 +906,37 @@ function ItemMenu({ item, ativo }: { item: Item; ativo: boolean }) {
           em breve
         </span>
       )}
+      <Contagem item={item} />
+    </Link>
+  );
+}
+
+/* ───────── Item da lista principal com o menu recolhido: só o ícone (o número vira um ponto) ───────── */
+
+function ItemRecolhido({ item, ativo }: { item: Item; ativo: boolean }) {
+  const Icone = item.icone;
+  return (
+    <Link
+      to={item.to}
+      aria-current={ativo ? "page" : undefined}
+      aria-label={item.contagem ? `${item.rotulo} (${item.contagem})` : item.rotulo}
+      title={item.emConstrucao ? `${item.rotulo} (em breve)` : item.rotulo}
+      className={cn(
+        "relative grid size-10 shrink-0 place-items-center rounded-lg transition-all outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+        ativo
+          ? "bg-sidebar-accent text-white before:absolute before:inset-y-2 before:left-0 before:w-[3px] before:rounded-full before:bg-warning"
+          : "text-sidebar-foreground/60 hover:bg-sidebar-accent hover:text-white",
+      )}
+    >
+      <Icone className="size-5 shrink-0" />
       {!!item.contagem && (
-        <span title="Esperando aprovação" className="num ml-auto rounded-md bg-warning px-1.5 text-[11px] font-semibold text-warning-foreground">
-          {item.contagem}
-        </span>
+        <span
+          aria-hidden="true"
+          className={cn(
+            "absolute top-1.5 right-1.5 size-2 rounded-full ring-2 ring-sidebar",
+            item.contagemTom === "info" ? "bg-sidebar-ring" : "bg-warning",
+          )}
+        />
       )}
     </Link>
   );

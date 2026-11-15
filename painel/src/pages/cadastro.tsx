@@ -23,7 +23,7 @@ export function Cadastro() {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    document.title = "Cadastrar secretaria · GestorGov";
+    document.title = "Cadastrar secretaria · Gestor GOV";
   }, []);
 
   const senhaCurta = senha.length > 0 && senha.length < SENHA_MINIMA;

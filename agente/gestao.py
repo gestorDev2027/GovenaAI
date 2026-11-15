@@ -1002,6 +1002,16 @@ def ligar_agente_as_unidades(organizacao_id: str, agente_id: str) -> int:
                          .values(agente_id=agente_id)).rowcount
 
 
+def definir_agente_da_unidade(organizacao_id: str, unidade_id: str, agente_id: str, quem: str) -> None:
+    """O agente próprio da unidade (agentes_organizacao.agentes_das_unidades). Vai para a auditoria."""
+    t = _t("unidades")
+    with _estado["engine"].begin() as c:
+        antes = c.execute(select(t.c.agente_id).where(t.c.organizacao_id == organizacao_id, t.c.id == unidade_id)).scalar()
+        c.execute(update(t).where(t.c.organizacao_id == organizacao_id, t.c.id == unidade_id).values(agente_id=agente_id))
+        auditar(c, organizacao_id=organizacao_id, origem="sistema", quem=quem, acao="alterar", entidade="unidades",
+                entidade_id=unidade_id, antes={"agente_id": antes}, depois={"agente_id": agente_id})
+
+
 def unidade(organizacao_id: str, unidade_id: str) -> dict | None:
     t = _t("unidades")
     return _uma(select(t).where(t.c.organizacao_id == organizacao_id, t.c.id == unidade_id))

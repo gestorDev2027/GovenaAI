@@ -25,7 +25,7 @@ export function AceitarConvite() {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    document.title = "Convite · GestorGov";
+    document.title = "Convite · Gestor GOV";
   }, []);
   useEffect(() => {
     if (convite.data?.nome) setNome(convite.data.nome);
