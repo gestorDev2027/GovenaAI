@@ -80,7 +80,7 @@ def iniciar(engine: Engine, schema: str | None = None) -> None:
         Column("atualizado_em", DateTime(timezone=True), nullable=True),
         Column("atualizado_por", String(200), nullable=True),
     )
-    # Contas com e-mail e senha (cadastro pela landing page). O Google continua entrando sem conta aqui.
+    # Contas com e-mail e senha (cadastro pela tela de login). O Google continua entrando sem conta aqui.
     contas = Table(
         "painel_contas", tabela.metadata,
         Column("email", String(200), primary_key=True),

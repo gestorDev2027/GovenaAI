@@ -149,7 +149,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
   }
   const usuario = acesso.data?.usuario;
   // Decide já neste desenho (o efeito que marca "liberado" só roda depois): sem isso, quem está logado
-  // passaria um instante como "não entrou" e seria mandado para a landing page.
+  // passaria um instante como "não entrou" e seria mandado para o login.
   const logado = liberado || !acesso.data?.requer_chave || !!usuario || !!lerChave();
   // Dono ou membro de uma organização entra no painel dela, mesmo sem aprovação da plataforma.
   if (usuario && usuario.situacao !== "ativo" && acesso.data?.organizacao) return <>{children}</>;
@@ -178,8 +178,8 @@ export function AccessGate({ children }: { children: ReactNode }) {
       </Aviso>
     );
   if (logado) return <>{children}</>;
-  // Com cadastro e login por senha, quem não entrou vai para a landing page (Cadastrar ou Entrar).
-  if (acesso.data?.aceita_senha) return <Navigate to="/inicio" />;
+  // Com cadastro e login por senha, quem não entrou vai direto para o login (que leva ao cadastro).
+  if (acesso.data?.aceita_senha) return <Navigate to="/entrar" replace />;
 
   // Com aceita_chave false, o Google é o único caminho: nada de campo de chave.
   const aceitaChave = acesso.data?.aceita_chave !== false;

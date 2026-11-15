@@ -32,7 +32,7 @@ export function Entrar() {
   const clientId = acesso.data?.google_client_id;
 
   useEffect(() => {
-    document.title = "Entrar · GestorGov";
+    document.title = "Entrar · Gestor GOV";
   }, []);
 
   async function seguir() {
@@ -85,7 +85,7 @@ export function Entrar() {
 
   return (
     <>
-      <FormularioCentral titulo="Entrar no GestorGov" descricao="Use o e-mail e a senha da sua conta.">
+      <FormularioCentral titulo="Entrar no Gestor GOV" descricao="Use o e-mail e a senha da sua conta.">
         {acesso.data && !acesso.data.aceita_senha && (
           <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-sm text-warning-text">
             O login com senha não está ligado neste servidor (falta a OS_SECURITY_KEY).

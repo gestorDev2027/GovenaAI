@@ -17,10 +17,21 @@ from agno.agent import Agent
 from agno.db.base import SessionType
 from agno.media import Audio, File, Image
 from agno.run.agent import RunEvent, RunOutput
+from agno.run.base import RunStatus
 from agno.utils.log import log_warning
 
 from agente.ferramentas import STATUS_EM_ATENDIMENTO, STATUS_ENCERRADO, STATUS_TRANSFERIDO
 from agente import ao_vivo, base, conhecimento, equipes, guardrails, perfis
+
+
+def mensagem_de_falha(tecnico: str | None) -> str:
+    """O que a pessoa lê quando o modelo falha. O erro técnico (em inglês, às vezes com detalhes do provedor) fica
+    só no log; na tela, o motivo em português e o que fazer."""
+    texto = (tecnico or "").lower()
+    if "api key" in texto or "api_key" in texto:
+        return ("Não consegui responder: a inteligência artificial ainda não está configurada neste servidor "
+                "(falta a chave do Gemini). Avise quem administra o GestorGov.")
+    return "Não consegui responder agora. Tente de novo em instantes; se continuar, avise quem administra o GestorGov."
 
 
 def _estado(agente: Agent, session_id: str) -> dict:
@@ -117,6 +128,12 @@ def rodar(
             user_id=user_id,
             session_state=session_state,
         )
+    # Falha do modelo (sem chave, cota, fora do ar): o Agno devolve o erro técnico como se fosse a resposta.
+    # O guardrail também volta como erro, mas tem a resposta própria (abaixo).
+    if getattr(saida, "status", None) == RunStatus.error and saida.content != guardrails.BLOQUEIO_MANIPULACAO:
+        log_warning(f"O modelo falhou na sessão {session_id}: {saida.content}")
+        saida.content = mensagem_de_falha(saida.content if isinstance(saida.content, str) else None)
+        return saida, (ctx if por_agente is None else None)
     if por_agente is not None:
         saida = equipes._RespostaDaEquipe(saida, equipes.resposta_do_membro(saida), equipes.padrao(agente))
         ctx = por_agente.get(saida.agent_id)
