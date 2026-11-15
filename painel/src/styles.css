@@ -65,6 +65,12 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
 
+  /* O "palco": o fundo das telas de cena (Central ao vivo, Unidade, Mapa, Telão) e as barras que flutuam sobre ele. */
+  --color-palco: var(--palco);
+  --color-palco-foreground: var(--palco-foreground);
+  --color-palco-barra: var(--palco-barra);
+  --color-palco-borda: var(--palco-borda);
+
   /* Sombras tingidas pela cor do texto. */
   --shadow-xs: 0 1px 2px color-mix(in oklab, var(--foreground) 5%, transparent);
   --shadow-sm: 0 1px 3px color-mix(in oklab, var(--foreground) 6%, transparent),
@@ -144,6 +150,10 @@
   --sidebar-accent-foreground: #FFFFFF;
   --sidebar-border: #22365F;
   --sidebar-ring: #52A2FF;
+  --palco: #DCE5F2;
+  --palco-foreground: #0D1B38;
+  --palco-barra: rgb(255 255 255 / 0.88);
+  --palco-borda: rgb(13 27 56 / 0.12);
 }
 
 /* ---------------- ESCURO (o padrão desde 12/11/2026) ----------------
@@ -192,6 +202,10 @@
   --sidebar-accent-foreground: #EEF3FB;
   --sidebar-border: #14223F;
   --sidebar-ring: #52A2FF;
+  --palco: #0D1B38;
+  --palco-foreground: #FFFFFF;
+  --palco-barra: rgb(13 27 56 / 0.85);
+  --palco-borda: rgb(255 255 255 / 0.1);
 }
 
 @layer base {

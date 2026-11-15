@@ -30,7 +30,7 @@ export function ColaborarNaImplantacao() {
   const [enviando, setEnviando] = useState(false);
 
   useEffect(() => {
-    document.title = "Implantação compartilhada · GestorGov";
+    document.title = "Implantação compartilhada · Gestor GOV";
   }, []);
 
   async function entrar(e: FormEvent) {

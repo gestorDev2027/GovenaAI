@@ -8,6 +8,7 @@ import {
   createRoute,
   createRouter,
   lazyRouteComponent,
+  redirect,
 } from "@tanstack/react-router";
 import { Toaster } from "sonner";
 import "./styles.css";
@@ -23,7 +24,6 @@ const Fabrica = lazyRouteComponent(() => import("@/pages/fabrica"), "Fabrica");
 const Usuarios = lazyRouteComponent(() => import("@/pages/usuarios"), "Usuarios");
 const Observabilidade = lazyRouteComponent(() => import("@/pages/observabilidade"), "Observabilidade");
 const Cidade = lazyRouteComponent(() => import("@/pages/cidade"), "Cidade");
-const Inicio = lazyRouteComponent(() => import("@/pages/inicio"), "Inicio");
 const Entrar = lazyRouteComponent(() => import("@/pages/entrar"), "Entrar");
 const Cadastro = lazyRouteComponent(() => import("@/pages/cadastro"), "Cadastro");
 const PaginaImplantacao = lazyRouteComponent(() => import("@/pages/implantacao"), "PaginaImplantacao");
@@ -46,6 +46,7 @@ const Editais = lazyRouteComponent(() => import("@/pages/modulos"), "Editais");
 const Producao = lazyRouteComponent(() => import("@/pages/modulos"), "Producao");
 const Analises = lazyRouteComponent(() => import("@/pages/modulos"), "Analises");
 const Auditoria = lazyRouteComponent(() => import("@/pages/modulos"), "Auditoria");
+const Ouvidoria = lazyRouteComponent(() => import("@/pages/modulos"), "Ouvidoria");
 
 const raiz = createRootRoute({ component: Outlet });
 
@@ -78,6 +79,7 @@ const rotas = [
   createRoute({ getParentRoute: () => painel, path: "/editais", component: Editais, loader: () => Editais.preload?.() }),
   createRoute({ getParentRoute: () => painel, path: "/producao", component: Producao, loader: () => Producao.preload?.() }),
   createRoute({ getParentRoute: () => painel, path: "/analises", component: Analises, loader: () => Analises.preload?.() }),
+  createRoute({ getParentRoute: () => painel, path: "/ouvidoria", component: Ouvidoria, loader: () => Ouvidoria.preload?.() }),
   createRoute({
     getParentRoute: () => painel,
     path: "/auditoria",
@@ -152,8 +154,16 @@ const router = createRouter({
       // Uma unidade de saúde em 3D: o prédio com as salas do tipo e o agente da unidade na gerência.
       createRoute({ getParentRoute: () => protegido, path: "/unidade/$id", component: Unidade3D }),
     ]),
-    // Páginas públicas: a landing page, entrar e cadastrar. A implantação exige conta (a própria página confere).
-    createRoute({ getParentRoute: () => raiz, path: "/inicio", component: Inicio }),
+    // Páginas públicas: entrar e cadastrar (o sistema não tem landing page: a apresentação comercial fica fora dele).
+    // A implantação exige conta (a própria página confere). O endereço da landing antiga leva ao painel, que manda
+    // ao login quem não entrou.
+    createRoute({
+      getParentRoute: () => raiz,
+      path: "/inicio",
+      beforeLoad: () => {
+        throw redirect({ to: "/", replace: true });
+      },
+    }),
     createRoute({ getParentRoute: () => raiz, path: "/entrar", component: Entrar }),
     createRoute({ getParentRoute: () => raiz, path: "/cadastro", component: Cadastro }),
     createRoute({ getParentRoute: () => raiz, path: "/implantacao", component: PaginaImplantacao }),

@@ -29,3 +29,14 @@ export function useTheme() {
   const toggle = useCallback(() => setTheme((t) => (t === "dark" ? "light" : "dark")), []);
   return { theme, setTheme, toggle };
 }
+
+/** Se o tema escuro está ligado agora (acompanha a troca de tema em qualquer tela). */
+export function useEscuro() {
+  const [escuro, setEscuro] = useState(() => typeof document !== "undefined" && document.documentElement.classList.contains("dark"));
+  useEffect(() => {
+    const observador = new MutationObserver(() => setEscuro(document.documentElement.classList.contains("dark")));
+    observador.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
+    return () => observador.disconnect();
+  }, []);
+  return escuro;
+}

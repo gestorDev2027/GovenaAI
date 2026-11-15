@@ -192,7 +192,7 @@ export function Equipe() {
           {alterar.isError && <p className="text-sm text-destructive">{(alterar.error as Error).message}</p>}
 
           {(esperando.length > 0 || Object.keys(aprovados).length > 0) && (
-            <section className="surface-card border-l-4 border-l-[#F4B800] p-4">
+            <section className="surface-card border-l-4 border-l-warning p-4">
               <h2 className="mb-1 flex items-center gap-2 text-sm font-semibold">
                 <UserCheck className="size-4 text-primary-text" /> Acessos para aprovar
               </h2>

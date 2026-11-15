@@ -6,8 +6,7 @@ import { api, type RespostaPanorama } from "@/lib/api";
 import { useAcesso, useRotulos } from "@/hooks/use-permissoes";
 import { useAgentes } from "@/hooks/use-agentes";
 import { useCentralAoVivo } from "@/hooks/use-central-ao-vivo";
-import { cn } from "@/lib/utils";
-import { SimboloGestorGov } from "@/components/layout/logo";
+import { BarraPalco, BotaoPalco, DivisorPalco, LinkPalco } from "@/components/palco/barra-palco";
 import { Slideover } from "@/components/comando/slideover";
 import { FichaUnidade, type TipoUnidadeSaude, type UnidadeSaude } from "@/components/unidades/ficha-unidade";
 import type { ApiCamera } from "@/components/central/escritorio";
@@ -120,7 +119,7 @@ export function Unidade3D() {
   const agente = agentes.find((a) => a.id === unidade?.agente_id);
 
   useEffect(() => {
-    document.title = nome ? `${nome} · GestorGov` : "Unidade · GestorGov";
+    document.title = nome ? `${nome} · Gestor GOV` : "Unidade · Gestor GOV";
   }, [nome]);
   useEffect(() => setSelecao(null), [id]);
 
@@ -140,11 +139,11 @@ export function Unidade3D() {
   const salaEscolhida = selecao?.tipo === "area" ? salasDaUnidade(unidade?.tipo_id ?? null).find((s) => s.id === selecao.id) : undefined;
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#0D1B38] text-white">
+    <div className="fixed inset-0 overflow-hidden bg-palco text-palco-foreground">
       {unidade ? (
         <Suspense
           fallback={
-            <div className="grid h-full place-items-center text-white/70">
+            <div className="grid h-full place-items-center text-palco-foreground/70">
               <Loader2 className="size-5 animate-spin" />
             </div>
           }
@@ -170,54 +169,50 @@ export function Unidade3D() {
           />
         </Suspense>
       ) : (
-        <div className="grid h-full place-items-center text-sm text-white/70">
+        <div className="grid h-full place-items-center text-sm text-palco-foreground/70">
           {panorama.isLoading ? <Loader2 className="size-5 animate-spin" /> : `Unidade não encontrada nesta ${r.organizacao_curta}.`}
         </div>
       )}
 
-      <nav
-        aria-label={r.Unidade}
-        className="absolute top-4 left-1/2 z-[100] flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-[#0D1B38]/85 p-1.5 pl-3 shadow-[0_18px_50px_-15px_rgba(0,0,0,0.6)] backdrop-blur-md"
+      <BarraPalco
+        rotulo={r.Unidade}
+        inicio={
+          <>
+            <label className="sr-only" htmlFor="escolher-unidade">
+              Unidade
+            </label>
+            <select
+              id="escolher-unidade"
+              value={id}
+              onChange={(e) => navegar({ to: "/unidade/$id", params: { id: e.target.value } })}
+              className="h-9 max-w-[16rem] truncate rounded-full border-0 bg-palco-foreground/10 px-3 text-sm font-semibold text-palco-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring sm:max-w-[22rem]"
+            >
+              {unidades.map((u) => (
+                <option key={u.id} value={u.id} className="bg-popover text-popover-foreground">
+                  {u.nome_fantasia || u.nome}
+                </option>
+              ))}
+            </select>
+          </>
+        }
       >
-        <Link to="/" aria-label="Voltar ao painel" className="flex items-center rounded-full pr-1 outline-none focus-visible:ring-2 focus-visible:ring-white">
-          <SimboloGestorGov sobreEscuro className="size-7" />
-        </Link>
-        <label className="sr-only" htmlFor="escolher-unidade">
-          Unidade
-        </label>
-        <select
-          id="escolher-unidade"
-          value={id}
-          onChange={(e) => navegar({ to: "/unidade/$id", params: { id: e.target.value } })}
-          className="h-9 max-w-[16rem] truncate rounded-full border-0 bg-white/10 px-3 text-sm font-semibold text-white outline-none focus-visible:ring-2 focus-visible:ring-white sm:max-w-[22rem]"
-        >
-          {unidades.map((u) => (
-            <option key={u.id} value={u.id} className="text-[#0D1B38]">
-              {u.nome_fantasia || u.nome}
-            </option>
-          ))}
-        </select>
-        <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
-        <Botao rotulo={aberto ? "Fechar o prédio (vista de fora)" : "Abrir o prédio"} ativo={aberto} onClick={() => setAberto((a) => !a)}>
+        <BotaoPalco rotulo={aberto ? "Fechar o prédio (vista de fora)" : "Abrir o prédio"} ativo={aberto} onClick={() => setAberto((a) => !a)}>
           {aberto ? <Building className="size-4" /> : <Building2 className="size-4" />}
-        </Botao>
-        <Botao rotulo="Aproximar" onClick={() => camera.current?.aproximar(0.8)}>
+        </BotaoPalco>
+        <BotaoPalco rotulo="Aproximar" onClick={() => camera.current?.aproximar(0.8)}>
           <Plus className="size-4" />
-        </Botao>
-        <Botao rotulo="Afastar" onClick={() => camera.current?.aproximar(1.25)}>
+        </BotaoPalco>
+        <BotaoPalco rotulo="Afastar" onClick={() => camera.current?.aproximar(1.25)}>
           <Minus className="size-4" />
-        </Botao>
-        <Botao rotulo="Ver tudo" onClick={() => camera.current?.centralizar()}>
+        </BotaoPalco>
+        <BotaoPalco rotulo="Ver tudo" onClick={() => camera.current?.centralizar()}>
           <Maximize2 className="size-4" />
-        </Botao>
-        <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
-        <Link
-          to="/comando"
-          className="flex h-9 items-center gap-2 rounded-full bg-white/10 px-3 text-xs text-white/85 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
-        >
+        </BotaoPalco>
+        <DivisorPalco />
+        <LinkPalco to="/comando">
           <MapPin className="size-3.5" /> {r.mapa}
-        </Link>
-      </nav>
+        </LinkPalco>
+      </BarraPalco>
 
       {/* Recepção: a ficha da unidade (dados, conferência, fotos) */}
       {unidade && selecao?.tipo === "cco" && (
@@ -261,23 +256,5 @@ export function Unidade3D() {
         </Slideover>
       )}
     </div>
-  );
-}
-
-function Botao({ rotulo, ativo, onClick, children }: { rotulo: string; ativo?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={rotulo}
-      title={rotulo}
-      aria-pressed={ativo}
-      className={cn(
-        "grid size-9 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white",
-        ativo ? "bg-[#1A63D8] text-white" : "text-white/80 hover:bg-white/10",
-      )}
-    >
-      {children}
-    </button>
   );
 }

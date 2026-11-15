@@ -668,9 +668,10 @@ def _inserir(agente_id: str, config: dict, texto: str, observacao: str, autor: s
         return _recompor(agente_id)
 
 
-def duplicar(origem_id: str, agente_id: str, dados: dict, autor: str) -> Perfil:
+def duplicar(origem_id: str, agente_id: str, dados: dict, autor: str, instrucoes: str | None = None) -> Perfil:
     """Um agente do painel, em rascunho, copiado de outro (do código ou do painel): a configuração, as instruções
-    vigentes e o roteiro da base vigente. `dados` traz o que muda na cópia (nome, descrição, cor). Os documentos
+    vigentes e o roteiro da base vigente. `dados` traz o que muda na cópia (nome, descrição, cor); `instrucoes`, se
+    vier, substitui as instruções do original (ex.: o agente de uma unidade, com a unidade dele no começo). Os documentos
     a rota copia à parte (conhecimento.copiar_documentos); os exemplos da Calibração não vêm, cada agente forma os
     seus. A cópia se edita e se exclui como qualquer agente do painel; o original não muda."""
     agente_id = (agente_id or "").strip()
@@ -680,7 +681,7 @@ def duplicar(origem_id: str, agente_id: str, dados: dict, autor: str) -> Perfil:
         raise ErroFabrica(404, f"Agente desconhecido: {origem_id}.")
     original = obter(origem_id)
     config = _validar({**original, **{campo: valor for campo, valor in dados.items() if valor not in (None, "")}})
-    texto = _validar_instrucoes(perfis.PERFIS[origem_id].modelo_instrucoes)
+    texto = _validar_instrucoes(instrucoes or perfis.PERFIS[origem_id].modelo_instrucoes)
     observacao = f"Duplicado de {original['nome']} ({origem_id}, instruções v{original['versao_instrucoes']})"
     perfil = _inserir(agente_id, config, texto, observacao, autor)
     base.obter(agente_id).salvar(base.obter(origem_id).texto(), f"Copiado de {original['nome']} ({origem_id})")

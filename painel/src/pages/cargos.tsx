@@ -240,7 +240,7 @@ function DetalheDoCargo({
                 permissoes.includes(p.id) ? "border-primary/50 bg-primary/5" : "border-border",
               )}
             >
-              <input type="checkbox" className="mt-0.5 size-4 accent-[#1A63D8]" checked={permissoes.includes(p.id)} onChange={() => alternar(p.id)} />
+              <input type="checkbox" className="mt-0.5 size-4 accent-primary" checked={permissoes.includes(p.id)} onChange={() => alternar(p.id)} />
               <span>
                 <span className="block font-medium">{p.rotulo}</span>
                 <span className="block text-xs text-muted-foreground">{p.descricao}</span>

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
@@ -15,7 +15,7 @@ import {
 import { api, type RespostaPanorama, type Rotulos } from "@/lib/api";
 import { useAcesso, useRotulos } from "@/hooks/use-permissoes";
 import { cn } from "@/lib/utils";
-import { SimboloGestorGov } from "@/components/layout/logo";
+import { BarraPalco, BotaoPalco, DivisorPalco, LinkPalco } from "@/components/palco/barra-palco";
 import { MapaCidade, type UnidadeNoMapa } from "@/components/mapa/mapa-cidade";
 import { Janela, type Geometria } from "@/components/comando/janela";
 import { Slideover } from "@/components/comando/slideover";
@@ -166,7 +166,7 @@ export function CentralDeComando() {
   const centro = org?.latitude != null && org?.longitude != null ? ([Number(org.latitude), Number(org.longitude)] as [number, number]) : null;
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#0D1B38] text-foreground">
+    <div className="fixed inset-0 overflow-hidden bg-palco text-foreground">
       {/* Base: o mapa da cidade */}
       {token ? (
         <MapaCidade
@@ -180,65 +180,52 @@ export function CentralDeComando() {
           className="absolute inset-0 h-full w-full"
         />
       ) : (
-        <div className="absolute inset-0 grid place-items-center text-sm text-white/70">
+        <div className="absolute inset-0 grid place-items-center text-sm text-palco-foreground/70">
           Defina o MAPBOX_TOKEN no servidor para ver o mapa.
         </div>
       )}
 
       {!foco && (
         <>
-          {/* Barra flutuante */}
-          <nav
-            aria-label={r.mapa}
-            className="absolute top-4 left-1/2 z-[100] flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-[#0D1B38]/85 p-1.5 pl-3 text-white shadow-[0_18px_50px_-15px_rgba(0,0,0,0.6)] backdrop-blur-md"
-          >
-            <Link to="/" aria-label="Voltar ao painel" className="flex items-center gap-2 rounded-full pr-2 outline-none focus-visible:ring-2 focus-visible:ring-white">
-              <SimboloGestorGov sobreEscuro className="size-7" />
-              <span className="hidden flex-col leading-tight sm:flex">
-                <span className="text-sm font-bold">{r.mapa}</span>
-                <span className="text-[10px] text-white/60">{local || "GestorGov"}</span>
-              </span>
-            </Link>
-            <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
+          <BarraPalco rotulo={r.mapa} titulo={r.mapa} subtitulo={local || "Gestor GOV"}>
             {(Object.keys(PAINEIS) as Painel[]).map((p) => {
               const { icone: Icone } = PAINEIS[p];
-              const titulo = tituloDo(p, r);
-              const aberto = abertos.includes(p);
-              const n = p === "alertas" ? alertas.length : 0;
               return (
-                <BotaoBarra key={p} rotulo={titulo} ativo={aberto} onClick={() => alternar(p)}>
+                <BotaoPalco
+                  key={p}
+                  rotulo={tituloDo(p, r)}
+                  ativo={abertos.includes(p)}
+                  onClick={() => alternar(p)}
+                  contagem={p === "alertas" ? alertas.length : 0}
+                >
                   <Icone className="size-4" />
-                  {n > 0 && <span className="absolute -top-0.5 -right-0.5 grid size-4 place-items-center rounded-full bg-[#F4B800] text-[9px] font-bold text-[#0D1B38]">{n}</span>}
-                </BotaoBarra>
+                </BotaoPalco>
               );
             })}
-            <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
-            <Link
-              to="/secretaria"
-              className="flex h-9 items-center gap-2 rounded-full bg-white/10 px-3 text-xs text-white/85 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
-            >
+            <DivisorPalco />
+            <LinkPalco to="/secretaria">
               <Building2 className="size-3.5" /> {r.predio}
-            </Link>
+            </LinkPalco>
             <button
               type="button"
               onClick={() => setPaleta(true)}
-              className="hidden h-9 items-center gap-2 rounded-full bg-white/10 px-3 text-xs text-white/80 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white md:flex"
+              className="hidden h-9 items-center gap-2 rounded-full bg-palco-foreground/10 px-3 text-xs text-palco-foreground/80 outline-none hover:bg-palco-foreground/15 focus-visible:ring-2 focus-visible:ring-ring md:flex"
             >
               <Search className="size-3.5" /> Comandos
-              <kbd className="flex items-center gap-0.5 rounded bg-white/10 px-1 text-[10px]">
+              <kbd className="flex items-center gap-0.5 rounded bg-palco-foreground/10 px-1 text-[10px]">
                 <Command className="size-2.5" />K
               </kbd>
             </button>
-            <BotaoBarra rotulo="Modo foco (F)" onClick={() => setFoco(true)}>
+            <BotaoPalco rotulo="Modo foco (F)" onClick={() => setFoco(true)}>
               <EyeOff className="size-4" />
-            </BotaoBarra>
-          </nav>
+            </BotaoPalco>
+          </BarraPalco>
 
           {/* Legenda dos tipos */}
-          <div className="absolute bottom-6 left-4 z-[90] hidden max-w-[60vw] flex-wrap gap-1.5 rounded-2xl bg-[#0D1B38]/80 p-2 text-[11px] text-white backdrop-blur-md md:flex">
+          <div className="absolute bottom-6 left-4 z-[90] hidden max-w-[60vw] flex-wrap gap-1.5 rounded-2xl border border-palco-borda bg-palco-barra p-2 text-[11px] text-palco-foreground backdrop-blur-md md:flex">
             {[...new Set(noMapa.map((u) => u.tipo))].map((t) => (
-              <span key={t} className="flex items-center gap-1.5 rounded-full bg-white/8 px-2 py-1">
-                <span className="size-2 rounded-full" style={{ background: tipos.get(t)?.cor ?? "#424E6B" }} />
+              <span key={t} className="flex items-center gap-1.5 rounded-full bg-palco-foreground/8 px-2 py-1">
+                <span className="size-2 rounded-full" style={{ background: tipos.get(t)?.cor ?? "var(--muted-foreground)" }} />
                 {tipos.get(t)?.nome ?? t}
               </span>
             ))}
@@ -285,7 +272,7 @@ export function CentralDeComando() {
         <button
           type="button"
           onClick={() => setFoco(false)}
-          className="absolute bottom-6 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#0D1B38]/70 px-4 py-2 text-xs text-white/85 backdrop-blur-md hover:bg-[#0D1B38]/90"
+          className="absolute bottom-6 left-1/2 z-[100] flex -translate-x-1/2 items-center gap-2 rounded-full border border-palco-borda bg-palco-barra px-4 py-2 text-xs text-palco-foreground/85 backdrop-blur-md hover:text-palco-foreground"
         >
           <Eye className="size-3.5" /> Sair do modo foco (F)
         </button>
@@ -309,24 +296,6 @@ export function CentralDeComando() {
       {/* abrir() fica disponível para os próximos painéis (fluxos, tarefas) abrirem uns aos outros */}
       <span hidden data-abrir={typeof abrir} />
     </div>
-  );
-}
-
-function BotaoBarra({ rotulo, ativo, onClick, children }: { rotulo: string; ativo?: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={rotulo}
-      aria-pressed={ativo}
-      title={rotulo}
-      className={cn(
-        "relative grid size-9 place-items-center rounded-full outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white",
-        ativo ? "bg-[#1A63D8] text-white" : "text-white/75 hover:bg-white/10 hover:text-white",
-      )}
-    >
-      {children}
-    </button>
   );
 }
 
