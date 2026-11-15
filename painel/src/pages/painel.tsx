@@ -1,29 +1,21 @@
 import { useMemo } from "react";
 import { Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import {
-  Bot,
-  Building2,
-  ChartColumnBig,
-  ClipboardCheck,
-  ExternalLink,
-  FilePen,
-  LayoutDashboard,
-  Landmark,
-  Library,
-  MonitorPlay,
-  Rocket,
-  Users,
-} from "lucide-react";
+import { ArrowRight, Bot, Building2, ClipboardCheck, Landmark, Radio, Rocket } from "lucide-react";
 import { api, type RespostaPanorama } from "@/lib/api";
 import { useAcesso, usePodeNaOrganizacao, useRotulos } from "@/hooks/use-permissoes";
-import { useContagemAprovacoes } from "@/hooks/use-tarefas";
+import { passoDa, useTarefasAbertas } from "@/hooks/use-tarefas";
+import { useAgentes } from "@/hooks/use-agentes";
+import { useCentralAoVivo } from "@/hooks/use-central-ao-vivo";
+import { fasesDaImplantacao } from "@/lib/rotulos";
+import { rotuloDoEvento } from "@/lib/eventos";
+import { fmtRelativo } from "@/lib/formato";
+import { Button } from "@/components/ui/button";
 import { BarraParticipacao, EmptyState, KpiCard, PageHeader, PageLoader, SeloComparacao } from "@/components/widgets/widgets";
 
 /*
- * O Painel (a tela inicial): os números que o cadastro já tem (setores, unidades, servidores, aprovações), a montagem
- * da secretaria em barras de participação e os atalhos para os módulos. Só dado real: os módulos novos (Telão,
- * Editais, Produção, Análises) aparecem como atalhos "em construção", sem números.
+ * O Painel (a tela inicial): o que pede a decisão de alguém, o que os agentes estão fazendo agora, as unidades e a
+ * montagem da secretaria. Só dado real: nada de número de exemplo e nenhum atalho para tela em construção.
  */
 
 interface TipoUnidade {
@@ -33,14 +25,9 @@ interface TipoUnidade {
   ordem: number | null;
 }
 
-type Unidade = { id: string; tipo_id?: string | null };
+type Unidade = { id: string; tipo_id?: string | null; confirmada?: boolean | null };
 
-const MODULOS = [
-  { to: "/telao", rotulo: "Telão", icone: MonitorPlay, texto: "Sala de situação ao vivo" },
-  { to: "/editais", rotulo: "Editais", icone: Library, texto: "Modelos da Lei 14.133" },
-  { to: "/producao", rotulo: "Produção", icone: FilePen, texto: "Processo em fases, com os agentes" },
-  { to: "/analises", rotulo: "Análises", icone: ChartColumnBig, texto: "Execução orçamentária" },
-] as const;
+const PASSO_ROTULO = { aceitar: "Aceitar ou recusar", acoes: "Aprovar ações", revisar: "Revisar a entrega" } as const;
 
 export function PainelGeral() {
   const acesso = useAcesso().data;
@@ -56,7 +43,10 @@ export function PainelGeral() {
     queryFn: () => api<{ tipos_unidade: TipoUnidade[] }>("/implantacao/catalogo"),
     staleTime: Infinity,
   });
-  const aprovacoes = useContagemAprovacoes(daOrganizacao && podeNaOrganizacao("ver_painel"));
+  const verTarefas = daOrganizacao && podeNaOrganizacao("ver_painel");
+  const abertas = useTarefasAbertas(verTarefas);
+  const agentes = useAgentes();
+  const aoVivo = useCentralAoVivo();
   const dados = panorama.data?.organizacao ? panorama.data : null;
   const org = dados?.organizacao;
   const r = useRotulos(dados?.segmento.rotulos);
@@ -69,17 +59,31 @@ export function PainelGeral() {
     return [...contagem].sort((a, b) => b[1] - a[1]);
   }, [unidades]);
 
+  const decisoes = (abertas.data?.tarefas ?? []).filter((t) => t.posso_decidir && passoDa(t));
   const comResponsavel = areas.filter((a) => a.responsavel).length;
   const comAtividades = areas.filter((a) => a.atividades.length > 0).length;
   const comAgente = areas.filter((a) => a.agentes.length > 0).length;
+  const aConferir = unidades.filter((u) => !u.confirmada).length;
   const local = org ? [org.cidade, org.uf].filter(Boolean).join("-") : "";
+  const nomeAgente = (id: string) => agentes.find((a) => a.id === id)?.nome ?? id;
+  const eventos = [...aoVivo.eventos].reverse().filter((e) => e.tipo && e.tipo !== "pensando").slice(0, 7);
+
+  // A implantação ainda aberta: em que etapa está e o que falta nela.
+  const fases = fasesDaImplantacao(r);
+  const fase = dados?.fase;
+  const emImplantacao = !!fase && fase !== "concluido";
+  const numeroDaFase = emImplantacao ? fases.findIndex(([id]) => id === fase) + 1 : 0;
+  const faltaNaFase = emImplantacao ? (dados?.pendencias?.[fase] ?? []) : [];
 
   return (
     <div className="space-y-5 px-4 pb-8 sm:px-8">
       <PageHeader
         title="Painel"
-        icon={LayoutDashboard}
-        description={org ? `${[org.sigla || org.nome, local].filter(Boolean).join(" · ")} · a visão geral da ${r.organizacao_curta}.` : "A visão geral da organização."}
+        description={
+          org
+            ? `${[org.sigla || org.nome, local].filter(Boolean).join(" · ")}: o que pede decisão, o que os agentes fazem agora e como está a ${r.organizacao_curta}.`
+            : "A visão geral da organização."
+        }
       />
 
       {panorama.isLoading && <PageLoader className="h-[50vh]" label="Abrindo o painel" />}
@@ -93,46 +97,143 @@ export function PainelGeral() {
         <div className="surface-card has-waves">
           <EmptyState icon={<Landmark className="size-5" />} title="Nenhuma organização implantada">
             <p>O Painel se monta com a implantação: a cidade, os setores, os responsáveis, os agentes e as unidades.</p>
-            <Link
-              to="/implantacao"
-              className="mt-4 inline-flex h-10 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground transition-[filter] outline-none hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <Rocket className="size-4" />
-              Começar a implantação
-            </Link>
+            <Button asChild className="mt-4">
+              <Link to="/implantacao">
+                <Rocket />
+                Começar a implantação
+              </Link>
+            </Button>
           </EmptyState>
         </div>
+      )}
+
+      {org && emImplantacao && (
+        <section aria-labelledby="implantacao" className="surface-card flex flex-wrap items-center gap-x-4 gap-y-3 p-4">
+          <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-lg bg-warning/16 text-warning-text">
+            <Rocket className="size-5" />
+          </span>
+          <div className="min-w-0 flex-[1_1_20rem]">
+            <h2 id="implantacao" className="text-sm font-semibold">
+              Implantação em andamento · etapa {numeroDaFase} de {fases.length}: {fases[numeroDaFase - 1]?.[1]}
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {faltaNaFase.length > 0 ? `Falta: ${faltaNaFase.slice(0, 3).join("; ")}${faltaNaFase.length > 3 ? "…" : "."}` : "Continue com o assistente para concluir."}
+            </p>
+          </div>
+          <Button asChild variant="accent">
+            <Link to="/implantacao">
+              Continuar a implantação
+              <ArrowRight />
+            </Link>
+          </Button>
+        </section>
       )}
 
       {org && (
         <>
           <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
             <KpiCard
-              label={r.Areas}
-              count={areas.length}
-              icon={<Landmark />}
-              comparacao={areas.length > 0 && <SeloComparacao>{comAgente} com agente</SeloComparacao>}
-            />
-            <KpiCard
-              label={r.Unidades}
-              count={unidades.length}
-              icon={<Building2 />}
-              accent="cyan"
-              detalhe={unidades.length === 0 ? "nenhuma cadastrada ainda" : `${porTipo.length} ${porTipo.length === 1 ? "tipo" : "tipos"}`}
-            />
-            <KpiCard label={`${r.Pessoas} cadastrados`} count={dados?.pessoas.length ?? 0} icon={<Users />} accent="green" />
-            <KpiCard
-              label="Esperando aprovação"
-              count={aprovacoes}
+              label="Esperando sua decisão"
+              count={verTarefas ? decisoes.length : null}
               icon={<ClipboardCheck />}
               accent="amber"
-              comparacao={aprovacoes > 0 && <SeloComparacao tom="ruim">pede ação</SeloComparacao>}
+              comparacao={decisoes.length > 0 && <SeloComparacao tom="ruim">pede ação</SeloComparacao>}
               detalhe={
                 <Link to="/aprovacoes" className="text-primary-text hover:underline">
                   Abrir aprovações
                 </Link>
               }
             />
+            <KpiCard
+              label="Agentes no ar"
+              count={agentes.length}
+              icon={<Bot />}
+              accent="green"
+              detalhe={`${comAgente} de ${areas.length} ${r.areas} com agente`}
+            />
+            <KpiCard
+              label={r.Unidades}
+              count={unidades.length}
+              icon={<Building2 />}
+              accent="cyan"
+              comparacao={aConferir > 0 && <SeloComparacao tom="ruim">{aConferir} a conferir</SeloComparacao>}
+              detalhe={unidades.length === 0 ? "nenhuma cadastrada ainda" : `${porTipo.length} ${porTipo.length === 1 ? "tipo" : "tipos"}`}
+            />
+            <KpiCard
+              label={r.Areas}
+              count={areas.length}
+              icon={<Landmark />}
+              detalhe={areas.length > 0 ? `${comResponsavel} com responsável` : `nenhum ${r.area} ainda`}
+            />
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-5">
+            <section className="surface-card flex flex-col gap-3 p-4 lg:col-span-3" aria-labelledby="decisoes">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 id="decisoes" className="text-sm font-semibold">
+                  Esperando decisão
+                </h2>
+                <Link to="/aprovacoes" className="text-2xs text-primary-text hover:underline">
+                  Ver todas
+                </Link>
+              </div>
+              {!verTarefas ? (
+                <p className="text-sm text-muted-foreground">Seu cargo não acompanha as aprovações.</p>
+              ) : decisoes.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nada esperando você agora. Quando um agente entregar algo, aparece aqui.</p>
+              ) : (
+                <ul className="divide-y divide-border">
+                  {decisoes.slice(0, 5).map((t) => {
+                    const passo = passoDa(t);
+                    return (
+                      <li key={t.id}>
+                        <Link
+                          to="/aprovacoes"
+                          className="flex items-center gap-3 rounded-md px-1 py-2.5 outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium">{t.titulo}</span>
+                            <span className="block truncate text-xs text-muted-foreground">
+                              {[t.area, t.agente, fmtRelativo(t.criada_em)].filter(Boolean).join(" · ")}
+                            </span>
+                          </span>
+                          {passo && (
+                            <span className="shrink-0 rounded-full bg-warning/16 px-2 py-0.5 text-2xs font-semibold text-warning-text">{PASSO_ROTULO[passo]}</span>
+                          )}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
+
+            <section className="surface-card flex flex-col gap-3 p-4 lg:col-span-2" aria-labelledby="ao-vivo">
+              <div className="flex items-baseline justify-between gap-3">
+                <h2 id="ao-vivo" className="flex items-center gap-2 text-sm font-semibold">
+                  <Radio aria-hidden="true" className="size-4 text-success" />
+                  Acontecimentos ao vivo
+                </h2>
+                <a href="/painel/secretaria" target="_blank" rel="noopener" className="text-2xs text-primary-text hover:underline">
+                  Abrir a Central
+                </a>
+              </div>
+              {eventos.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhum agente trabalhou desde que o servidor ligou. O que acontecer aparece aqui na hora.</p>
+              ) : (
+                <ol className="space-y-2.5">
+                  {eventos.map((e) => (
+                    <li key={e.id} className="flex gap-3 text-sm">
+                      <span className="num w-14 shrink-0 text-2xs text-muted-foreground">{fmtRelativo(e.quando)}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{rotuloDoEvento(e)}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{nomeAgente(e.agente)}</span>
+                      </span>
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </section>
           </div>
 
           <div className="grid gap-3 lg:grid-cols-5">
@@ -178,45 +279,6 @@ export function PainelGeral() {
               )}
             </section>
           </div>
-
-          <section aria-labelledby="modulos" className="space-y-2">
-            <h2 id="modulos" className="text-sm font-semibold">
-              Módulos
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-              {MODULOS.map(({ to, rotulo, icone: Icone, texto }) => (
-                <Link key={to} to={to} className="surface-card is-interactive group flex items-start gap-3 p-4 outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/12 text-primary-text">
-                    <Icone className="size-[18px]" />
-                  </span>
-                  <span className="flex min-w-0 flex-col gap-0.5">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm font-semibold">
-                      {rotulo}
-                      <span className="rounded bg-warning/16 px-1.5 text-2xs font-semibold whitespace-nowrap text-warning-text">em breve</span>
-                    </span>
-                    <span className="text-xs text-muted-foreground">{texto}</span>
-                  </span>
-                </Link>
-              ))}
-              <a
-                href="/painel/secretaria"
-                target="_blank"
-                rel="noopener"
-                className="surface-card is-interactive group flex items-start gap-3 p-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-lg bg-success/14 text-success">
-                  <Bot className="size-[18px]" />
-                </span>
-                <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    Central ao vivo
-                    <ExternalLink aria-hidden="true" className="size-3 opacity-60" />
-                  </span>
-                  <span className="text-xs text-muted-foreground">O prédio com os agentes trabalhando (outra aba)</span>
-                </span>
-              </a>
-            </div>
-          </section>
         </>
       )}
     </div>

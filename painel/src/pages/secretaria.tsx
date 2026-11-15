@@ -8,8 +8,8 @@ import { totemDe } from "@/lib/rotulos";
 import { useCentralAoVivo } from "@/hooks/use-central-ao-vivo";
 import { cn } from "@/lib/utils";
 import { fmtDataHora } from "@/lib/formato";
-import { ROTULO_FERRAMENTA } from "@/components/chat/anexos";
-import { SimboloGestorGov } from "@/components/layout/logo";
+import { rotuloDoEvento } from "@/lib/eventos";
+import { BarraPalco, BotaoPalco, DivisorPalco, LinkPalco } from "@/components/palco/barra-palco";
 import { Janela } from "@/components/comando/janela";
 import { Slideover } from "@/components/comando/slideover";
 import type { ApiCamera } from "@/components/central/escritorio";
@@ -70,11 +70,11 @@ export function Secretaria3D() {
   const painelAberto = !!selecao;
 
   return (
-    <div className="fixed inset-0 overflow-hidden bg-[#0D1B38] text-white">
+    <div className="fixed inset-0 overflow-hidden bg-palco text-palco-foreground">
       {areas.length > 0 ? (
         <Suspense
           fallback={
-            <div className="grid h-full place-items-center text-sm text-white/70">
+            <div className="grid h-full place-items-center text-sm text-palco-foreground/70">
               <Loader2 className="size-5 animate-spin" />
             </div>
           }
@@ -97,7 +97,7 @@ export function Secretaria3D() {
           />
         </Suspense>
       ) : (
-        <div className="grid h-full place-items-center text-sm text-white/70">
+        <div className="grid h-full place-items-center text-sm text-palco-foreground/70">
           {panorama.isLoading ? (
             <Loader2 className="size-5 animate-spin" />
           ) : (
@@ -112,51 +112,40 @@ export function Secretaria3D() {
         </div>
       )}
 
-      {/* Barra flutuante */}
-      <nav
-        aria-label={r.predio}
-        className="absolute top-4 left-1/2 z-[100] flex max-w-[calc(100vw-24px)] -translate-x-1/2 items-center gap-1 rounded-full border border-white/10 bg-[#0D1B38]/85 p-1.5 pl-3 shadow-[0_18px_50px_-15px_rgba(0,0,0,0.6)] backdrop-blur-md"
+      <BarraPalco
+        rotulo={r.predio}
+        titulo={r.predio}
+        subtitulo={org ? [org.sigla || org.nome, local].filter(Boolean).join(" · ") : "Gestor GOV"}
       >
-        <Link to="/" aria-label="Voltar ao painel" className="flex items-center gap-2 rounded-full pr-2 outline-none focus-visible:ring-2 focus-visible:ring-white">
-          <SimboloGestorGov sobreEscuro className="size-7" />
-          <span className="hidden flex-col leading-tight sm:flex">
-            <span className="text-sm font-bold">{r.predio}</span>
-            <span className="text-[10px] text-white/60">{org ? [org.sigla || org.nome, local].filter(Boolean).join(" · ") : "Gestor GOV"}</span>
-          </span>
-        </Link>
-        <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
-        <Botao rotulo={aberto ? "Fechar o prédio (vista de fora)" : "Abrir o prédio"} ativo={aberto} onClick={() => setAberto((a) => !a)}>
+        <BotaoPalco rotulo={aberto ? "Fechar o prédio (vista de fora)" : "Abrir o prédio"} ativo={aberto} onClick={() => setAberto((a) => !a)}>
           {aberto ? <Building className="size-4" /> : <Building2 className="size-4" />}
-        </Botao>
-        <Botao rotulo={r.Areas} ativo={areasAbertas} onClick={() => setAreasAbertas((s) => !s)}>
+        </BotaoPalco>
+        <BotaoPalco rotulo={r.Areas} ativo={areasAbertas} onClick={() => setAreasAbertas((s) => !s)}>
           <Users className="size-4" />
-        </Botao>
-        <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
-        <Botao rotulo="Aproximar" onClick={() => camera.current?.aproximar(0.8)}>
+        </BotaoPalco>
+        <DivisorPalco />
+        <BotaoPalco rotulo="Aproximar" onClick={() => camera.current?.aproximar(0.8)}>
           <Plus className="size-4" />
-        </Botao>
-        <Botao rotulo="Afastar" onClick={() => camera.current?.aproximar(1.25)}>
+        </BotaoPalco>
+        <BotaoPalco rotulo="Afastar" onClick={() => camera.current?.aproximar(1.25)}>
           <Minus className="size-4" />
-        </Botao>
-        <Botao rotulo="Ver tudo" onClick={() => camera.current?.centralizar()}>
+        </BotaoPalco>
+        <BotaoPalco rotulo="Ver tudo" onClick={() => camera.current?.centralizar()}>
           <Maximize2 className="size-4" />
-        </Botao>
-        <span className="mx-1 h-6 w-px bg-white/15" aria-hidden="true" />
-        <Link
-          to="/comando"
-          className="flex h-9 items-center gap-2 rounded-full bg-white/10 px-3 text-xs text-white/85 outline-none hover:bg-white/15 focus-visible:ring-2 focus-visible:ring-white"
-        >
+        </BotaoPalco>
+        <DivisorPalco />
+        <LinkPalco to="/comando">
           <MapPin className="size-3.5" /> {r.mapa}
-        </Link>
-      </nav>
+        </LinkPalco>
+      </BarraPalco>
 
       <span
         className={cn(
-          "absolute top-6 right-5 z-[90] hidden items-center gap-1.5 rounded-full bg-[#0D1B38]/70 px-3 py-1 text-[11px] backdrop-blur-md md:flex",
-          aoVivo.conectado ? "text-white/80" : "text-white/50",
+          "absolute top-6 right-5 z-[90] hidden items-center gap-1.5 rounded-full bg-palco-barra px-3 py-1 text-[11px] backdrop-blur-md md:flex",
+          aoVivo.conectado ? "text-palco-foreground/80" : "text-palco-foreground/50",
         )}
       >
-        <span className={cn("size-1.5 rounded-full", aoVivo.conectado ? "bg-[#22c55e]" : "bg-white/40")} />
+        <span className={cn("size-1.5 rounded-full", aoVivo.conectado ? "bg-success" : "bg-palco-foreground/40")} />
         {aoVivo.conectado ? "Ao vivo" : "Conectando"}
       </span>
 
@@ -219,36 +208,6 @@ export function Secretaria3D() {
   );
 }
 
-function Botao({ rotulo, ativo, onClick, children }: { rotulo: string; ativo?: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-label={rotulo}
-      title={rotulo}
-      aria-pressed={ativo}
-      className={cn(
-        "grid size-9 place-items-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white",
-        ativo ? "bg-[#1A63D8] text-white" : "text-white/80 hover:bg-white/10",
-      )}
-    >
-      {children}
-    </button>
-  );
-}
-
-const ROTULO_EVENTO: Record<EventoCentral["tipo"], string> = {
-  mensagem: "Recebeu uma mensagem",
-  pensando: "Pensando",
-  ferramenta: "Usou uma ferramenta",
-  respondeu: "Respondeu",
-  transferiu: "Passou para a equipe",
-  encerrou: "Encerrou a conversa",
-  guardrail: "Barrou um pedido fora das regras",
-  erro: "Erro",
-  boas_vindas: "Boas-vindas",
-};
-
 function ListaEventos({ eventos, agentes }: { eventos: EventoCentral[]; agentes?: AgentePainel[] }) {
   const recentes = [...eventos].reverse().slice(0, 30);
   if (!recentes.length) return <p className="text-sm text-muted-foreground">Nada por enquanto. O que acontecer a partir de agora aparece aqui.</p>;
@@ -257,7 +216,7 @@ function ListaEventos({ eventos, agentes }: { eventos: EventoCentral[]; agentes?
       {recentes.map((e) => (
         <li key={e.id} className="rounded-lg border border-border px-3 py-2 text-sm">
           <span className="font-medium">
-            {e.tipo === "ferramenta" && e.ferramenta ? ROTULO_FERRAMENTA[e.ferramenta] ?? e.ferramenta : ROTULO_EVENTO[e.tipo]}
+            {rotuloDoEvento(e)}
           </span>
           <span className="block text-xs text-muted-foreground">
             {agentes ? `${agentes.find((a) => a.id === e.agente)?.nome ?? e.agente} · ` : ""}

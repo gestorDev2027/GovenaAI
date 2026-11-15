@@ -107,7 +107,7 @@ export function Janela({
       aria-label={titulo}
       onPointerDown={frente}
       style={{ left: g.x, top: g.y, width: g.w, height: g.minimizada ? undefined : g.h, zIndex: z }}
-      className="fixed flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-card/95 text-card-foreground shadow-[0_24px_60px_-20px_rgba(13,27,56,0.55)] backdrop-blur-md"
+      className="fixed flex flex-col overflow-hidden rounded-2xl border border-border bg-card/95 text-card-foreground shadow-xl backdrop-blur-md"
     >
       <header
         tabIndex={0}

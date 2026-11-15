@@ -219,7 +219,7 @@ export function FichaUnidade({
         href={`/painel/unidade/${encodeURIComponent(unidade.id)}`}
         target="_blank"
         rel="noreferrer"
-        className="flex items-center justify-center gap-2 rounded-xl bg-[#0D1B38] px-3 py-2.5 text-sm font-medium text-white hover:bg-[#0D1B38]/90"
+        className="flex items-center justify-center gap-2 rounded-xl bg-accent px-3 py-2.5 text-sm font-medium text-accent-foreground hover:brightness-110"
       >
         <Box className="size-4" /> Ver a unidade em 3D
       </a>

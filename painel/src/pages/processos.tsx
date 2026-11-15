@@ -154,7 +154,7 @@ export function Processos() {
         </div>
 
         {podeRodar && conversaAberta && (
-          <div aria-hidden="true" className="fixed inset-0 z-40 bg-[#0D1B38]/40 lg:hidden" onClick={() => setConversaAberta(false)} />
+          <div aria-hidden="true" className="fixed inset-0 z-40 bg-background/50 backdrop-blur-[4px] lg:hidden" onClick={() => setConversaAberta(false)} />
         )}
         {podeRodar && (
           // Um elemento só: gaveta (fixa) em tela estreita e coluna fixa ao rolar em tela larga. Fechado, fica escondido
@@ -162,8 +162,8 @@ export function Processos() {
           <aside
             id="conversa-processos"
             className={cn(
-              "max-lg:fixed max-lg:inset-y-3 max-lg:right-3 max-lg:z-50 max-lg:w-[min(380px,calc(100vw-24px))] max-lg:rounded-xl max-lg:shadow-[0_30px_80px_-20px_rgba(13,27,56,0.6)]",
-              "lg:sticky lg:top-[5.25rem] lg:h-[calc(100svh-11rem)] lg:min-h-[28rem] lg:w-[380px] lg:shrink-0",
+              "max-lg:fixed max-lg:inset-y-3 max-lg:right-3 max-lg:z-50 max-lg:w-[min(380px,calc(100vw-24px))] max-lg:rounded-xl max-lg:shadow-xl",
+              "lg:sticky lg:top-4 lg:h-[calc(100svh-6rem)] lg:min-h-[28rem] lg:w-[380px] lg:shrink-0",
               !conversaAberta && "hidden",
             )}
           >

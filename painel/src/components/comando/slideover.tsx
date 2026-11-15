@@ -32,7 +32,7 @@ export function Slideover({
       tabIndex={-1}
       role="dialog"
       aria-label={titulo}
-      className="fixed top-3 right-3 bottom-3 z-[200] flex w-[min(440px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-white/10 bg-card text-card-foreground shadow-[0_30px_80px_-20px_rgba(13,27,56,0.6)] outline-none animate-in slide-in-from-right-8 fade-in-0"
+      className="fixed top-3 right-3 bottom-3 z-[200] flex w-[min(440px,calc(100vw-24px))] flex-col overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-xl outline-none animate-in slide-in-from-right-8 fade-in-0"
     >
       <header className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
         <div className="min-w-0">

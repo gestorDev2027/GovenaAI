@@ -156,7 +156,7 @@ export function ChatProcessos({ aoFechar }: { aoFechar: () => void }) {
             </ul>
           </div>
         )}
-        <div className="rounded-2xl border border-border bg-background shadow-sm transition-shadow focus-within:border-primary/50 focus-within:shadow-[0_0_0_3px_rgba(26,99,216,0.12)]">
+        <div className="rounded-2xl border border-border bg-background shadow-sm transition-shadow focus-within:border-primary/50 focus-within:ring-3 focus-within:ring-primary/12">
           <label htmlFor="mensagem-processos" className="sr-only">
             Mensagem para o Assistente de Processos
           </label>
@@ -206,7 +206,7 @@ function RespostaDoAssistente({ m }: { m: Mensagem }) {
 function MensagemDaPessoa({ texto }: { texto: string }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[85%] rounded-2xl bg-[#E3ECFB] px-4 py-2 text-[15px] leading-relaxed whitespace-pre-wrap text-[#0D1B38] dark:bg-[#1A63D8]/25 dark:text-white">
+      <div className="max-w-[85%] rounded-2xl bg-primary/12 px-4 py-2 text-[15px] leading-relaxed whitespace-pre-wrap text-foreground dark:bg-primary/25">
         <span className="sr-only">Você: </span>
         {texto}
       </div>

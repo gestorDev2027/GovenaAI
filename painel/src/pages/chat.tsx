@@ -10,7 +10,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
-import { Link, useSearch } from "@tanstack/react-router";
+import { useSearch } from "@tanstack/react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -304,7 +304,7 @@ export function Etapas({ etapas, emAndamento }: { etapas: EtapaExibida[]; emAnda
                   ) : e.estado === "erro" ? (
                     <X className="size-3.5 shrink-0 text-destructive" />
                   ) : (
-                    <Check className="size-3.5 shrink-0 text-emerald-500" />
+                    <Check className="size-3.5 shrink-0 text-success" />
                   )}
                   <span className={cn("shrink-0", e.estado === "rodando" ? "text-foreground" : "text-foreground/80")}>{rotulo}</span>
                   {detalhe && <span className="min-w-0 truncate font-mono text-[11px] text-muted-foreground" title={detalhe}>{detalhe}</span>}
@@ -737,7 +737,7 @@ export function Chat() {
                         <span className="block truncate text-sm font-semibold">{a.nome}</span>
                         {a.cargo && <span className="block truncate font-mono text-[10px] uppercase opacity-80">{a.cargo}</span>}
                       </span>
-                      {ativo && <span className="size-2 shrink-0 rounded-full bg-emerald-500" />}
+                      {ativo && <span className="size-2 shrink-0 rounded-full bg-success" />}
                     </button>
                   );
                 })}
@@ -765,7 +765,7 @@ export function Chat() {
                         <span className="block truncate text-sm font-semibold">{e.nome}</span>
                         <span className="block truncate font-mono text-[10px] uppercase opacity-80">{e.membros.map((m) => nomeDoAgente(m)).join(" · ")}</span>
                       </span>
-                      {ativo && <span className="size-2 shrink-0 rounded-full bg-emerald-500" />}
+                      {ativo && <span className="size-2 shrink-0 rounded-full bg-success" />}
                     </button>
                   );
                 })}
@@ -790,7 +790,7 @@ export function Chat() {
                 </span>
               )}
             </span>
-            <span className="size-2 shrink-0 rounded-full bg-emerald-500" />
+            <span className="size-2 shrink-0 rounded-full bg-success" />
           </div>
         )}
         {config.data?.modelo && (
@@ -832,7 +832,7 @@ export function Chat() {
                   <span
                     className={cn(
                       "size-1.5 shrink-0 rounded-full",
-                      c.status === "em_atendimento" ? "bg-emerald-500" : c.status === "transferido" ? "bg-primary" : "bg-muted-foreground/50",
+                      c.status === "em_atendimento" ? "bg-success" : c.status === "transferido" ? "bg-primary" : "bg-muted-foreground/50",
                     )}
                   />
                   <span className="truncate">{c.nome || "Sem nome"}</span>
@@ -884,11 +884,6 @@ export function Chat() {
             <div className="text-muted-foreground">{transferencia.motivo}</div>
           </div>
         )}
-        {sessao && (
-          <Link to="/conversas" search={{ id: sessao }} className="font-mono text-[11px] text-primary uppercase hover:underline">
-            Abrir em Conversas
-          </Link>
-        )}
       </div>
 
       <div className="flex flex-col gap-2">
@@ -913,6 +908,7 @@ export function Chat() {
   return (
     <div className="flex min-h-0 flex-1 flex-col px-4 sm:px-8">
       <PageHeader
+        compacto
         title="Chat com os agentes"
         icon={Bot}
         description={`Converse com o agente de cada ${rotulos.area} (texto, documentos, planilhas e prints).`}

@@ -41,7 +41,7 @@ export function Paleta({ comandos, aoFechar }: { comandos: Comando[]; aoFechar: 
 
   let grupoAnterior = "";
   return (
-    <div className="fixed inset-0 z-[300] grid place-items-start justify-center bg-[#0D1B38]/40 pt-[12vh] backdrop-blur-[2px]" onPointerDown={aoFechar}>
+    <div className="fixed inset-0 z-[300] grid place-items-start justify-center bg-background/50 pt-[12vh] backdrop-blur-[2px]" onPointerDown={aoFechar}>
       <div
         role="dialog"
         aria-label="Paleta de comandos"

@@ -310,50 +310,68 @@ export function EmptyState({
  * para os cards não atravessarem o título. Ocupa a largura toda da página
  * (a página usa `px-4 sm:px-8`, e o cabeçalho anula esse recuo).
  */
+/**
+ * O título da tela, como na apresentação: título grande, a frase do que a tela faz e as ações à direita. A trilha
+ * ("Secretaria › Análises") fica só na barra do topo, para o título não aparecer duas vezes.
+ * `compacto`: uma faixa fina, para as telas que precisam da altura toda (o Chat).
+ */
 export function PageHeader({
   title,
   description,
   actions,
   icon: Icone,
   semAtualizar = false,
+  compacto = false,
 }: {
   title: string;
   description?: ReactNode;
   actions?: ReactNode;
   icon?: ComponentType<{ className?: string }>;
   semAtualizar?: boolean;
+  compacto?: boolean;
 }) {
   const qc = useQueryClient();
-  return (
-    <header className="sticky top-0 z-20 -mx-4 flex min-h-16 shrink-0 items-center border-b border-border/55 bg-background/90 px-4 py-2 backdrop-blur-xl sm:-mx-8 sm:px-8">
-      <div className="flex w-full min-w-0 flex-wrap items-center gap-x-6 gap-y-2">
+  const atualizar = !semAtualizar && (
+    <button
+      type="button"
+      aria-label="Atualizar dados"
+      title="Atualizar dados"
+      onClick={() => qc.invalidateQueries()}
+      className="grid size-9 shrink-0 place-items-center rounded-lg border border-border bg-card/60 text-muted-foreground transition-colors outline-none hover:border-primary/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <RefreshCw className="size-4" />
+    </button>
+  );
+  if (compacto) {
+    return (
+      <header className="flex min-h-14 shrink-0 flex-wrap items-center gap-x-6 gap-y-2 py-2">
         <div className="flex min-w-0 flex-[1_1_16rem] items-center gap-3">
           {Icone && (
-            <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary-text">
-              <Icone className="size-[18px]" />
+            <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary-text">
+              <Icone className="size-4" />
             </span>
           )}
-          <div className="flex min-w-0 flex-col gap-0.5">
-            <h1 className="line-clamp-2 text-lg leading-tight font-semibold tracking-tight sm:text-xl md:line-clamp-1">{title}</h1>
-            {description && (
-              <p className="line-clamp-2 text-xs leading-tight text-muted-foreground md:line-clamp-1">{description}</p>
-            )}
+          <div className="flex min-w-0 flex-col">
+            <h1 className="truncate text-base leading-tight font-semibold tracking-tight">{title}</h1>
+            {description && <p className="truncate text-xs text-muted-foreground">{description}</p>}
           </div>
         </div>
         <div className="flex max-w-full flex-wrap items-center gap-2">
           {actions}
-          {!semAtualizar && (
-            <button
-              type="button"
-              aria-label="Atualizar dados"
-              title="Atualizar dados"
-              onClick={() => qc.invalidateQueries()}
-              className="grid size-9 shrink-0 place-items-center rounded-xl border border-border/60 bg-card/40 text-muted-foreground transition-colors outline-none hover:border-primary/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <RefreshCw className="size-4" />
-            </button>
-          )}
+          {atualizar}
         </div>
+      </header>
+    );
+  }
+  return (
+    <header className="flex shrink-0 flex-wrap items-end gap-x-6 gap-y-3 pt-6 pb-1 sm:pt-8">
+      <div className="min-w-0 flex-[1_1_20rem]">
+        <h1 className="text-2xl leading-tight font-bold tracking-tight text-balance sm:text-[1.75rem]">{title}</h1>
+        {description && <p className="mt-1.5 max-w-3xl text-sm text-pretty text-muted-foreground">{description}</p>}
+      </div>
+      <div className="flex max-w-full flex-wrap items-center gap-2">
+        {actions}
+        {atualizar}
       </div>
     </header>
   );

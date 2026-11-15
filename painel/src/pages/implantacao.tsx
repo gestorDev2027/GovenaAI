@@ -173,7 +173,7 @@ export function PaginaImplantacao() {
   const local = org ? [org.cidade, org.uf].filter(Boolean).join("-") : "";
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-[#F6F7F9] text-foreground dark:bg-[#0A1328]">
+    <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
       <header className="flex h-12 shrink-0 items-center justify-between gap-3 px-4">
         <div className="flex min-w-0 items-center gap-3">
           <Link to="/" aria-label="GestorGov — painel" className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -243,7 +243,7 @@ export function PaginaImplantacao() {
                 </ul>
               </div>
             )}
-            <div className="rounded-2xl border border-border bg-card shadow-sm transition-shadow focus-within:border-primary/50 focus-within:shadow-[0_0_0_3px_rgba(26,99,216,0.12)]">
+            <div className="rounded-2xl border border-border bg-card shadow-sm transition-shadow focus-within:border-primary/50 focus-within:ring-3 focus-within:ring-primary/12">
               <label htmlFor="mensagem" className="sr-only">
                 Mensagem para o assistente
               </label>
@@ -302,7 +302,7 @@ function RespostaDoAssistente({ m }: { m: Mensagem }) {
 function MensagemDoServidor({ texto }: { texto: string }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[85%] rounded-2xl bg-[#E3ECFB] px-4 py-2 text-[15px] leading-relaxed text-[#0D1B38] dark:bg-[#1A63D8]/25 dark:text-white">
+      <div className="max-w-[85%] rounded-2xl bg-primary/12 px-4 py-2 text-[15px] leading-relaxed text-foreground dark:bg-primary/25">
         <span className="sr-only">Você: </span>
         {texto}
       </div>
@@ -550,7 +550,7 @@ function Vista({
 
   if (aba === "predio")
     return panorama.areas.length ? (
-      <div className="absolute inset-0 bg-[#0D1B38]">
+      <div className="absolute inset-0 bg-palco">
         <Suspense fallback={<div className="grid h-full place-items-center text-white/70"><Loader2 className="size-5 animate-spin" /></div>}>
           <Predio
             areas={panorama.areas}

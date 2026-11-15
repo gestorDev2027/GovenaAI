@@ -1,3 +1,4 @@
+import { useEscuro } from "@/hooks/use-theme";
 import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState, type MutableRefObject, type ReactNode } from "react";
 import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, RoundedBox } from "@react-three/drei";
@@ -238,15 +239,7 @@ function montarBaias(agentes: AgenteCentral[]): AgenteCentral[][] {
   return baias.length ? baias : [[]];
 }
 
-export function useEscuro() {
-  const [escuro, setEscuro] = useState(() => document.documentElement.classList.contains("dark"));
-  useEffect(() => {
-    const observador = new MutationObserver(() => setEscuro(document.documentElement.classList.contains("dark")));
-    observador.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-    return () => observador.disconnect();
-  }, []);
-  return escuro;
-}
+export { useEscuro };
 
 function cursor(valor: string) {
   document.body.style.cursor = valor;

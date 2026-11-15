@@ -104,9 +104,9 @@ interface Pedido extends Chamada {
 
 const ICONES: Record<Tipo, typeof Plug> = { postgres: Database, mysql: Database, http: Globe, mcp: ServerCog, memoria: Brain };
 const SITUACAO_CHAMADA: Record<Chamada["situacao"], [string, string]> = {
-  ok: ["Ok", "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300"],
-  erro: ["Erro", "bg-red-500/12 text-red-700 dark:text-red-300"],
-  recusada: ["Recusada", "bg-amber-500/15 text-amber-800 dark:text-amber-200"],
+  ok: ["Ok", "bg-success/12 text-success"],
+  erro: ["Erro", "bg-destructive/12 text-destructive"],
+  recusada: ["Recusada", "bg-warning/15 text-warning-text"],
   aguardando_aprovacao: ["Aguardando aprovação", "bg-primary/10 text-primary-text"],
   negada: ["Negada", "bg-secondary text-muted-foreground"],
 };
@@ -153,7 +153,7 @@ export function Integracoes() {
       {dados.data && (
         <>
           <div className="surface-card flex flex-wrap items-center gap-3 p-4 text-sm">
-            <span className={cn("grid size-9 place-items-center rounded-full", dados.data.toolbox.ligado ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-300" : "bg-secondary text-muted-foreground")}>
+            <span className={cn("grid size-9 place-items-center rounded-full", dados.data.toolbox.ligado ? "bg-success/12 text-success" : "bg-secondary text-muted-foreground")}>
               <ServerCog className="size-4" aria-hidden="true" />
             </span>
             <p className="min-w-0 flex-1">
@@ -233,7 +233,7 @@ function CartaoIntegracao({ integ, aoEditar, aoFerramenta }: { integ: Integracao
             <span>{integ.agentes.length ? `Liberada para ${integ.agentes.length} agente(s)` : "Nenhum agente liberado"}</span>
           </p>
           {integ.ultimo_teste_em && (
-            <p className={cn("mt-1 flex items-start gap-1 text-[11px]", integ.ultimo_teste_ok ? "text-emerald-700 dark:text-emerald-300" : "text-red-700 dark:text-red-300")}>
+            <p className={cn("mt-1 flex items-start gap-1 text-[11px]", integ.ultimo_teste_ok ? "text-success" : "text-destructive")}>
               {integ.ultimo_teste_ok ? <Check className="mt-px size-3 shrink-0" /> : <CircleAlert className="mt-px size-3 shrink-0" />}
               <span>
                 Teste de {fmtDataHora(integ.ultimo_teste_em)}: {integ.ultimo_teste_detalhe}
@@ -421,7 +421,7 @@ function FormIntegracao({ integ, catalogo, aoFechar }: { integ: Integracao | nul
         {tipo === "memoria" && (
           <>
             {catalogo.memoria && (
-              <p className="rounded-lg bg-amber-500/12 p-3 text-xs text-amber-900 dark:text-amber-100">{catalogo.memoria}</p>
+              <p className="rounded-lg bg-warning/12 p-3 text-xs text-warning-text">{catalogo.memoria}</p>
             )}
             <Campo rotulo="De quem é a memória" dica="Vetores no banco do GestorGov; modelo e embeddings no Gemini. Nunca guarda dado de paciente ou de cliente.">
               <select value={f.escopo} onChange={muda("escopo")} className={seletor}>
